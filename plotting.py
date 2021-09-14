@@ -1,13 +1,21 @@
 from math import sin, cos, atan2, pi, isnan
 from re import compile, UNICODE
 
-from pandas import Series
+from pandas import set_option
 
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 
 rcParams['font.family'] = 'sans-serif'
 rcParams['font.sans-serif'] = ['Segoe UI', 'Tahoma']
+
+class Printer:
+    def __init__(self, *options):
+        self.options = [*options]
+
+    def set_display_options():
+        for option in options:
+            set_option(options, None)
 
 class Texter:
     emoji_pattern = compile('['
@@ -24,11 +32,11 @@ class Texter:
                             u'\U000023E9-\U000023F3' # play, pause
                             ']+', flags=UNICODE)
 
-    def clean_text(text):
+    def clean_text(text:str) -> str:
         cleaned_text = Texter.emoji_pattern.sub(r'', text).strip()
         return cleaned_text
 
-    def get_display_name(name):
+    def get_display_name(name:str) -> str:
         if ' ' in name:
             display_name = name[:name.index(' ')]
         elif '.' in name:
@@ -57,12 +65,12 @@ class Plotter:
     figure_size = (16, 10)
     figure_title = 'MusicLeague'
 
-    def translate(x, y, theta, rotate, shift_distance=0):
+    def translate(x:float, y:float, theta:float, rotate:float, shift_distance:float=0):
         x_shifted = x + shift_distance*cos(theta + rotate*pi/2)
         y_shifted = y + shift_distance*sin(theta + rotate*pi/2)
         return x_shifted, y_shifted
 
-    def dfc_color(percent_blue):
+    def dfc_color(percent_blue:float):
         if isnan(percent_blue):
             rgb = tuple(g/Plotter.color_wheel for g in Plotter.dfc_grey)
         else:
@@ -75,6 +83,10 @@ class Plotter:
         self.league_titles = []
         self.players_list = []
         self.rankings_list = []
+
+    def add_anaylses(self, anaylses):
+        for analysis in analyses:
+            self.add_league(analysis['league_title'], analysis['players'], analysis['rankings'])
 
     def add_league(self, league_title, players, rankings):
         self.league_titles.append(league_title)

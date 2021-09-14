@@ -131,3 +131,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+/playpaws.db
+/.vs/ProjectSettings.json
+/.vs/PythonSettings.json
+/.vs/slnx.sqlite
+/.vs/VSWorkspaceState.json
+/.vs/playpaws/v17

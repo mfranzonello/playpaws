@@ -1,5 +1,6 @@
 from itertools import permutations, combinations, chain
 from math import pi, sin, cos
+from pandas.core.base import NoNewAttributesMixin
 
 from scipy.optimize import minimize
 from pandas import DataFrame, Series, concat
@@ -137,10 +138,10 @@ class Pulse:
                 self.df['win'] = self.df['battle'] > 0
 
 class Players:
-    #columns = ['player', 'x', 'y', '']
+    columns = ['player', 'x', 'y']
 
     def __init__(self, player_names):
-        self.df = DataFrame(columns=['player', 'x', 'y'])
+        self.df = DataFrame(columns=Players.columns)
         self.df['player'] = player_names
         self.player_combinations = list(combinations(self.df['player'], 2))
 
@@ -163,6 +164,9 @@ class Players:
         # return the names of all players
         return self.df['player'].to_list()
 
+    def get_members(self):
+        return self.df.reindex(Players.columns)
+
     def seed_xy(self, pulse):
         # place the first player at the origin
         # find the average distance between players as R
@@ -175,13 +179,17 @@ class Players:
         self.df['x'] = [0] + [R * cos(angle * i) for i in circle_players]
         self.df['y'] = [0] + [R * sin(angle * i) for i in circle_players]
 
-    def update_coordinates(self, pulse):
+    def update_coordinates(self, pulse, xy=None):
         # best fit player nodes
         distances = DataFrame(data=self.player_combinations, columns=['p1', 'p2'])
         distances['distance'] = distances.merge(pulse.df, on=['p1', 'p2'], how='left')['plot_distance']
         
         dists = distances['distance'].fillna(0)
         needed = distances['distance'].notna() # only include if pair voted together
+
+        # update from db if exists
+        if xy is not None:
+            self.df[['x', 'y']] = self.df.drop(columns=['x', 'y']).merge(xy, on='player')[['x', 'y']]
 
         if all(self.df[['x', 'y']].isna()):
             self.seed_xy(pulse)

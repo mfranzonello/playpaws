@@ -1,3 +1,4 @@
+from contextlib import AbstractAsyncContextManager
 from pandas import DataFrame
 
 from comparisons import Patterns
@@ -22,7 +23,7 @@ class Songs(Results):
     def __repr__(self):
         return f'SONGS\n{self.df}\n'
 
-    def sub_round(round_title, artists, titles, submitters, next_song_ids):
+    def sub_round(self, round_title, artists, titles, submitters, next_song_ids):
         songs_df = DataFrame(columns=Songs.columns)
         songs_df['song_id'] = next_song_ids
         songs_df['round'] = round_title
@@ -34,7 +35,7 @@ class Songs(Results):
         return songs_df
         
     def add_round(self, round_title, artists, titles, submitters, next_song_ids):
-        songs_df = Songs.sub_round(round_title, artists, titles, submitters, next_song_ids)
+        songs_df = self.sub_round(round_title, artists, titles, submitters, next_song_ids)
 
         self.df = self.df.append(songs_df, ignore_index=True)
         self.int_cols()
@@ -125,6 +126,10 @@ class Rounds(Results):
     def sort_titles(self, round_titles):
         self.df = self.df.set_index('round').reindex(round_titles).reset_index().reindex(columns=Rounds.columns)
 
+    def get_titles(self):
+        round_titles = self.df['round'].values
+        return round_titles
+
     ##def name_rounds(self, songs):
     ##    self.df['round'] = songs.df['round'].unique()
         
@@ -136,9 +141,25 @@ class Rounds(Results):
         self.df['player_count'] = votes.df.groupby('round')[['player']].nunique().reset_index()['player']
        
 class Leagues(Results):
-    def __init__(self, league_titles):
-        super().__init__(columns=['league'])
+    columns = ['league']
+    def __init__(self):
+        super().__init__(columns=Leagues.columns)
+
+    def add_league(self, league_titles):
         self.df['league'] = league_titles
 
     def get_leagues(self):
         return self.df
+
+    def get_league_titles(self):
+        return self.df['league'].values
+
+    def add_leagues_db(self, leagues_df):
+        self.df = leagues_df.reindex(columns=Leagues.columns)
+
+##class Members(Results):
+##    columns = ['player']
+##    def __init__(self):
+##        super().__init__(columns=Members.columns)
+
+##    def add_members(self, players)
