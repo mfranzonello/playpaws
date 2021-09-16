@@ -1,53 +1,71 @@
-from itertools import permutations, combinations, chain
+from itertools import permutations, combinations
 from math import pi, sin, cos
-from pandas.core.base import NoNewAttributesMixin
 
 from scipy.optimize import minimize
 from pandas import DataFrame, Series, concat
 
-class Patterns:
-    def get_patterns(songs, votes, player_names):
-        patterns = votes.df.pivot(index='song_id', columns='player', values='vote').reset_index() #dropna(subset=['player'])
-        columns = ['song_id', 'round', 'submitter']
-        patterns = songs.df[columns].merge(patterns, on='song_id', how='left').reindex(columns=columns + player_names)
+class Patternizer:
+    def __init__(self, songs, votes, player_names):
+        self.songs = songs
+        self.votes = votes
+        self.player_names = player_names
 
-        average_votes_group_sum = votes.df.groupby('song_id').sum().reset_index()
-        average_votes_group_count = votes.df.groupby('song_id').count().reset_index()
-        patterns['v_'] = average_votes_group_sum['vote'].div(average_votes_group_count['vote'])
+        self.patterns = None
+        self.did_count = None
 
-        average_votes_submitter_sum = votes.df.groupby(['round', 'player']).sum().reset_index()
-        average_votes_submitter_count = votes.df.groupby(['round', 'player']).count().reset_index()
-        average_votes_submitter = average_votes_submitter_sum.copy()
-        average_votes_submitter['vote'] = average_votes_submitter_sum['vote'].div(average_votes_submitter_count['vote'])
-        patterns['v^'] = songs.df.merge(average_votes_submitter, on='round')['vote']
-        return patterns
+    def get_patterns(self):
+        if self.patterns is None:
+            patterns = self.votes.df.pivot(index='song_id', columns='player', values='vote').reset_index() #dropna(subset=['player'])
+            columns = ['song_id', 'round', 'submitter']
+            patterns = self.songs.df[columns].merge(patterns, on='song_id', how='left').reindex(columns=columns + self.player_names)
 
-    def get_rounds_played(votes, player_names):
-        vote_rounds = (votes.df.groupby(['round','player']).count()['vote'] >= 1).reset_index()
-        rounds_played = vote_rounds.pivot(index='round', columns='player', values='vote').reset_index().reindex(columns=['round'] + player_names)
+            average_votes_group_sum = self.votes.df.groupby('song_id').sum().reset_index()
+            average_votes_group_count = self.votes.df.groupby('song_id').count().reset_index()
+            patterns['v_'] = average_votes_group_sum['vote'].div(average_votes_group_count['vote'])
+
+            average_votes_submitter_sum = self.votes.df.groupby(['round', 'player']).sum().reset_index()
+            average_votes_submitter_count = self.votes.df.groupby(['round', 'player']).count().reset_index()
+            average_votes_submitter = average_votes_submitter_sum.copy()
+            average_votes_submitter['vote'] = average_votes_submitter_sum['vote'].div(average_votes_submitter_count['vote'])
+            patterns['v^'] = self.songs.df.merge(average_votes_submitter, on='round')['vote']
+
+            self.patterns = patterns
+
+        return self.patterns
+
+    def get_rounds_played(self):
+        vote_rounds = (self.votes.df.groupby(['round','player']).count()['vote'] >= 1).reset_index()
+        print(f'player names: {self.player_names}')
+        rounds_played = vote_rounds.pivot(index='round', columns='player', values='vote').reset_index().reindex(columns=['round'] + self.player_names)
         return rounds_played
 
-    def get_counted(songs, votes, player_names, must_vote=False):
-        rounds_played = Patterns.get_rounds_played(votes, player_names)
+    def get_counted(self, must_vote=False):
+        if self.did_count is None:
+            rounds_played = self.get_rounds_played()
 
-        did_vote = songs.df[['song_id', 'round']].merge(rounds_played,
-                                                        on=['round']).reindex(columns=['song_id'] + player_names).set_index('song_id').fillna(False)
+            did_vote = self.songs.df[['song_id', 'round']].merge(rounds_played,
+                                                            on=['round']).reindex(columns=['song_id'] + self.player_names).set_index('song_id').fillna(False)
        
-        if must_vote:
-            did_submit = False
-        else:
-            did_submit = concat([songs.df['song_id'],
-                                 songs.df[['song_id', 'submitter']].pivot(columns='submitter')['song_id'].notna()],
-                                axis=1).reindex(columns=['song_id'] + player_names).set_index('song_id') # ensure all players
+            if must_vote:
+                did_submit = False
+            else:
+                did_submit = concat([self.songs.df['song_id'],
+                                     self.songs.df[['song_id', 'submitter']].pivot(columns='submitter')['song_id'].notna()],
+                                    axis=1).reindex(columns=['song_id'] + self.player_names).set_index('song_id') # ensure all players
 
-        did_count = (did_vote | did_submit).reset_index()
+            did_count = (did_vote | did_submit).reset_index()
 
-        return did_count
+            self.did_count = did_count
 
-    def get_distance(patterns, did_count, p1, p2=None):
+        return self.did_count
+
+    def get_distance(self, p1, p2=None):
+        patterns = self.get_patterns()
+        did_count = self.get_counted()
+
         if p2 is not None:
             counted = did_count[p1] & did_count[p2]
-            pattern1 = patterns[['v^', p2]].max(1).where(patterns['submitter'] == p1, patterns[p1]) #DataFrame([patterns['v^'], patterns[p2]])
+            pattern1 = patterns[['v^', p2]].max(1).where(patterns['submitter'] == p1, patterns[p1])
             pattern2 = patterns[['v^', p1]].max(1).where(patterns['submitter'] == p2, patterns[p2])
             
         else:
@@ -67,9 +85,9 @@ class Pulse:
     distance_threshold = 0.75
 
     def __init__(self, players):
-        self.player_names = players.get_players()
-        self.player_permutations = list(permutations(players.get_players(), 2))
-        self.player_combinations = list(combinations(players.get_players(), 2))
+        self.player_names = players.player_names
+        self.player_permutations = list(permutations(self.player_names, 2))
+        self.player_combinations = list(combinations(self.player_names, 2))
         self.df = DataFrame(data=self.player_permutations, columns=['p1', 'p2'])
 
     def __repr__(self):
@@ -96,13 +114,12 @@ class Pulse:
     # calculate similarity
     def calculate_similarity(self, songs, votes):
         print('\t...getting patterns')
-        patterns = Patterns.get_patterns(songs, votes, self.player_names)
-        did_count = Patterns.get_counted(songs, votes, self.player_names)
+        patternizer = songs.get_patternizer(songs, votes, player_names=self.player_names)
         
         print('\t...permutations')
         for p1, p2 in self.player_combinations:
             print(f'\t\t...{p1} vs {p2}')
-            distance = Patterns.get_distance(patterns, did_count, p1, p2)
+            distance = patternizer.get_distance(p1, p2)
             self.df.loc[[self.player_permutations.index((p1, p2)),
                          self.player_permutations.index((p2, p1))], 'distance'] = distance
 
@@ -127,7 +144,8 @@ class Pulse:
         self.df['plot_distance'] = self.df['distance'].where(voted | ~outliers).where(below_UB, UB)
 
     def calculate_wins(self, songs, votes):
-        did_count = Patterns.get_counted(songs, votes, self.player_names)
+        patternizer = songs.get_patternizer(songs, votes, player_names=self.player_names)
+        did_count = patternizer.get_counted()
         for p1, p2 in self.player_permutations:
             counted = did_count[p1] & did_count[p2]
 
@@ -138,12 +156,14 @@ class Pulse:
                 self.df['win'] = self.df['battle'] > 0
 
 class Players:
-    columns = ['player', 'x', 'y']
+    columns = ['player', 'x', 'y', 'wins', 'dfc']
 
     def __init__(self, player_names):
         self.df = DataFrame(columns=Players.columns)
         self.df['player'] = player_names
         self.player_combinations = list(combinations(self.df['player'], 2))
+
+        self.player_names = player_names
 
     def __repr__(self):
         printed = self.df.drop(columns=['x', 'y']).sort_values(['wins', 'dfc'], ascending=[False, True])
@@ -160,9 +180,10 @@ class Players:
             for i in range(len(c)))**0.5
         return difference
 
-    def get_players(self):
-        # return the names of all players
-        return self.df['player'].to_list()
+    ##def get_player_names(self):
+    ##    # return the names of all players
+    ##    #player_names = self.df['player'].to_list()
+    ##    return self.player_names
 
     def get_members(self):
         return self.df.reindex(Players.columns)
@@ -172,7 +193,7 @@ class Players:
         # find the average distance between players as R
         # place the other players at radius R angle pi / #
         # consider placing the most central player first
-        circle_players = range(len(self.get_players()) - 1)
+        circle_players = range(len(self.player_names) - 1)
         R = pulse.df['distance'].mean() if pulse.df['distance'].mean() > 0 else 1
 
         angle = 2*pi / len(circle_players)
@@ -210,9 +231,8 @@ class Players:
             self.df[like] = self.df.merge(most_like, left_on='player', right_on='p1', how='left')['p2']
 
     def get_dfc(self, songs, votes):
-        patterns = Patterns.get_patterns(songs, votes, self.get_players())
-        did_count = Patterns.get_counted(songs, votes, self.get_players())
-        self.df['dfc'] = self.df.apply(lambda x: Patterns.get_distance(patterns, did_count, x['player']), axis=1)
+        patternizer = songs.get_patternizer(votes, self.get_playe_names())
+        self.df['dfc'] = self.df.apply(lambda x: patternizer.get_distance(x['player']), axis=1)
 
     def battle(self, pulse):
         # update to look at PPR

@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame
 
 class Database:
-    keys = {'Leagues': ['leauge'],
+    keys = {'Leagues': ['league'],
             'Players': ['player'],
             'Members': ['league', 'player'],
             'Rounds': ['leauge', 'round'],
@@ -18,14 +18,14 @@ class Database:
             'Albums': ['uri'],
             }
 
-    cols = {'Leauges': ['url'],
-            'Rounds': ['status', 'url'],
+    cols = {'Leagues': ['url'], #'path'
+            'Rounds': ['status', 'date', 'url'], #'path'
             'Member': ['x', 'y'],
             'Songs': ['round', 'artist', 'title', 'submitter'],
             'Votes': ['vote'],
             }
 
-    def __init__(self, credentials, directories={}):
+    def __init__(self, credentials, structure={}):
         self.language = credentials.get('language')
 
         if self.language == 'sqlite':
@@ -38,8 +38,9 @@ class Database:
             self.db = ''
             engine_string = ''
 
-        self.directories = directories
+        self.directories = structure
         
+        print(f'Connecting to database {self.db}')
         self.engine = create_engine(engine_string)
         self.connection = self.engine.connect()
 
@@ -70,7 +71,7 @@ class Database:
             wheres = ''
         else:
             # return only league values
-            wheres = f' WHERE league = "{league}"'
+            wheres = f' WHERE league = {self.needs_quotes(league)}'
 
         # write and execute SQL
         sql = f'SELECT {cols} FROM {self.table_name(table_name)}{wheres};'
@@ -96,19 +97,33 @@ class Database:
 
     def update_rows(self, table_name, df, keys):
         # write SQL for existing rows
-        if df.empty:
+        if df.empty or (set(df.columns) == set(keys)):
             sql = ''
+
         else:
-            updates = []
-            for i in df.index:
-                df_row = df.loc[i]
-                key_values = df_row[keys].values
-                columns = df_row.drop(keys).index
-                values = df_row.drop(keys).values
-                sets = ', '.join(f'{column} = ' + self.needs_quotes(value) for column, value in zip(columns, values))
-                wheres = ' & '.join(f'({key} = ' + self.needs_quotes(key_value) + ')' for key, key_value in zip(keys, key_values))
-                updates.append(f'UPDATE {self.table_name(table_name)} SET {sets} WHERE {wheres};')
-            sql = ' '.join(updates)
+            if self.language == 'sqlite':
+                updates = []
+                for i in df.index:
+                    df_row = df.loc[i]
+                    key_values = df_row[keys].values
+                    columns = df_row.drop(keys).index
+                    values = df_row.drop(keys).values
+                    sets = ', '.join(f'{column} = ' + self.needs_quotes(value) for column, value in zip(columns, values))
+                    wheres = ' & '.join(f'({key} = ' + self.needs_quotes(key_value) + ')' for key, key_value in zip(keys, key_values))
+                    updates.append(f'UPDATE {self.table_name(table_name)} SET {sets} WHERE {wheres};')
+                sql = ' '.join(updates)
+
+            elif self.language == 'postgres':
+                value_columns = df.drop(columns=keys).columns
+                all_columns = keys + value_columns.to_list()
+                df_upsert = df.reindex(columns=all_columns)
+
+                sets = ', '.join(f'{col} = c.{col}' for col in value_columns)
+                values = ', '.join(x for x in ['(' + ', '.join(self.needs_quotes(v) for v in df_upsert.loc[i, :].values) + ')' for i in df_upsert.index])
+                cols = ', '.join(f'{col}' for col in all_columns)
+                wheres = ' & '.join(f'(c.{key} = t.{key})' for key in keys)
+                
+                sql = f'UPDATE {self.table_name(table_name)} AS t SET {sets} FROM (VALUES {values}) AS c({cols}) WHERE {wheres};'
 
         return sql
 
@@ -156,7 +171,8 @@ class Database:
 
     def execute_sql(self, sql):
         for s in sql.split(';'):
-            self.connection.execute(s.strip())
+            if len(s):
+                self.connection.execute(s.strip())
 
     def upsert_table(self, table_name, df):
         # update existing rows and insert new rows
@@ -168,9 +184,11 @@ class Database:
         # get existing ids in database
         df_existing = self.get_table(table_name, columns=keys, league=league)
 
+        print(f'{table_name}: DF_EXISTING: {df_existing}')
         # split dataframe into existing updates and new inserts
         df_updates, df_inserts = self.find_existing(df, df_existing, keys)
-        
+        print(f'DF_UP: {df_updates}: DF_IN: {df_inserts}')
+
         # write SQL for updates and inserts
         sql_updates = self.update_rows(table_name, df_updates, keys)
         sql_insert = self.insert_rows(table_name, df_inserts)
@@ -181,25 +199,25 @@ class Database:
         # execute SQL
         self.execute_sql(sql)
 
-    def get_next_song_ids(self, league_title, n_retrieve=None, artists:list=None, titles:list=None):
-        if n_retrieve is not None:
-            next_song_ids = self.get_next_song_ids_new(league_title, n_retrieve)
-        else:
-            next_song_ids = self.get_next_song_ids_old(league_title, artists, titles)
+    def get_song_ids(self, league_title:str, artists:list, titles:list) -> list:
+        # first check for which songs already exists
+        ids_df = self.get_table('Songs', league=league_title).drop(columns='league')
+        songs_df = DataFrame(data=zip(artists, titles), columns=['artist', 'title']).merge(ids_df, on=['artist', 'title'])[['artist', 'title', 'song_id']]
+        
+        # then fill in songs that are new
+        needed_id_count = songs_df['song_id'].insa().sum()
+        new_ids = self.get_new_song_ids(league_title, needed_id_count)
+        songs_df[songs_df.insa()]['song_id'] = new_ids
+        song_ids = songs_df['song_id'].values
 
-        return next_song_ids
+        return song_ids
 
-    def get_next_song_ids_new(self, league_title, n_retrieve):
+    def get_new_song_ids(self, league_title, n_retrieve):
         # get next available song_ids
         existing_song_ids = self.get_table('Songs', columns=['song_id'], league=league_title)['song_id']
         max_song_id = 0 if existing_song_ids.empty else existing_song_ids.max()
         next_song_ids = [song_id for song_id in range(1, max_song_id + n_retrieve + 1) \
             if song_id not in existing_song_ids.values][0:n_retrieve]
-        return next_song_ids
-
-    def get_next_song_ids_old(self, league_title:str, artists:list, titles:list):
-        ids_df = self.get_table('Songs', league=league_title).drop(columns='league')
-        next_song_ids = DataFrame(data=zip(artists, titles), columns=['artist', 'title']).merge(ids_df, on=['artist', 'title'])['song_id']
         return next_song_ids
 
     def store_columns(self, table_name):
@@ -213,19 +231,38 @@ class Database:
 
     def store_leagues(self, leagues_df):
         # store league names
-        keys = self.get_keys('Leagues')
-        df_existing = self.get_leagues()
-        _, df_inserts = self.find_existing(leagues_df, df_existing, keys)
-        sql_insert = self.insert_rows('Leagues', df_inserts)
+        ##keys = self.get_keys('Leagues')
+        df = leagues_df.reindex(columns=self.store_columns('Leagues'))
+        self.upsert_table('Leagues', df)
 
-        self.execute_sql(sql_insert)
+        ##df_existing = self.get_leagues()
+        ##df_updates, df_inserts = self.find_existing(leagues_df, df_existing, keys)
+        ##sql_insert = self.insert_rows('Leagues', df_inserts)
 
-    def store_league_url(self, league_title, url):
-        # add URL for league
-        if url is not None:
-            table_name = 'Leauges'
-            sql_update = f'UPDATE {self.table_name(table_name)} SET url = "{url}" WHERE league = "{league_title}"'
-            self.execute_sql(sql_update)
+        ##self.execute_sql(sql_insert)
+
+    ##def store_league_url(self, league_title, url):
+    ##    # add URL for league
+    ##    if url is not None:
+    ##        table_name = 'Leagues'
+    ##        sql_update = f'UPDATE {self.table_name(table_name)} SET url = {self.needs_quotes(url)} WHERE league = {self.needs_quotes(league_title)}'
+    ##        self.execute_sql(sql_update)
+
+    def check_league(self, league_title):
+        # see if there are any rounds for this league
+        sql = f'SELECT COUNT(league) FROM {self.table_name("Rounds")} WHERE league = {self.needs_quotes(league_title)}'
+        count_df = read_sql(sql, self.connection)
+        check = count_df['count'].gt(0).all()
+
+        return check
+
+    def check_round(self, league_title, round_title):
+        # see if there are any songs for this league
+        sql = f'SELECT COUNT(round) FROM {self.table_name("Songs")} WHERE (league = {self.needs_quotes(league_title)}) & (round = {self.needs_quotes(round_title)})'
+        count_df = read_sql(sql, self.connection)
+        check = count_df['count'] > 0
+
+        return check
 
     def get_rounds(self, league):
         rounds_df = self.get_table('Rounds', league=league).drop(columns='league')
@@ -233,7 +270,7 @@ class Database:
 
     def get_url_status(self, url):
         table_name = 'Rounds'
-        sql = f'SELECT league, round FROM {self.table_name(table_name)} WHERE url = "{url}"'
+        sql = f'SELECT league, round FROM {self.table_name(table_name)} WHERE url = {self.needs_quotes(url)}'
         results = read_sql(sql, self.connection)
 
         if len(results):
@@ -243,12 +280,12 @@ class Database:
 
         return league, round_title
 
-    def get_round_status(self, league, round_title):
-        if (league is None) and (round_title is None):
+    def get_round_status(self, league_title, round_title):
+        if (league_title is None) and (round_title is None):
             round_status = 'n/a'
         else:
             table_name = 'Rounds'
-            sql = f'SELECT * FROM {self.table_name(table_name)} WHERE (league = "{league}") & (round = "{round_title}")' 
+            sql = f'SELECT * FROM {self.table_name(table_name)} WHERE (league = {self.needs_quotes(league_title)}) & (round = {self.needs_quotes(round_title)})' 
             status = read_sql(sql, self.connection)
 
             if len(status):
@@ -269,15 +306,15 @@ class Database:
             items_limit = len(set_items) if (url is not None) else len(set_items)-1
 
             sets = '(' + ', '.join(item for item in set_items[:items_limit]) + ')'
-            values = '(' + ', '.join(f'"{item}"' for item in value_items[:items_limit]) +')'
+            values = '(' + ', '.join(f'{self.needs_quotes(item)}' for item in value_items[:items_limit]) +')'
             sql = f'INSERT INTO Rounds {sets} VALUES {values}'
 
         # update round if in DB and there is a change
         elif (round_status in ['new', 'open', 'closed']) and (round_status != new_status):
-            sets = f'status = "{new_status}"'
+            sets = f'status = {self.needs_quotes(new_status)}'
             if (url is not None) & (url != self.get_url('round', league_title, round_title=round_title)):
-                sets += f', url = "{url}"'
-            sql = f'UPDATE Rounds SET {sets} WHERE (league = "{league_title}") & (round = "{round_title}")'
+                sets += f', url = {self.needs_quotes(url)}'
+            sql = f'UPDATE Rounds SET {sets} WHERE (league = {self.needs_quotes(league_title)}) & (round = {self.needs_quotes(round_title)})'
 
         # skip if error
         else:
@@ -292,19 +329,28 @@ class Database:
         table_name = {'league': 'Leagues',
                       'round': 'Rounds'}[url_type]
 
-        wheres = f'(league = "{league_title}")'
+        wheres = f'(league = {self.needs_quotes(league_title)})'
         if round_title is not None:
-            wheres += f' & (round = "{round_title}")'
+            wheres += f' & (round = {self.needs_quotes(round_title)})'
     
         sql = f'SELECT url FROM {self.table_name(table_name)} WHERE {wheres}'
         urls = read_sql(sql, self.connection)['url'].values
         url = urls[0] if len(urls) else None
 
-        # if file is stored locally, return URL with full directory
-        if url[:len('http')] != 'http':
-            page_type = 'round' if (round_title is not None) else 'league'
-            directory = self.directories.get(page_type, '')
-            url = f'{directory}\{url}'
+        # see if url exists
+        if url is not None:
+            # if file is stored locally, return URL with full directory
+            if url[:len('http')] != 'http':
+                # local file
+                page_type = 'round' if (round_title is not None) else 'league'
+                directory = self.directories['local'].get(page_type)
+
+            else:
+                # web URL
+                directory = self.directories['web'].get('main_url')
+
+            if url is not None:
+                url = f'{directory}/{url}'.replace('//','/')
         
         return url
 
@@ -347,8 +393,8 @@ class Database:
 
     def store_player_names(self, player_names, league_title):
         members_df = DataFrame(columns=['league', 'player'])
+        members_df['player'] = player_names
         members_df['league'] = league_title
-        members_df['player_names'] = player_names
         self.upsert_table('Members', members_df)
 
     def get_player_names(self, league_title):

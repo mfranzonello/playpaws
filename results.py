@@ -1,7 +1,7 @@
 from contextlib import AbstractAsyncContextManager
 from pandas import DataFrame
 
-from comparisons import Patterns
+from comparisons import Patternizer
 
 class Results:
     def __init__(self, columns=[], int_columns=[]):
@@ -19,6 +19,7 @@ class Songs(Results):
 
     def __init__(self):
         super().__init__(columns=Songs.columns, int_columns=Songs.int_columns)
+        self.patternizer = None
 
     def __repr__(self):
         return f'SONGS\n{self.df}\n'
@@ -53,13 +54,30 @@ class Songs(Results):
         round_song_ids = self.df.query(f'round == "{round_title}"')['song_id'].to_list()
         return round_song_ids
 
-    def calculate_points(self, votes, rounds, players,
-                         weights={'votes': 1, 'people': 0.25, 'closed': 0.5, 'must_vote': True}):
+    def add_patternizer(self, votes, players=None, player_names=None):
+        if player_names is None:
+            player_names = players.player_names
+
+        self.patternizer = Patternizer(self, votes, player_names)
+
+    def get_patternizer(self, votes=None, players=None, player_names=None):
+        if self.patternizer is None:
+            if player_names is None:
+                player_names = players.player_names
+            self.add_patternizer(votes, player_names)
+
+        return self.patternizer
+
+    def calculate_points(self, votes, rounds,
+                         weights={'votes': 1, 'people': 0.25, 'closed': 0.5, 'must_vote': True}):        
         # calculate points based on votes and participation
         must_vote = weights.get('must_vote', True)
-        if must_vote:
-            did_count = Patterns.get_counted(self, votes, players.get_players(), must_vote=must_vote)
+        if must_vote and (self.patternizer is not None):
+            
+            did_count = self.patternizer.get_counted(must_vote=must_vote)
+            print(did_count)
             did_count['submitter'] = self.df.merge(did_count, on='song_id')['submitter']
+            print(did_count)
             counted = did_count.apply(lambda x: x[x['submitter']], axis=1)
         else:
             counted = 1
@@ -120,6 +138,9 @@ class Rounds(Results):
     def __repr__(self):
         return f'ROUNDS\n{self.df}\n'
 
+    def sub_rounds(self, league_title, round_titles, dates=None, urls=None):
+        return
+
     def add_rounds_db(self, rounds_df):
         self.df = rounds_df.reindex(columns=Rounds.columns)
 
@@ -145,8 +166,16 @@ class Leagues(Results):
     def __init__(self):
         super().__init__(columns=Leagues.columns)
 
-    def add_league(self, league_titles):
-        self.df['league'] = league_titles
+    def sub_leagues(self, league_titles, urls=None):
+        leagues_df = DataFrame(columns=Leagues.columns)
+        leagues_df['league'] = league_titles
+        if urls is not None:
+            leagues_df['url'] = urls
+
+        return leagues_df
+
+    def add_leagues(self, league_titles):
+        self.df = self.sub_leagues(league_titles)
 
     def get_leagues(self):
         return self.df

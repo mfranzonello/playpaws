@@ -13,9 +13,9 @@ class Printer:
     def __init__(self, *options):
         self.options = [*options]
 
-    def set_display_options():
-        for option in options:
-            set_option(options, None)
+    #def set_display_options(self):
+        for option in self.options:
+            set_option(option, None)
 
 class Texter:
     emoji_pattern = compile('['
@@ -86,7 +86,7 @@ class Plotter:
 
     def add_anaylses(self, anaylses):
         for analysis in analyses:
-            self.add_league(analysis['league_title'], analysis['players'], analysis['rankings'])
+            self.add_leagues(analysis['league_title'], analysis['players'], analysis['rankings'])
 
     def add_league(self, league_title, players, rankings):
         self.league_titles.append(league_title)

@@ -11,8 +11,9 @@ class Analyzer:
 
         analyses = []
         for league_title in league_titles:
-            analysis = self.analyze_league(league_title, summary=True)
-            analyses.append(analysis)
+            if self.database.check_league(league_title):
+                analysis = self.analyze_league(league_title, summary=True)
+                analyses.append(analysis)
 
         return analyses
 
@@ -24,27 +25,33 @@ class Analyzer:
 
         songs, votes, rounds = self.get_songs_and_votes(league_title)
 
-        rankings = self.crunch_rounds(songs, votes, rounds, players, weights)
+        if self.check_songs_and_votes(songs, votes):
+            print(f'\t...analyzing {round_title}')
+            rankings = self.crunch_rounds(songs, votes, rounds, players, weights)
 
-        xy = self.get_coordinates(league_title)
+            xy = self.get_coordinates(league_title)
 
-        pulse = self.get_pulse(songs, votes, players, xy)
+            pulse = self.get_pulse(songs, votes, players, xy)
 
-        self.store_coordinates(league_title, players)
+            self.store_coordinates(league_title, players)
 
-        # display results
-        if summary:           
-            print(f'{league_title} Results\n')
-            for df in [songs, rounds, pulse, players, rankings]:
-                print(df)
+            # display results
+            if summary:           
+                print(f'{league_title} Results\n')
+                for df in [songs, rounds, pulse, players, rankings]:
+                    print(df)
 
-        analysis = {'league_title': league_title,
-                    'songs': songs,
-                    'votes': votes,
-                    'rounds': rounds,
-                    'rankings': rankings,
-                    'pulse': pulse,
-                    }
+            analysis = {'league_title': league_title,
+                        'songs': songs,
+                        'votes': votes,
+                        'rounds': rounds,
+                        'rankings': rankings,
+                        'pulse': pulse,
+                        }
+
+        else:
+            print(f'\t...nothing data for {round_title}')
+            analysis = None
 
         return analysis
 
@@ -52,12 +59,13 @@ class Analyzer:
         leagues = Leagues()
         db_leagues = self.database.get_leagues()
         leagues.add_leagues_db(db_leagues)
-        league_titles = leagues.get_leagues()
+        league_titles = leagues.get_league_titles()
 
         return league_titles
 
     def get_players(self, league_title):
         player_names = self.database.get_player_names(league_title)
+
         players = Players(player_names)
 
         return players
@@ -77,11 +85,17 @@ class Analyzer:
         ##rounds.sort_titles(round_titles) <- need to ensure rounds are in correct order by adding dates to DB
 
         for round_title in round_titles:
-            songs.add_round_db(db_songs.query(f'round == "{round_title}"'))
-            round_song_ids = songs.get_songs_ids(round_title)
-            votes.add_round_db(db_votes.query(f'song_id in {round_song_ids}'))
+            if self.database.check_round(league_title, round_title):
+                songs.add_round_db(db_songs.query(f'round == "{round_title}"'))
+                round_song_ids = songs.get_songs_ids(round_title)
+                votes.add_round_db(db_votes.query(f'song_id in {round_song_ids}'))
             
         return songs, votes, rounds
+
+    def check_songs_and_votes(self, songs, votes):
+        # make sure there were songs and votes
+        check = len(songs.df) > 0 # & (len(votes.df) > 0)
+        return check
 
     def crunch_rounds(self, songs, votes, rounds, players, weights):
         print('Crunching rounds')
@@ -90,7 +104,8 @@ class Analyzer:
         rounds.count_players(votes)
 
         # total points per song
-        songs.calculate_points(votes, rounds, players, weights)
+        songs.add_patternizer(votes, players=players)
+        songs.calculate_points(votes, rounds, weights)
 
         # list winners of each round
         rankings = Rankings(songs, votes, weights)
@@ -100,7 +115,7 @@ class Analyzer:
     def get_pulse(self, songs, votes, players, xy=None):
         # get group pulse
         print('Getting pulse')
-    
+
         pulse = Pulse(players)
         print('...likes')
         pulse.calculate_likers(songs, votes)

@@ -6,6 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions
+from selenium.common.exceptions import TimeoutException
 from bs4 import BeautifulSoup
 
 class Simulator:
@@ -17,7 +18,7 @@ class Simulator:
         
         self.chrome_directory = chrome_directory
         self.chrome_profile = chrome_profile
-        self.silent = silent
+        self.silent = False#silent
         self.options = self.get_options()
         self.driver = None
 
@@ -27,6 +28,7 @@ class Simulator:
     def get_options(self):
         options = Options()
         options.add_argument(f'user-data-dir={self.chrome_profile}')
+        options.add_experimental_option('excludeSwitches', ['enable-logging']) # shut up debugger
         if self.silent:
             options.add_argument("--headless")
             options.add_argument("--window-size=%s" % '1920,1080')
@@ -72,12 +74,11 @@ class Simulator:
 
             if self.logged_in:
                 print('Log in successful!')
-                print(f'pre: {pre_url}, post: {post_url}')
+                #print(f'pre: {pre_url}, post: {post_url}')
             else:
                 #self.turn_off()
                 print(f'Log in failed! (attempt {attempt+1}/{attempts})')
                 print(f'pre: {pre_url}, post: {post_url}')
-                input()
 
             attempt += 1
 
@@ -89,19 +90,18 @@ class Simulator:
 
         self.driver.find_element_by_id('login-button').click()
 
-        print('waiting')
-        print(self.main_url)
-        print(self.logged_in_url)
-        print(pre_url)
         self.driver.implicitly_wait(2)
-        element = WebDriverWait(self.driver, 10).until(expected_conditions.url_contains(self.logged_in_url)) #url_changes(pre_url)) #
-        print('worked')
-        print(f'element: {element}')
+        try:
+            element = WebDriverWait(self.driver, 10).until(expected_conditions.url_contains(self.logged_in_url)) #url_changes(pre_url)) #
+            print('\t\t...authenticated')
+        except TimeoutException:
+            print('\t\t...failed to authenticate')
 
     def get_html_text(self, url):
         if not self.logged_in:
             self.login()
 
+        print(f'Accessing {url}...')
         self.driver.get(url)
 
         html_text = self.driver.page_source
@@ -112,11 +112,12 @@ class Scraper:
     def __init__(self, simulator, stripper):
         self.simulator = simulator
         self.stripper = stripper
-
+        
     def get_html_text(self, path):
+        if path[0] == '/':
+            path = f'{self.simulator.main_url}{path}'
         if path[:len('http')] == 'http':
             html_text = self.get_from_web(path)
-            
         else:
             html_text = self.get_from_local(path)
             
@@ -262,9 +263,10 @@ class Stripper:
 
         result_types = self.result_types[page_type]
         results = {rt: [self.strip_tag(tag,
-                                       result_types[rt].get('remove'),
-                                       result_types[rt].get('value', False),
-                                       result_types[rt].get('sublink', False)) for \
+                                       remove=result_types[rt].get('remove'),
+                                       value=result_types[rt].get('value', False),
+                                       sublink=result_types[rt].get('sublink', False),
+                                       href=result_types[rt].get('href', False)) for \
                                            tag in soup.find_all(name=result_types[rt]['tag'],
                                                                 attrs=result_types[rt]['attr'])] for \
                                                                     rt in result_types} #['class'] instead of ['attr']
@@ -273,7 +275,7 @@ class Stripper:
 
     def extract_results(self, html_text, page_type) -> tuple:
         # extract results from HTML tags
-        print(f'Extracting results...')
+        print(f'\t...extracting results...')
         results = self.get_results(html_text, page_type)
         
         if page_type == 'home':
