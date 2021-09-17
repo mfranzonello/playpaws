@@ -81,59 +81,59 @@ class Plotter:
 
     def __init__(self):
         self.league_titles = []
-        self.players_list = []
+        self.members_list = []
         self.rankings_list = []
 
-    def add_anaylses(self, anaylses):
+    def add_anaylses(self, analyses):
         for analysis in analyses:
-            self.add_leagues(analysis['league_title'], analysis['players'], analysis['rankings'])
+            self.add_league(analysis['league_title'], analysis['members'], analysis['rankings'])
 
-    def add_league(self, league_title, players, rankings):
+    def add_league(self, league_title, members, rankings):
         self.league_titles.append(league_title)
-        self.players_list.append(players)
+        self.members_list.append(members)
         self.rankings_list.append(rankings)
 
     def plot_results(self):
         # set league title
         nrows = 2
-        ncols = len(self.players_list)
+        ncols = len(self.members_list)
         fig, axs = plt.subplots(nrows, ncols)
 
         plt.get_current_fig_manager().set_window_title(Plotter.figure_title)
         fig.set_size_inches(*Plotter.figure_size)
             
-        for ax0, players, league_title in zip(axs[0], self.players_list, self.league_titles):
-            Plotter.plot_players(ax0, players, league_title)
+        for ax0, members, league_title in zip(axs[0], self.members_list, self.league_titles):
+            Plotter.plot_players(ax0, members, league_title)
 
         for ax1, rankings in zip(axs[1], self.rankings_list):
             Plotter.plot_rankings(ax1, rankings)
 
         plt.show()
 
-    def plot_players(ax, players, league_title):
+    def plot_players(ax, members, league_title):
         # set subplot title
         ax.set_title(Texter.clean_text(league_title))
 
         # plot nodes for players
-        x = players.df['x']
-        y = players.df['y']
-        sizes = Plotter.get_scatter_sizes(players)
-        colors = Plotter.get_scatter_colors(players)
+        x = members.df['x']
+        y = members.df['y']
+        sizes = Plotter.get_scatter_sizes(members)
+        colors = Plotter.get_scatter_colors(members)
 
         ax.scatter(x, y, s=sizes, c=colors)
 
         # split if likes is liked
-        split = players.df.set_index('player')
+        split = members.df.set_index('player')
         split = split['likes'] == split['liked']
 
-        for i in players.df.index:
+        for i in members.df.index:
             # plot center
-            x_center, y_center = Plotter.get_center(players)
+            x_center, y_center = Plotter.get_center(members)
             ax.scatter(x_center, y_center, marker='1')
 
             # get name
-            me = players.df['player'][i]
-            x_me, y_me, theta_me = Plotter.where_am_i(players, me)
+            me = members.df['player'][i]
+            x_me, y_me, theta_me = Plotter.where_am_i(members, me)
 
             # plot names
             x_1, y_1 = Plotter.translate(x_me, y_me, theta_me, 0, shift_distance=-Plotter.name_offset)
@@ -148,7 +148,7 @@ class Plotter:
             split_distance = split[me] * Plotter.like_arrow_split
 
             # find likes
-            x_likes, y_likes, theta_us = Plotter.who_likes_whom(players, me, 'likes', Plotter.like_arrow_length)
+            x_likes, y_likes, theta_us = Plotter.who_likes_whom(members, me, 'likes', Plotter.like_arrow_length)
             x_1, y_1 = Plotter.translate(x_me, y_me, theta_us, -1, shift_distance=split_distance)
             x_2, y_2 = Plotter.translate(x_likes, y_likes, theta_us, -1, shift_distance=split_distance)
             ax.arrow(x_1, y_1, x_2-x_1, y_2-y_1,
@@ -156,7 +156,7 @@ class Plotter:
                         edgecolor='none', length_includes_head=True)
 
             # find liked
-            x_liked, y_liked, theta_us = Plotter.who_likes_whom(players, me, 'liked', line_dist=Plotter.like_arrow_length)
+            x_liked, y_liked, theta_us = Plotter.who_likes_whom(members, me, 'liked', line_dist=Plotter.like_arrow_length)
             x_1, y_1 = Plotter.translate(x_me, y_me, theta_us, 1, shift_distance=split_distance)
             x_2, y_2 = Plotter.translate(x_liked, y_liked, theta_us, 1, shift_distance=split_distance)
             ax.arrow(x_2, y_2, x_1-x_2, y_1-y_2,
@@ -164,8 +164,8 @@ class Plotter:
                         edgecolor='none', length_includes_head=True)
 
         ax.axis('equal')
-        ax.set_ylim(players.df['y'].min() - Plotter.name_offset - Plotter.font_size,
-                    players.df['y'].max() + Plotter.name_offset + Plotter.font_size)
+        ax.set_ylim(members.df['y'].min() - Plotter.name_offset - Plotter.font_size,
+                    members.df['y'].max() + Plotter.name_offset + Plotter.font_size)
         ax.axis('off')
 
     def plot_rankings(ax, rankings):
@@ -209,27 +209,27 @@ class Plotter:
         ax.set_yticks(yticks)
         ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
 
-    def get_center(players):
-        x_center = players.df['x'].mean()
-        y_center = players.df['y'].mean()
+    def get_center(members):
+        x_center = members.df['x'].mean()
+        y_center = members.df['y'].mean()
         
         return x_center, y_center
 
-    def where_am_i(players, player_name):
-        x_me = players.df['x'][players.df['player'] == player_name].values[0]
-        y_me = players.df['y'][players.df['player'] == player_name].values[0]
-        x_center, y_center = Plotter.get_center(players)
+    def where_am_i(members, player_name):
+        x_me = members.df['x'][members.df['player'] == player_name].values[0]
+        y_me = members.df['y'][members.df['player'] == player_name].values[0]
+        x_center, y_center = Plotter.get_center(members)
         theta_me = atan2(y_center - y_me, x_center - x_me)
 
         return x_me, y_me, theta_me
 
-    def who_likes_whom(players, player_name, like, line_dist):
-        likes_me = players.df[like][players.df['player'] == player_name].values[0]
+    def who_likes_whom(members, player_name, like, line_dist):
+        likes_me = members.df[like][members.df['player'] == player_name].values[0]
 
-        x_me, y_me, _ = Plotter.where_am_i(players, player_name)
+        x_me, y_me, _ = Plotter.where_am_i(members, player_name)
         
-        x_them = players.df['x'][players.df['player'] == likes_me].values[0]
-        y_them = players.df['y'][players.df['player'] == likes_me].values[0]
+        x_them = members.df['x'][members.df['player'] == likes_me].values[0]
+        y_them = members.df['y'][members.df['player'] == likes_me].values[0]
 
         theta_us = atan2(y_them - y_me, x_them - x_me)
 
@@ -238,12 +238,12 @@ class Plotter:
 
         return x_likes, y_likes, theta_us
 
-    def get_scatter_sizes(players):
-        sizes = (players.df['wins'] + 1) * Plotter.marker_sizing
+    def get_scatter_sizes(members):
+        sizes = (members.df['wins'] + 1) * Plotter.marker_sizing
         return sizes
 
-    def get_scatter_colors(players):
-        max_dfc = players.df['dfc'].max()
-        min_dfc = players.df['dfc'].min()
-        colors = [Plotter.dfc_color(1-(dfc - min_dfc)/(max_dfc - min_dfc)) for dfc in players.df['dfc'].values]
+    def get_scatter_colors(members):
+        max_dfc = members.df['dfc'].max()
+        min_dfc = members.df['dfc'].min()
+        colors = [Plotter.dfc_color(1-(dfc - min_dfc)/(max_dfc - min_dfc)) for dfc in members.df['dfc'].values]
         return colors

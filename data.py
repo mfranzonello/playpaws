@@ -7,7 +7,7 @@ from pandas import read_sql, DataFrame
 
 class Database:
     keys = {'Leagues': ['league'],
-            'Players': ['player'],
+            'Players': ['url'],
             'Members': ['league', 'player'],
             'Rounds': ['league', 'round'],
             'Songs': ['league', 'song_id'],    
@@ -19,6 +19,7 @@ class Database:
             }
 
     values = {'Leagues': ['creator', 'date', 'url', 'path'],
+              'Players': ['player'],
               'Rounds': ['creator', 'date', 'status', 'url', 'path'],
               'Member': ['x', 'y'],
               'Songs': ['round', 'artist', 'title', 'submitter'],
@@ -167,7 +168,7 @@ class Database:
 
         return sql
 
-    def find_existing(self, df, df_existing, keys):
+    def find_existing(self, df_store, df_existing, keys):
         # split dataframe between old and new rows
         links = ['(' + ' & '.join(f'({key} == ' + self.needs_quotes(key_value) + ')' \
             for key, key_value in zip(keys, df_existing[keys].loc[i])) + ')' \
@@ -178,12 +179,12 @@ class Database:
             sql_up = ' | '.join(links)
             sql_in = f'~({sql_up})'
 
-            df_updates = df.query(sql_up)
-            df_inserts = df.query(sql_in)
+            df_updates = df_store.query(sql_up)
+            df_inserts = df_store.query(sql_in)
         else:
             # all data is new
-            df_updates = df.reindex([])
-            df_inserts = df.reindex()
+            df_updates = df_store.reindex([])
+            df_inserts = df_store.reindex()
         
         return df_updates, df_inserts
 
@@ -207,19 +208,20 @@ class Database:
         # update existing rows and insert new rows
         keys = self.get_keys(table_name)
 
-        ##df_reindexed = df.reindex(columns=self.store_columns(table_name)) ## might be redundant
+        # only store columns that have values, so as to not overwrite with NA
+        df_store = df.dropna(axis='columns', how='all')
 
         # get current league if not upserting Leagues or table that doesn't have league as a key
         if (table_name == 'Leagues') or ('league' not in self.keys[table_name]):
             league = None
         else:
-            league = df['league'].iloc[0]
+            league = df_store['league'].iloc[0]
 
         # get existing ids in database
         df_existing = self.get_table(table_name, columns=keys, league=league)
 
         # split dataframe into existing updates and new inserts
-        df_updates, df_inserts = self.find_existing(df, df_existing, keys)
+        df_updates, df_inserts = self.find_existing(df_store, df_existing, keys)
 
         # write SQL for updates and inserts
         sql_updates = self.update_rows(table_name, df_updates, keys)
@@ -417,33 +419,35 @@ class Database:
         votes_df = self.get_table('Votes', league=league).drop(columns='league')
         return votes_df
 
-    def store_members(self, players_df, league_title):
-        df = players_df.reindex(columns=self.store_columns('Members'))
+    def store_members(self, members_df, league_title):
+        df = members_df.reindex(columns=self.store_columns('Members'))
         df['league'] = league_title
         self.upsert_table('Members', df)
 
     def get_members(self, league_title):
-        players = self.get_table('Members', league=league_title).drop(columns='league')
-        return players
+        members_df = self.get_table('Members', league=league_title).drop(columns='league')
+        return members_df
 
-    def store_player_names(self, player_names, league_title):
-        members_df = DataFrame(columns=['league', 'player'])
-        members_df['player'] = player_names
-        members_df['league'] = league_title
-        self.upsert_table('Members', members_df)
+    ##def store_player_names(self, player_names, league_title):
+    ##    members_df = DataFrame(columns=['league', 'player'])
+    ##    members_df['player'] = player_names
+    ##    members_df['league'] = league_title
+    ##    self.upsert_table('Members', members_df)
 
-    def get_player_names(self, league_title):
-        members = self.get_members(league_title)
-        player_names = members['player'].to_list()
-        return player_names
-
-    def store_players(self, players):
-        df = players.df.reindex(columns=self.store_columns('Players'))
+    def store_players(self, players_df, league_title):
+        df = players_df.reindex(columns=self.store_columns('Players'))
         self.upsert_table('Players', df)
+
+        self.store_members(df, league_title)
 
     def get_players(self):
         players_df = self.get_table('Players')
         return players_df
+
+    def get_player_names(self, league_title):
+        members_df = self.get_members(league_title)
+        player_names = members_df['player'].to_list()
+        return player_names
 
     def get_weights(self):
         table_name = 'Weights'

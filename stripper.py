@@ -422,7 +422,9 @@ class Stripper:
         player_urls = [player['url'] for player in results['player']]
         player_imgs = [player['img'] for player in results['player']]
 
-        return league_title, round_titles, player_names, round_urls, round_dates, round_creators
+        return league_title, round_titles, \
+            player_names, player_urls, player_imgs, \
+            round_urls, round_dates, round_creators
 
     def extract_round(self, results):
         league_title = results['league'][0]

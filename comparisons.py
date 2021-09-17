@@ -83,8 +83,8 @@ class Patternizer:
 class Pulse:
     distance_threshold = 0.75
 
-    def __init__(self, players):
-        self.player_names = players.player_names
+    def __init__(self, members):
+        self.player_names = members.player_names
         self.player_permutations = list(permutations(self.player_names, 2))
         self.player_combinations = list(combinations(self.player_names, 2))
         self.df = DataFrame(data=self.player_permutations, columns=['p1', 'p2'])
@@ -132,11 +132,11 @@ class Pulse:
         voters_p2 = voters.reindex(self.df['p2']).fillna(False)
         voted = Series(DataFrame(zip(voters_p1, voters_p2)).prod(1) == 1, index=self.df.index)
 
-        quantile = self.df['distance'].quantile(Pulse.distance_threshold)
+        quantile = self.df['distance'].quantile(self.distance_threshold)
         std_dev = self.df['distance'].std()
         mean = self.df['distance'].mean()
 
-        outliers = self.df['distance'] > self.df['distance'].quantile(Pulse.distance_threshold)
+        outliers = self.df['distance'] > self.df['distance'].quantile(self.distance_threshold)
         UB = mean + std_dev
         below_UB = self.df['distance'] <= UB
        
@@ -154,11 +154,11 @@ class Pulse:
                 self.df.loc[self.player_permutations.index((p1, p2)), 'battle'] = battle_results.sum() / counted.sum()
                 self.df['win'] = self.df['battle'] > 0
 
-class Players:
+class Members:
     columns = ['player', 'x', 'y', 'wins', 'dfc']
 
     def __init__(self, player_names):
-        self.df = DataFrame(columns=Players.columns)
+        self.df = DataFrame(columns=self.columns)
         self.df['player'] = player_names
         self.player_combinations = list(combinations(self.df['player'], 2))
 
@@ -166,9 +166,9 @@ class Players:
 
     def __repr__(self):
         printed = self.df.drop(columns=['x', 'y']).sort_values(['wins', 'dfc'], ascending=[False, True])
-        return f'PLAYERS\n{printed}\n'
+        return f'MEMBERS\n{printed}\n'
 
-    def distdiff(xy, D, N, xy0=[0,0]):
+    def distdiff(self, xy, D, N, xy0=[0,0]):
         # first point is fixed at 0,0; second point at 0, D[0]
         x = [xy0[0]] + xy.tolist()[0:int(len(xy)/2)] # x coordinates
         y = [xy0[1]] + xy.tolist()[int(len(xy)/2):] # y coordinates
@@ -185,7 +185,7 @@ class Players:
     ##    return self.player_names
 
     def get_members(self):
-        return self.df.reindex(Players.columns)
+        return self.df.reindex(columns=self.columns)
 
     def seed_xy(self, pulse):
         # place the first player at the origin
@@ -199,7 +199,7 @@ class Players:
         self.df['x'] = [0] + [R * cos(angle * i) for i in circle_players]
         self.df['y'] = [0] + [R * sin(angle * i) for i in circle_players]
 
-    def update_coordinates(self, pulse, xy=None):
+    def update_coordinates(self, pulse, xy_=None):
         # best fit player nodes
         distances = DataFrame(data=self.player_combinations, columns=['p1', 'p2'])
         distances['distance'] = distances.merge(pulse.df, on=['p1', 'p2'], how='left')['plot_distance']
@@ -208,17 +208,17 @@ class Players:
         needed = distances['distance'].notna() # only include if pair voted together
 
         # update from db if exists
-        if xy is not None:
-            self.df[['x', 'y']] = self.df.drop(columns=['x', 'y']).merge(xy, on='player')[['x', 'y']]
+        if xy_ is not None:
+            self.df[['x', 'y']] = self.df.drop(columns=['x', 'y']).merge(xy_, on='player')[['x', 'y']]
 
         if all(self.df[['x', 'y']].isna()):
             self.seed_xy(pulse)
 
         xy0 = self.df[['x','y']][1:].fillna(0).melt()['value']
         print('\t...minimizing')
-        xy = minimize(Players.distdiff, xy0, args=(distances['distance'], needed))
+        xy = minimize(self.distdiff, xy0, args=(distances['distance'], needed))
         print('\t\t...optimal solution found')
-        dist = Players.distdiff(xy.x, distances['distance'], needed)
+        dist = self.distdiff(xy.x, distances['distance'], needed)
 
         self.df['x'] = [0] + xy.x.tolist()[0:int(len(xy.x)/2)]
         self.df['y'] = [0] + xy.x.tolist()[int(len(xy.x)/2):]

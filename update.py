@@ -2,7 +2,7 @@ from pandas import DataFrame
 
 from stripper import Stripper, Scraper, Simulator
 from spotify import Spotter
-from results import Songs, Votes, Rounds, Leagues
+from results import Songs, Votes, Rounds, Leagues, Players
 
 class Updater:
     def __init__(self, database, structure, credentials, settings):
@@ -81,13 +81,16 @@ class Updater:
 
     def update_league(self, league_title, league_url):
         rounds = Rounds()
+        players = Players()
 
         league_url = self.get_right_url(url=league_url, league_title=league_title)
 
         html_text = self.scraper.get_html_text(league_url)
         results = self.stripper.extract_results(html_text, page_type='league')
 
-        _, round_titles, player_names, round_urls, round_dates, round_creators = results # _ = league_title
+        _, round_titles, \
+            player_names, player_urls, player_imgs, \
+            round_urls, round_dates, round_creators = results # _ = league_title
 
         if len(round_titles):
             round_creators = [self.database.get_player_match(league_title, round_creator) for round_creator in round_creators]
@@ -97,7 +100,8 @@ class Updater:
             self.database.store_rounds(rounds_df, league_title)
 
         if(len(player_names)):
-            self.database.store_player_names(player_names, league_title)
+            players_df = players.sub_players(player_names, url=player_urls, src=player_imgs)
+            self.database.store_players(players_df, league_title)
         
         return round_titles, round_urls
 

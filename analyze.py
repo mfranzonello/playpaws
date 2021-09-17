@@ -1,5 +1,5 @@
 from results import Songs, Votes, Rounds, Leagues
-from comparisons import Players, Rankings, Pulse
+from comparisons import Members, Rankings, Pulse
 
 class Analyzer:
     def __init__(self, database):
@@ -13,13 +13,15 @@ class Analyzer:
         for league_title in league_titles:
             if self.database.check_data(league_title):
                 analysis = self.analyze_league(league_title, summary=True)
-                analyses.append(analysis)
+
+                if analysis:
+                    analyses.append(analysis)
 
         return analyses
 
     def analyze_league(self, league_title, summary=True):
         print(f'Setting up league {league_title}')
-        players = self.get_players(league_title)
+        members = self.get_members(league_title)
 
         weights = self.database.get_weights()
 
@@ -27,18 +29,18 @@ class Analyzer:
 
         if self.check_songs_and_votes(songs, votes):
             print(f'\t...analyzing {league_title}')
-            rankings = self.crunch_rounds(songs, votes, rounds, players, weights)
+            rankings = self.crunch_rounds(songs, votes, rounds, members, weights)
 
-            xy = self.get_coordinates(league_title)
+            xy_ = self.get_coordinates(league_title)
 
-            pulse = self.get_pulse(songs, votes, players, xy)
+            pulse = self.get_pulse(songs, votes, members, xy_)
 
-            self.store_coordinates(league_title, players)
+            self.store_coordinates(league_title, members)
 
             # display results
             if summary:           
                 print(f'{league_title} Results\n')
-                for df in [songs, rounds, pulse, players, rankings]:
+                for df in [songs, rounds, pulse, members, rankings]:
                     print(df)
 
             analysis = {'league_title': league_title,
@@ -47,6 +49,7 @@ class Analyzer:
                         'rounds': rounds,
                         'rankings': rankings,
                         'pulse': pulse,
+                        'members': members,
                         }
 
         else:
@@ -63,12 +66,12 @@ class Analyzer:
 
         return league_titles
 
-    def get_players(self, league_title):
+    def get_members(self, league_title):
         player_names = self.database.get_player_names(league_title)
 
-        players = Players(player_names)
+        members = Members(player_names)
 
-        return players
+        return members
         
     def get_songs_and_votes(self, league_title):
         print('Loading from database')
@@ -97,14 +100,14 @@ class Analyzer:
         check = len(songs.df) > 0 # & (len(votes.df) > 0)
         return check
 
-    def crunch_rounds(self, songs, votes, rounds, players, weights):
+    def crunch_rounds(self, songs, votes, rounds, members, weights):
         print('Crunching rounds')
         # count how many submitted per round
         votes.name_rounds(songs)
         rounds.count_players(votes)
 
         # total points per song
-        songs.add_patternizer(votes, players=players)
+        songs.add_patternizer(votes, members=members)
         songs.calculate_points(votes, rounds, weights)
 
         # list winners of each round
@@ -112,11 +115,11 @@ class Analyzer:
 
         return rankings
 
-    def get_pulse(self, songs, votes, players, xy=None):
+    def get_pulse(self, songs, votes, members, xy_=None):
         # get group pulse
         print('Getting pulse')
 
-        pulse = Pulse(players)
+        pulse = Pulse(members)
         print('\t...likes')
         pulse.calculate_likers(songs, votes)
         print('\t...similarity')
@@ -128,21 +131,23 @@ class Analyzer:
         print('Getting placements')
 
         print('\t...coordinates')
-        players.update_coordinates(pulse, xy=xy)
+        members.update_coordinates(pulse, xy_=xy_)
         print('\t...likes')
-        players.who_likes_whom(pulse)
+        members.who_likes_whom(pulse)
         print('\t...dfc')
-        players.get_dfc(songs, votes)
+        members.get_dfc(songs, votes)
         print('\t...battle')
-        players.battle(pulse)
+        members.battle(pulse)
 
         return pulse
 
     def get_coordinates(self, league_title):
         members = self.database.get_members(league_title)
-        xy = members[['player', 'x', 'y']]
-        return xy
+        xy_ = members[['player', 'x', 'y']]
+        return xy_
 
-    def store_coordinates(self, league_title, players):
-        members_df = players.get_members()
+    def store_coordinates(self, league_title, members):
+        print('Storing coordinates')
+        members_df = members.get_members()
+        print(members_df)
         self.database.store_members(members_df, league_title)

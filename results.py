@@ -54,16 +54,16 @@ class Songs(Results):
         round_song_ids = self.df.query(f'round == "{round_title}"')['song_id'].to_list()
         return round_song_ids
 
-    def add_patternizer(self, votes, players=None, player_names=None):
+    def add_patternizer(self, votes, members=None, player_names=None):
         if player_names is None:
-            player_names = players.player_names
+            player_names = members.player_names
 
         self.patternizer = Patternizer(self, votes, player_names)
 
-    def get_patternizer(self, votes=None, players=None, player_names=None):
+    def get_patternizer(self, votes=None, members=None, player_names=None):
         if self.patternizer is None:
             if player_names is None:
-                player_names = players.player_names
+                player_names = members.player_names
             self.add_patternizer(votes, player_names)
 
         return self.patternizer
@@ -99,16 +99,16 @@ class Votes(Results):
     def __repr__(self):
         return f'VOTES\n{self.df}\n'
 
-    def sub_round(self, song_ids, players, vote_counts, next_song_ids):
+    def sub_round(self, song_ids, player_names, vote_counts, next_song_ids):
         votes_df = DataFrame(columns=Votes.columns)
         votes_df['song_id'] = [next_song_ids[i-1] for i in song_ids]
-        votes_df['player'] = players
+        votes_df['player'] = player_names
         votes_df['vote'] = vote_counts
 
         return votes_df
 
-    def add_round(self, song_ids, players, vote_counts, next_song_ids):
-        votes_df = self.sub_round(song_ids, players, vote_counts, next_song_ids)
+    def add_round(self, song_ids, player_names, vote_counts, next_song_ids):
+        votes_df = self.sub_round(song_ids, player_names, vote_counts, next_song_ids)
 
         self.df = self.df.append(votes_df, ignore_index=True)
         self.int_cols()
@@ -173,10 +173,10 @@ class Rounds(Results):
 class Leagues(Results):
     columns = ['league']
     def __init__(self):
-        super().__init__(columns=Leagues.columns)
+        super().__init__(columns=self.columns)
 
     def sub_leagues(self, league_titles, **cols):
-        leagues_df = DataFrame(columns=Leagues.columns)
+        leagues_df = DataFrame(columns=self.columns)
         leagues_df['league'] = league_titles
 
         for col in cols:
@@ -196,9 +196,18 @@ class Leagues(Results):
     def add_leagues_db(self, leagues_df):
         self.df = leagues_df.reindex(columns=Leagues.columns)
 
-##class Members(Results):
-##    columns = ['player']
-##    def __init__(self):
-##        super().__init__(columns=Members.columns)
+class Players(Results):
+    columns = ['player', 'url']
+    def __init__(self):
+        super().__init__(columns=self.columns)
 
-##    def add_members(self, players)
+    def sub_players(self, player_names, **cols):
+        players_df = DataFrame(columns=self.columns)
+        players_df['player'] = player_names
+        for col in cols:
+            players_df[col] = cols[col]
+
+        return players_df
+
+    def add_players(self, player_names):
+        self.df = self.sub_players(player_names)
