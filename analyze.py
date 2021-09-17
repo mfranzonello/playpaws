@@ -11,7 +11,7 @@ class Analyzer:
 
         analyses = []
         for league_title in league_titles:
-            if self.database.check_league(league_title):
+            if self.database.check_data(league_title):
                 analysis = self.analyze_league(league_title, summary=True)
                 analyses.append(analysis)
 
@@ -26,7 +26,7 @@ class Analyzer:
         songs, votes, rounds = self.get_songs_and_votes(league_title)
 
         if self.check_songs_and_votes(songs, votes):
-            print(f'\t...analyzing {round_title}')
+            print(f'\t...analyzing {league_title}')
             rankings = self.crunch_rounds(songs, votes, rounds, players, weights)
 
             xy = self.get_coordinates(league_title)
@@ -50,7 +50,7 @@ class Analyzer:
                         }
 
         else:
-            print(f'\t...nothing data for {round_title}')
+            print(f'\t...no data for {league_title}')
             analysis = None
 
         return analysis
@@ -85,7 +85,7 @@ class Analyzer:
         ##rounds.sort_titles(round_titles) <- need to ensure rounds are in correct order by adding dates to DB
 
         for round_title in round_titles:
-            if self.database.check_round(league_title, round_title):
+            if self.database.check_data(league_title, round_title=round_title):
                 songs.add_round_db(db_songs.query(f'round == "{round_title}"'))
                 round_song_ids = songs.get_songs_ids(round_title)
                 votes.add_round_db(db_votes.query(f'song_id in {round_song_ids}'))
@@ -117,23 +117,23 @@ class Analyzer:
         print('Getting pulse')
 
         pulse = Pulse(players)
-        print('...likes')
+        print('\t...likes')
         pulse.calculate_likers(songs, votes)
-        print('...similarity')
+        print('\t...similarity')
         pulse.calculate_similarity(songs, votes)
-        print('...wins')
+        print('\t...wins')
         pulse.calculate_wins(songs, votes)
 
         # calculate distances
         print('Getting placements')
 
-        print('...coordinates')
+        print('\t...coordinates')
         players.update_coordinates(pulse, xy=xy)
-        print('...likes')
+        print('\t...likes')
         players.who_likes_whom(pulse)
-        print('...dfc')
+        print('\t...dfc')
         players.get_dfc(songs, votes)
-        print('...battle')
+        print('\t...battle')
         players.battle(pulse)
 
         return pulse

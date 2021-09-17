@@ -1,5 +1,3 @@
-#from itertools import filterfalse
-
 from structure import Setter
 from data import Database
 from analyze import Analyzer
@@ -14,7 +12,6 @@ def main():
     update_db = settings.get('update_db', False)
 
     printer = Printer('display.max_columns', 'display.max_rows')
-    #printer.set_display_options()
 
     # prepare database
     database = Database(credentials[server['db_name']], structure)

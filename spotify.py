@@ -3,9 +3,6 @@ from spotipy.oauth2 import SpotifyClientCredentials
 
 class Spotter:
     def __init__(self, credentials):
-        ##client_id = credentials['client_id']
-        ##client_secret = credentials['client_secret']
-
         client_credentials_manager = SpotifyClientCredentials(*credentials)
         self.sp = Spotify(client_credentials_manager=client_credentials_manager)
 

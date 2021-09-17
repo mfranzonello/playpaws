@@ -34,8 +34,7 @@ class Patternizer:
         return self.patterns
 
     def get_rounds_played(self):
-        vote_rounds = (self.votes.df.groupby(['round','player']).count()['vote'] >= 1).reset_index()
-        print(f'player names: {self.player_names}')
+        vote_rounds = self.votes.df.groupby(['round','player']).count()['vote'].ge(1).reset_index()
         rounds_played = vote_rounds.pivot(index='round', columns='player', values='vote').reset_index().reindex(columns=['round'] + self.player_names)
         return rounds_played
 
@@ -44,7 +43,7 @@ class Patternizer:
             rounds_played = self.get_rounds_played()
 
             did_vote = self.songs.df[['song_id', 'round']].merge(rounds_played,
-                                                            on=['round']).reindex(columns=['song_id'] + self.player_names).set_index('song_id').fillna(False)
+                                                                 on=['round']).reindex(columns=['song_id'] + self.player_names).set_index('song_id').fillna(False)
        
             if must_vote:
                 did_submit = False
@@ -231,7 +230,7 @@ class Players:
             self.df[like] = self.df.merge(most_like, left_on='player', right_on='p1', how='left')['p2']
 
     def get_dfc(self, songs, votes):
-        patternizer = songs.get_patternizer(votes, self.get_playe_names())
+        patternizer = songs.get_patternizer(votes, self.player_names)
         self.df['dfc'] = self.df.apply(lambda x: patternizer.get_distance(x['player']), axis=1)
 
     def battle(self, pulse):

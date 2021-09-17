@@ -1,6 +1,6 @@
 from os import getlogin
-from types import MemberDescriptorType
-from pandas.core.base import NoNewAttributesMixin
+from dateutil.parser import parse, ParserError
+from datetime import date
 
 from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame
@@ -9,7 +9,7 @@ class Database:
     keys = {'Leagues': ['league'],
             'Players': ['player'],
             'Members': ['league', 'player'],
-            'Rounds': ['leauge', 'round'],
+            'Rounds': ['league', 'round'],
             'Songs': ['league', 'song_id'],    
             'Votes': ['league', 'player', 'song_id'],
             'Weights': ['parameter'],
@@ -18,12 +18,12 @@ class Database:
             'Albums': ['uri'],
             }
 
-    cols = {'Leagues': ['url'], #'path'
-            'Rounds': ['status', 'date', 'url'], #'path'
-            'Member': ['x', 'y'],
-            'Songs': ['round', 'artist', 'title', 'submitter'],
-            'Votes': ['vote'],
-            }
+    values = {'Leagues': ['creator', 'date', 'url', 'path'],
+              'Rounds': ['creator', 'date', 'status', 'url', 'path'],
+              'Member': ['x', 'y'],
+              'Songs': ['round', 'artist', 'title', 'submitter'],
+              'Votes': ['vote'],
+              }
 
     def __init__(self, credentials, structure={}):
         self.language = credentials.get('language')
@@ -39,6 +39,10 @@ class Database:
             engine_string = ''
 
         self.directories = structure
+
+        self.keys = Database.keys
+        self.values = Database.values
+        self.columns = {table_name: self.keys[table_name] + self.values.get(table_name, []) for table_name in self.keys}
         
         print(f'Connecting to database {self.db}')
         self.engine = create_engine(engine_string)
@@ -54,7 +58,7 @@ class Database:
 
         return full_table_name
 
-    def get_table(self, table_name, columns=None, league=None):
+    def get_table(self, table_name, columns=None, league=None, order_by=None):
         # get values from database
 
         # check if column specific
@@ -73,16 +77,35 @@ class Database:
             # return only league values
             wheres = f' WHERE league = {self.needs_quotes(league)}'
 
+        if order_by:
+            orders = f' ORDER BY {order_by[0]} {order_by[1]}'
+        else:
+            orders = ''
+
         # write and execute SQL
-        sql = f'SELECT {cols} FROM {self.table_name(table_name)}{wheres};'
+        sql = f'SELECT {cols} FROM {self.table_name(table_name)}{wheres}{orders};'
         table = read_sql(sql, self.connection, coerce_float=True)
 
         return table
 
-    def quotable(item):
+    def quotable(self, item):
+        # add SQL appropriate quotes to string variables
         try_string = str(item)
-        quotable = not ((try_string in ['True', 'False']) or try_string.isnumeric())
+        quotable = not ((try_string in ['True', 'False']) or try_string.isnumeric())# or isinstance(item, date))
         return quotable
+
+    def datable(self, item):
+        # add cast information to date values
+        if isinstance(item, date):
+            is_date = True
+        else:
+            try:
+                parse(str(item))
+                is_date = True
+            except ParserError:
+                is_date = False
+
+        return is_date
 
     def needs_quotes(self, item) -> str:
         # put quotes around strings to account for special characters
@@ -90,9 +113,15 @@ class Database:
             char = '"'
         elif self.language == 'postgres':
             char = "'"
+            add_on = '::date' if self.datable(item) else ''
         else:
             char = ''
-        quoted = char + str(item).replace(char, char*2) + char if Database.quotable(item) else str(item)
+
+        if self.quotable(item):
+            quoted = char + str(item).replace(char, char*2) + char + add_on
+        else:
+            quoted = str(item)
+
         return quoted
 
     def update_rows(self, table_name, df, keys):
@@ -109,19 +138,19 @@ class Database:
                     columns = df_row.drop(keys).index
                     values = df_row.drop(keys).values
                     sets = ', '.join(f'{column} = ' + self.needs_quotes(value) for column, value in zip(columns, values))
-                    wheres = ' & '.join(f'({key} = ' + self.needs_quotes(key_value) + ')' for key, key_value in zip(keys, key_values))
+                    wheres = ' AND '.join(f'({key} = ' + self.needs_quotes(key_value) + ')' for key, key_value in zip(keys, key_values))
                     updates.append(f'UPDATE {self.table_name(table_name)} SET {sets} WHERE {wheres};')
                 sql = ' '.join(updates)
 
             elif self.language == 'postgres':
                 value_columns = df.drop(columns=keys).columns
                 all_columns = keys + value_columns.to_list()
-                df_upsert = df.reindex(columns=all_columns)
+                df_upsert = df.reindex(columns=all_columns) # -> may not need, see insert_rows below
 
                 sets = ', '.join(f'{col} = c.{col}' for col in value_columns)
-                values = ', '.join(x for x in ['(' + ', '.join(self.needs_quotes(v) for v in df_upsert.loc[i, :].values) + ')' for i in df_upsert.index])
+                values = ', '.join('(' + ', '.join(self.needs_quotes(v) for v in df_upsert.loc[i].values) + ')' for i in df_upsert.index)
                 cols = ', '.join(f'{col}' for col in all_columns)
-                wheres = ' & '.join(f'(c.{key} = t.{key})' for key in keys)
+                wheres = ' AND '.join(f'(c.{key} = t.{key})' for key in keys)
                 
                 sql = f'UPDATE {self.table_name(table_name)} AS t SET {sets} FROM (VALUES {values}) AS c({cols}) WHERE {wheres};'
 
@@ -163,7 +192,7 @@ class Database:
         if self.language == 'sqlite':
             keys = read_sql(f'PRAGMA TABLE_INFO({table_name})', self.connection).query('pk > 0')['name']
         elif self.language == 'postgres':
-            keys = Database.keys[table_name]
+            keys = self.keys[table_name]
         else:
             keys = []
 
@@ -178,26 +207,52 @@ class Database:
         # update existing rows and insert new rows
         keys = self.get_keys(table_name)
 
-        # get current league
-        league = df['league'].iloc[0]
+        ##df_reindexed = df.reindex(columns=self.store_columns(table_name)) ## might be redundant
+
+        # get current league if not upserting Leagues or table that doesn't have league as a key
+        if (table_name == 'Leagues') or ('league' not in self.keys[table_name]):
+            league = None
+        else:
+            league = df['league'].iloc[0]
 
         # get existing ids in database
         df_existing = self.get_table(table_name, columns=keys, league=league)
 
-        print(f'{table_name}: DF_EXISTING: {df_existing}')
         # split dataframe into existing updates and new inserts
         df_updates, df_inserts = self.find_existing(df, df_existing, keys)
-        print(f'DF_UP: {df_updates}: DF_IN: {df_inserts}')
 
         # write SQL for updates and inserts
         sql_updates = self.update_rows(table_name, df_updates, keys)
-        sql_insert = self.insert_rows(table_name, df_inserts)
+        sql_inserts = self.insert_rows(table_name, df_inserts)
 
         # write combined SQL
-        sql = ' '.join(s for s in [sql_updates, sql_insert] if len(s))
-        
+        sql = ' '.join(s for s in [sql_updates, sql_inserts] if len(s))
+
         # execute SQL
         self.execute_sql(sql)
+
+    def get_player_match(self, league_title=None, partial_name=None, url=None):
+        # find closest name
+        if url:
+            wheres = f'url = {self.needs_quotes(url)}'
+        else:
+            like_name = f'{partial_name}%'
+            wheres = f'player LIKE {self.needs_quotes(partial_name)}'
+
+        sql = f'SELECT player FROM {self.table_name("Members")} WHERE {wheres}'
+
+        names_df = read_sql(sql, self.connection)
+        if len(names_df):
+            if partial_name in names_df['name'].values:
+                # the name is an exact match
+                matched_name = partial_name
+            else:
+                # return the first name match
+                matched_name = names_df['name'].iloc[0]
+        elif partial_name:
+            # no name found
+            matched_name = None
+        return
 
     def get_song_ids(self, league_title:str, artists:list, titles:list) -> list:
         # first check for which songs already exists
@@ -221,51 +276,49 @@ class Database:
         return next_song_ids
 
     def store_columns(self, table_name):
-        columns = self.keys.get(table_name, []) + self.cols.get(table_name, [])
+        columns = self.columns[table_name]
         return columns
 
     def get_leagues(self):
         # get league names
-        leagues_df = self.get_table('Leagues')
+        leagues_df = self.get_table('Leagues', order_by=['date', 'ASC'])
         return leagues_df
 
     def store_leagues(self, leagues_df):
         # store league names
-        ##keys = self.get_keys('Leagues')
         df = leagues_df.reindex(columns=self.store_columns('Leagues'))
         self.upsert_table('Leagues', df)
 
-        ##df_existing = self.get_leagues()
-        ##df_updates, df_inserts = self.find_existing(leagues_df, df_existing, keys)
-        ##sql_insert = self.insert_rows('Leagues', df_inserts)
+    def get_league_creator(self, league_title):
+        # get name of league creator
+        sql = f'SELECT creator FROM {self.table_name("Leagues")} WHERE league = {self.needs_quotes(league_title)}'
+        creators_df = read_sql(sql, self.connection)
+        if len(creators_df):
+            creator = creators_df['creator'].iloc[0]
+        else:
+            creator = None
+        return creator
 
-        ##self.execute_sql(sql_insert)
+    def check_data(self, league_title, round_title=None):
+        # see if there is any data for the league or round
+        wheres = f'league = {self.needs_quotes(league_title)}'
+        if round_title is not None:
+            wheres = f'({wheres}) AND (round = {self.needs_quotes(round_title)})'
+            count = 'round'
+            table_name = 'Rounds'
+        else:
+            count = 'league'
+            table_name = 'Leagues'
 
-    ##def store_league_url(self, league_title, url):
-    ##    # add URL for league
-    ##    if url is not None:
-    ##        table_name = 'Leagues'
-    ##        sql_update = f'UPDATE {self.table_name(table_name)} SET url = {self.needs_quotes(url)} WHERE league = {self.needs_quotes(league_title)}'
-    ##        self.execute_sql(sql_update)
+        sql = f'SELECT COUNT({count}) FROM {self.table_name(table_name)} WHERE {wheres}'
 
-    def check_league(self, league_title):
-        # see if there are any rounds for this league
-        sql = f'SELECT COUNT(league) FROM {self.table_name("Rounds")} WHERE league = {self.needs_quotes(league_title)}'
         count_df = read_sql(sql, self.connection)
         check = count_df['count'].gt(0).all()
 
         return check
 
-    def check_round(self, league_title, round_title):
-        # see if there are any songs for this league
-        sql = f'SELECT COUNT(round) FROM {self.table_name("Songs")} WHERE (league = {self.needs_quotes(league_title)}) & (round = {self.needs_quotes(round_title)})'
-        count_df = read_sql(sql, self.connection)
-        check = count_df['count'] > 0
-
-        return check
-
     def get_rounds(self, league):
-        rounds_df = self.get_table('Rounds', league=league).drop(columns='league')
+        rounds_df = self.get_table('Rounds', league=league, order_by=['date', 'ASC']).drop(columns='league')
         return rounds_df
 
     def get_url_status(self, url):
@@ -285,7 +338,7 @@ class Database:
             round_status = 'n/a'
         else:
             table_name = 'Rounds'
-            sql = f'SELECT * FROM {self.table_name(table_name)} WHERE (league = {self.needs_quotes(league_title)}) & (round = {self.needs_quotes(round_title)})' 
+            sql = f'SELECT * FROM {self.table_name(table_name)} WHERE (league = {self.needs_quotes(league_title)}) AND (round = {self.needs_quotes(round_title)})' 
             status = read_sql(sql, self.connection)
 
             if len(status):
@@ -296,33 +349,15 @@ class Database:
         return round_status
 
     def store_round(self, league_title, round_title, new_status, url=None):
-        round_status = self.get_round_status(league_title, round_title)
+        df = DataFrame([[league_title, round_title, new_status, url]], columns=['league', 'round', 'status', 'url'])
+        self.upsert_table('Rounds', df)
 
-        # add round if not in DB
-        if round_status == 'missing':
-            # don't store URL if it is blank
-            set_items = ['league', 'round', 'status', 'url']
-            value_items = [league_title, round_title, new_status, url]
-            items_limit = len(set_items) if (url is not None) else len(set_items)-1
-
-            sets = '(' + ', '.join(item for item in set_items[:items_limit]) + ')'
-            values = '(' + ', '.join(f'{self.needs_quotes(item)}' for item in value_items[:items_limit]) +')'
-            sql = f'INSERT INTO Rounds {sets} VALUES {values}'
-
-        # update round if in DB and there is a change
-        elif (round_status in ['new', 'open', 'closed']) and (round_status != new_status):
-            sets = f'status = {self.needs_quotes(new_status)}'
-            if (url is not None) & (url != self.get_url('round', league_title, round_title=round_title)):
-                sets += f', url = {self.needs_quotes(url)}'
-            sql = f'UPDATE Rounds SET {sets} WHERE (league = {self.needs_quotes(league_title)}) & (round = {self.needs_quotes(round_title)})'
-
-        # skip if error
-        else:
-            sql = None
-
-        # execute if there is a needed update or insert
-        if sql is not None:
-            self.connection.execute(sql)
+    def store_rounds(self, rounds_df, league_title):
+        df = rounds_df.reindex(columns=self.store_columns('Rounds'))
+        df['league'] = league_title
+        if 'status' not in rounds_df.columns:
+            df = df.drop(columns='status') # only store status if it is there
+        self.upsert_table('Rounds', df)
 
     def get_url(self, url_type, league_title, round_title=None):
         # return specific URL
@@ -331,7 +366,7 @@ class Database:
 
         wheres = f'(league = {self.needs_quotes(league_title)})'
         if round_title is not None:
-            wheres += f' & (round = {self.needs_quotes(round_title)})'
+            wheres += f' AND (round = {self.needs_quotes(round_title)})'
     
         sql = f'SELECT url FROM {self.table_name(table_name)} WHERE {wheres}'
         urls = read_sql(sql, self.connection)['url'].values
@@ -399,7 +434,7 @@ class Database:
 
     def get_player_names(self, league_title):
         members = self.get_members(league_title)
-        player_names = members['player'].values
+        player_names = members['player'].to_list()
         return player_names
 
     def store_players(self, players):

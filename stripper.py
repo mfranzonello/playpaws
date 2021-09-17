@@ -1,6 +1,9 @@
 import codecs
 from os import listdir
 from difflib import SequenceMatcher
+import re
+from dateutil.parser import parse
+#from datetime import datetime
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -18,7 +21,7 @@ class Simulator:
         
         self.chrome_directory = chrome_directory
         self.chrome_profile = chrome_profile
-        self.silent = False#silent
+        self.silent = silent#False
         self.options = self.get_options()
         self.driver = None
 
@@ -176,100 +179,198 @@ class Scraper:
 
 class Stripper:
     home_types = {'league': {'tag': 'div',
-                             'attr': {'class': 'league-title'},
-                             }, # complete
-                  'link': {'tag': 'a',
-                           'attr': {'class': 'league-tile'},
-                           'href': True,
-                           },
+                             'attrs': {'class': 'league-title'},
+                             }, # completed date
+                  'league_urls': {'tag': 'a',
+                                  'attrs': {'class': 'league-tile'},
+                                  'href': True,#_like': 'l/',
+                                  },
+                  'user_name': {'tag': 'span',
+                                'attrs': {'id': 'user-name'},
+                                },
+                  'league_creators': {'tag': 'a',
+                                      'attrs': {'class': 'creator-name'},
+                                       #'href': True,
+                                       },
+                  'league_dates': {'tag': 'span',
+                                   'attrs': {'data-timestamp': True},
+                                   },
                   }
 
     league_types = {'league': {'tag': 'span',
-                               'attr': {'class': 'league-title'},
+                               'attrs': {'class': 'league-title'},
                                },
                     'round': {'tag': 'a',
-                              'attr': {'class': 'round-title'},
+                              'attrs': {'class': 'round-title'},
+                              'href': 'l/',
+                              'multiple': {'title': {},
+                                           'url': {'href': True},
+                                           },
                               },
-                    'player': {'tag': 'span',
-                               'attr': {'class': 'member-name'},
+                    'viewable_rounds': {'tag': 'a',
+                                        'attrs': {'class': 'action-link', 
+                                                  'title': 'Round Results',
+                                                  },
+                                        'href': 'l/',
+                                        },
+                    'round_dates': {'tag': 'span',
+                                    'attrs': {'data-timestamp': True},
+                                    },
+                    'round_creators': {'tag': 'span',
+                                       'attrs': {'class': 'status-text',
+                                                 'data-timestamp': False,
+                                                 },
+                                       'string': True,
+                                       'remove': {'type': 'in',
+                                                  'rems': ['Chosen by', 'Submitted by']},
+                                       },
+                    'player': {'tag': 'a',
+                               'href': 'user/',
+                               'multiple': {'name': {'title': True},
+                                            'img': {'src': True},
+                                            'url': {'href': True},
+                                            }
                                },
-                    'link': {'tag': 'a',
-                             'attr': {'title': 'round-title'},
-                             'href': True,
-                             }
                     }
 
     round_types = {'league': {'tag': 'span',
-                              'attr': {'class': 'league-title'},
+                              'attrs': {'class': 'league-title'},
                               'sublink': True,
                               },
                    'round': {'tag': 'span',
-                             'attr': {'class': 'round-title'},
+                             'attrs': {'class': 'round-title'},
                              },
                    'artist': {'tag': 'span',
-                              'attr': {'class': 'vcenter artist'},
-                              'remove': ['By '],
+                              'attrs': {'class': 'vcenter artist'},
+                              'remove': {'type': 'start',
+                                         'rems': ['By ']},
                               },
-                   'title': {'tag': 'a',
-                             'attr': {'class': 'vcenter name'},
+                   'track': {'tag': 'a',
+                             'attrs': {'class': 'vcenter name'},
+                             'multiple': {'title': {},
+                                          'url': {'href': True},
+                                          },
                              },
                    'submitter': {'tag': 'span',
-                                 'attr': {'class': 'vcenter submitter'},
+                                 'attrs': {'class': 'vcenter submitter'},
                                  'sublink': True,
                                  },
                    'player': {'tag': 'div',
-                              'attr': {'class': 'col-xs-9 col-sm-8 col-md-9 voter text-left vcenter'},
+                              'attrs': {'class': 'col-xs-9 col-sm-8 col-md-9 voter text-left vcenter'},
                               },
                    'votes': {'tag': 'span',
-                             'attr': {'class': 'vote-count'},
+                             'attrs': {'class': 'vote-count'},
                              'value': True,
                              },
                    'people': {'tag': 'span',
-                              'attr': {'class': 'voter-count'},
-                              'remove': [f' {p} Voted On This' for p in ['People', 'Person']],
+                              'attrs': {'class': 'voter-count'},
+                              'remove': {'type': 'start',
+                                         'rems': [f' {p} Voted On This' for p in ['People', 'Person']]},
                               'value': True,
                               },
-                   'link': {'a': '',
-                            'attr': {'class': 'vcenter name'},
-                            'href': True,
-                            }
                    }
-
-    def __init__(self):
-        self.result_types = {'round': Stripper.round_types,
-                             'home': Stripper.home_types,
+                                 
+    def __init__(self, main_url=''):
+        self.result_types = {'home': Stripper.home_types,
                              'league': Stripper.league_types,
+                             'round': Stripper.round_types,
                              }
 
-    def strip_tag(self, tag, remove=None, value=False, sublink=False, href=False):
-        if sublink:
-            stripped = tag.a.string
-        elif href:
-            stripped = tag['href']
+        self.main_url = main_url
+
+    def strain_soup(self, soup, rt):
+        name = rt['tag']
+        attributes = {}
+
+        # find elements of soup that match attributes
+        if rt.get('attrs') is not None:
+            attributes['attrs'] =  rt['attrs']
+
+        # look for href conditions
+        if type(rt.get('href')) is bool:
+            # any link exists
+            attributes['href'] = rt['href']
+        elif type(rt.get('href')) is str:
+            # specific link exists
+            href_like = rt['href']
+            if (href_like[:len('http')] != 'http'):
+                href_compile = f'{self.main_url}/{href_like}'
+            else:
+                href_compile = f'/{href_like}'
+            attributes['href'] = re.compile(f'^{href_compile}') # must start with string
+        if rt.get('string'):
+            attributes['string'] = rt['string']
+
+        noodles = soup.find_all(name=name, **attributes)
+
+        return noodles
+
+    def strip_noodle(self, noodle, **attrs):
+        # get relevant contents
+
+        if attrs.get('multiple') is not None:
+            # dig deeper
+            multiple_attrs = attrs['multiple']
+            stripped = {m_attrs: self.strip_noodle(noodle, **multiple_attrs[m_attrs]) for m_attrs in multiple_attrs}
         else:
-            stripped = tag.string
+            # value to strip
+            if attrs.get('sublink'): #, False):
+                # link URL in another tag
+                stripped = noodle.a.string
+            elif attrs.get('href'): #, False) or (attrs.get('href_like') is not None):
+                # link URL
+                stripped = noodle['href']
+            elif attrs.get('src'): #, False):
+                # image location
+                stripped = noodle.img['src']
+            elif attrs.get('title'): #, False):
+                # name
+                stripped = noodle['title']
+            elif attrs.get('attrs') and attrs['attrs'].get('data-timestamp'): #, False):
+                # date
+                stripped = parse(noodle['data-timestamp']).date()
+                #stripped = datetime.strptime(noodle['data-timestamp'], '%Y-%m-%dT%H:%M:%SZ').date()
+            else:
+                # text
+                stripped = noodle.string
     
-        if remove is not None:
-            for rem in remove:
-                stripped = stripped.replace(rem, '', 1)
-        if value:
-            stripped = int(stripped)
+            if attrs.get('remove'): # is not None:
+                # extract what comes after
+                if attrs['remove']['type'] == 'start':
+                    for rem in attrs['remove']['rems']:
+                        stripped = stripped.replace(rem, '', 1)
+                # extract what comes between items
+                elif attrs['remove']['type'] == 'in':
+                    starts = attrs['remove']['rems']
+                    pattern_starts = [start.replace('(','\(').replace(')','\)') for start in starts]
+                    pattern_end = '[,.;() \-]'
+                    pattern = '|'.join(f'({pattern_start}.+?{pattern_end})' for pattern_start in pattern_starts)
+                    searched = re.search(pattern, stripped, flags=re.IGNORECASE)
+
+                    if searched:
+                        pattern = '|'.join(f'({pattern_start})' for pattern_start in pattern_starts)
+                        matched = re.match(pattern, searched[0], flags=re.IGNORECASE)
+                        stripped = searched[0][len(matched[0]):-1].strip()
+
+                    else:
+                        stripped = None
+                    
+            if attrs.get('value', False):
+                # convert to number
+                stripped = int(stripped)
+       
         return stripped
-   
+  
     def get_results(self, html_text, page_type):
         # get HTML tags from URL
 
         soup = BeautifulSoup(html_text, 'html.parser') #response.text
 
         result_types = self.result_types[page_type]
-        results = {rt: [self.strip_tag(tag,
-                                       remove=result_types[rt].get('remove'),
-                                       value=result_types[rt].get('value', False),
-                                       sublink=result_types[rt].get('sublink', False),
-                                       href=result_types[rt].get('href', False)) for \
-                                           tag in soup.find_all(name=result_types[rt]['tag'],
-                                                                attrs=result_types[rt]['attr'])] for \
-                                                                    rt in result_types} #['class'] instead of ['attr']
+
+        results = {rt: [self.strip_noodle(noodle, **result_types[rt]) \
+            for noodle in self.strain_soup(soup, result_types[rt])] \
+                                               for rt in result_types}
 
         return results
 
@@ -291,25 +392,46 @@ class Stripper:
 
     def extract_home(self, results):
         league_titles = results['league']
-        league_urls = results['link']
-        return league_titles, league_urls
+        league_urls = results['league_urls']
+
+        user_name = results['user_name'][0]
+        league_creators = [user_name if creator == 'YOU' else creator for creator in results['league_creators']]
+
+        league_dates = results['league_dates']
+
+        return league_titles, league_urls, league_creators, league_dates
 
     def extract_league(self, results):
         league_title = results['league'][0]
-        round_titles = results['round']
-        round_urls = results['link']
-        player_names = results['player']
 
-        return league_title, round_titles, player_names, round_urls
+        round_titles_all = [round['title'] for round in results['round']]
+        viewable_urls = results['viewable_rounds']
+        # only count URLs for rounds with results
+        round_urls_all = [round['url'] if (round['url'] in viewable_urls) else None for round in results['round']]
+        round_dates_all = results['round_dates']
+        round_creators_all = results['round_creators'] #[creator for creator in results['round_creators'] if creator is not None] 
+
+        # remove rounds titles and URLS that are duplicate (i.e. open)
+        round_title_set = list(dict.fromkeys(round_titles_all))
+        round_titles = [round_titles_all[round_titles_all.index(s)] for s in round_title_set]
+        round_urls = [round_urls_all[round_titles_all.index(s)] for s in round_title_set]
+        round_dates = [round_dates_all[round_titles_all.index(s)] for s in round_title_set]
+        round_creators = [round_creators_all[round_titles_all.index(s)] for s in round_title_set]
+        
+        player_names = [player['name'] for player in results['player']]
+        player_urls = [player['url'] for player in results['player']]
+        player_imgs = [player['img'] for player in results['player']]
+
+        return league_title, round_titles, player_names, round_urls, round_dates, round_creators
 
     def extract_round(self, results):
         league_title = results['league'][0]
         round_title = results['round'][0]
 
         artists = results['artist'][0::2]
-        titles = results['title'][0::2]
+        titles = results['track']['title'][0::2]
         submitters = results['submitter'][0::2]
-        track_urls = results['link'][0::2]
+        track_urls = results['track']['url'][0::2]
 
         player_names = []
         vote_counts = []
@@ -327,6 +449,8 @@ class Stripper:
             #for result_type in ['player', 'votes']:
             #    votes.loc[len(votes):len(votes)+count, result_type] = results[result_type][num:first_repeat]
 
+            ## what about overall votes for an open round, where players are unknown?
+
             player_names.extend(results['player'][num:first_repeat])
             vote_counts.extend(results['votes'][num:first_repeat])
             song_ids.extend([song_id]*count)
@@ -339,40 +463,3 @@ class Stripper:
 
 # people = results['people']
 # [sum(p for p in people[0:i]) for i in range(len(people) + 1)] <- shortcut to avoid for loop
-
-#website = 'http://musicleague.app'
-#leagues = {'Play Paws Repeat': '5e7fac9b372046718c9778b42c2c6a47',
-#          'Brad\'s Mixtape': 'b347861673e04b2cbc869c62309fc870'}
-
-#for league in leagues:
-#    league_num = leagues[league]
-#    link = f'{website}/l/{league_num}/'
-#    
-#    payload = {'user': 'mfranzonello@gmail.com', #'1235496003'
-#               'password': 'Italia1985!'}
-#    with requests.Session() as s:
-#        response = s.post('http://accounts.spotify.com/en/login', data={'username': 'mfranzonello@gmail.com', 'password': 'Italia1985!'})
-#        print(response)
-#        print(response.text)
-
-#        response = s.get('http://accounts.spotify.com/en/status')
-#        print(response)
-#        print(response.text)
-        
-#        p = s.post(link, auth=HTTPBasicAuth(payload['user'], payload['password']))
-#        print(p.text)
-#        page = s.get(link)
-#        response = s.get(link, auth=HTTPBasicAuth(payload['user'], payload['password']))
-#        print(response.text)
-
-#    #soup = BeautifulSoup(page.text, 'html.parser')
-#    #print(soup.select)
-
-#    input()
-#    #print(soup.prettify())
-
-##music_league_data = read_excel(path, sheetname)
-##
-##print(music_league_data)
-
-#'https://accounts.spotify.com/authorize?client_id=96b3fbe9ebad42559cd306ea482b3085&response_type=code&redirect_uri=https%3A%2F%2Fmusicleague.app%2Flogin%2F&scope=user-read-email'

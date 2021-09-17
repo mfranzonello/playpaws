@@ -9,15 +9,16 @@ class Updater:
         self.database = database
         self.structure = structure
         self.credentials = credentials
+        self.main_url = structure['web']['main_url']
 
         self.local = settings['local']
         self.spotter = Spotter(credentials['spotify'])
 
-        self.simulator = Simulator(main_url=structure['web']['main_url'], credentials=credentials['musicleague'],
+        self.simulator = Simulator(main_url=self.main_url, credentials=credentials['musicleague'],
                                    chrome_directory=structure['web']['chrome_driver'], chrome_profile=structure['web']['chrome_profile'],
                                    silent=settings['silent'])
 
-        self.stripper = Stripper()
+        self.stripper = Stripper(main_url = self.main_url if self.local else '')
         self.scraper = Scraper(self.simulator, self.stripper)
 
     def turn_off(self):
@@ -53,6 +54,7 @@ class Updater:
 
     def update_database(self):
         print('Updating database')
+        leagues = Leagues()
 
         # get information from home page
         main_url = self.get_right_url()
@@ -60,10 +62,9 @@ class Updater:
         html_text = self.scraper.get_html_text(main_url)
         results = self.stripper.extract_results(html_text, page_type='home')
 
-        league_titles, league_urls = results
+        league_titles, league_urls, league_creators, league_dates = results
 
-        leagues = Leagues()
-        leagues_df = leagues.sub_leagues(league_titles, urls=league_urls)
+        leagues_df = leagues.sub_leagues(league_titles, url=league_urls, date=league_dates, creator=league_creators)
         self.database.store_leagues(leagues_df)
 
         # store home page information
@@ -79,23 +80,24 @@ class Updater:
                 results = self.update_round(league_title, round_title, round_url)
 
     def update_league(self, league_title, league_url):
-        league_url = self.get_right_url(url=league_url, league_title=league_title)
+        rounds = Rounds()
 
-        # see if URL already exists
-        ##url = self.database.get_url('league', league_title)
-        ##print(f'League {league_title}')
-        ##print(f'URL: {url} vs leagueURL {league_url}')
-        ##if url != league_url:
-        ##    # store new information
-        ##    print('does not match')
-        ##    self.database.store_league_url(league_title, league_url)
+        league_url = self.get_right_url(url=league_url, league_title=league_title)
 
         html_text = self.scraper.get_html_text(league_url)
         results = self.stripper.extract_results(html_text, page_type='league')
 
-        _, round_titles, player_names, round_urls = results # _ = league_title
+        _, round_titles, player_names, round_urls, round_dates, round_creators = results # _ = league_title
 
-        self.database.store_player_names(player_names, league_title)
+        if len(round_titles):
+            round_creators = [self.database.get_player_match(league_title, round_creator) for round_creator in round_creators]
+            league_creator = self.database.get_league_creator(league_title)
+            rounds_df = rounds.sub_rounds(round_titles, league_creator=league_creator,
+                                          url=round_urls, date=round_dates, creator=round_creators)
+            self.database.store_rounds(rounds_df, league_title)
+
+        if(len(player_names)):
+            self.database.store_player_names(player_names, league_title)
         
         return round_titles, round_urls
 
@@ -140,7 +142,7 @@ class Updater:
                     new_status = 'open'
                 else:
                     new_status = 'new'
-                self.database.store_round(league_title, round_title, new_status, round_url)
+                self.database.store_round(league_title, round_title, new_status, round_url) # -> consider replacing with store_rounds
 
             else:
                # round is closed and doesn't need to be updated

@@ -75,9 +75,8 @@ class Songs(Results):
         if must_vote and (self.patternizer is not None):
             
             did_count = self.patternizer.get_counted(must_vote=must_vote)
-            print(did_count)
             did_count['submitter'] = self.df.merge(did_count, on='song_id')['submitter']
-            print(did_count)
+
             counted = did_count.apply(lambda x: x[x['submitter']], axis=1)
         else:
             counted = 1
@@ -138,8 +137,18 @@ class Rounds(Results):
     def __repr__(self):
         return f'ROUNDS\n{self.df}\n'
 
-    def sub_rounds(self, league_title, round_titles, dates=None, urls=None):
-        return
+    def sub_rounds(self, round_titles, league_creator=None, **cols):
+        rounds_df = DataFrame(columns=Rounds.columns)
+        #rounds_df['league'] = league_titles
+        rounds_df['round'] = round_titles
+
+        for col in cols:
+            rounds_df[col] = cols[col]
+
+        if 'creator' in cols:
+            rounds_df.loc[rounds_df['creator'].isna(), 'creator'] = league_creator
+
+        return rounds_df
 
     def add_rounds_db(self, rounds_df):
         self.df = rounds_df.reindex(columns=Rounds.columns)
@@ -166,11 +175,12 @@ class Leagues(Results):
     def __init__(self):
         super().__init__(columns=Leagues.columns)
 
-    def sub_leagues(self, league_titles, urls=None):
+    def sub_leagues(self, league_titles, **cols):
         leagues_df = DataFrame(columns=Leagues.columns)
         leagues_df['league'] = league_titles
-        if urls is not None:
-            leagues_df['url'] = urls
+
+        for col in cols:
+            leagues_df[col] = cols[col]
 
         return leagues_df
 
