@@ -197,7 +197,7 @@ class Leagues(Results):
         self.df = leagues_df.reindex(columns=Leagues.columns)
 
 class Players(Results):
-    columns = ['player', 'url']
+    columns = ['player', 'url', 'src']
     def __init__(self):
         super().__init__(columns=self.columns)
 
@@ -211,3 +211,6 @@ class Players(Results):
 
     def add_players(self, player_names):
         self.df = self.sub_players(player_names)
+
+    def add_players_db(self, players_df):
+        self.df = players_df.reindex(columns=self.columns)

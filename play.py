@@ -24,11 +24,11 @@ def main():
 
     # analyze data
     analyzer = Analyzer(database)
-    analyses = analyzer.analyze_all()
+    analyses, players = analyzer.analyze_all()
     
     # plot results for all leagues
     plotter = Plotter()
-    plotter.add_anaylses(analyses)
+    plotter.add_anaylses(analyses, players)
     plotter.plot_results()
 
 main()

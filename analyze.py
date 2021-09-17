@@ -1,4 +1,4 @@
-from results import Songs, Votes, Rounds, Leagues
+from results import Songs, Votes, Rounds, Leagues, Players
 from comparisons import Members, Rankings, Pulse
 
 class Analyzer:
@@ -7,6 +7,7 @@ class Analyzer:
         self.weights = database.get_weights()
 
     def analyze_all(self):
+        players = Players()
         league_titles = self.get_league_titles()
 
         analyses = []
@@ -17,7 +18,10 @@ class Analyzer:
                 if analysis:
                     analyses.append(analysis)
 
-        return analyses
+        players_df = self.database.get_players()
+        players.add_players_db(players_df)
+
+        return analyses, players
 
     def analyze_league(self, league_title, summary=True):
         print(f'Setting up league {league_title}')
