@@ -94,6 +94,7 @@ class Updater:
 
         if len(round_titles):
             round_creators = [self.database.get_player_match(league_title, round_creator) for round_creator in round_creators]
+            
             league_creator = self.database.get_league_creator(league_title)
             rounds_df = rounds.sub_rounds(round_titles, league_creator=league_creator,
                                           url=round_urls, date=round_dates, creator=round_creators)

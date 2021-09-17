@@ -1,9 +1,9 @@
 from os import getlogin
-from dateutil.parser import parse, ParserError
 from datetime import date
 
 from sqlalchemy import create_engine
-from pandas import read_sql, DataFrame
+from pandas import read_sql, DataFrame, isnull
+from pandas.api.types import is_numeric_dtype
 
 class Database:
     keys = {'Leagues': ['league'],
@@ -19,9 +19,9 @@ class Database:
             }
 
     values = {'Leagues': ['creator', 'date', 'url', 'path'],
-              'Players': ['player'],
+              'Players': ['player', 'src'],
               'Rounds': ['creator', 'date', 'status', 'url', 'path'],
-              'Member': ['x', 'y'],
+              'Members': ['x', 'y'],
               'Songs': ['round', 'artist', 'title', 'submitter'],
               'Votes': ['vote'],
               }
@@ -91,22 +91,23 @@ class Database:
 
     def quotable(self, item):
         # add SQL appropriate quotes to string variables
-        try_string = str(item)
-        quotable = not ((try_string in ['True', 'False']) or try_string.isnumeric())# or isinstance(item, date))
-        return quotable
+        is_quote = not (self.numberable(item) or self.nullable(item))
+        return is_quote
+
+    def numberable(self, item):
+        # do not add quotes or cast information to numbers
+        is_number = (not self.nullable(item)) and is_numeric_dtype(type(item))
+        return is_number
 
     def datable(self, item):
         # add cast information to date values
-        if isinstance(item, date):
-            is_date = True
-        else:
-            try:
-                parse(str(item))
-                is_date = True
-            except ParserError:
-                is_date = False
-
+        is_date = isinstance(item, date)
         return is_date
+
+    def nullable(self, item):
+        # change to None for None, nan, etc
+        is_null = isnull(item)
+        return is_null
 
     def needs_quotes(self, item) -> str:
         # put quotes around strings to account for special characters
@@ -120,6 +121,8 @@ class Database:
 
         if self.quotable(item):
             quoted = char + str(item).replace(char, char*2) + char + add_on
+        elif self.nullable(item):
+            quoted = 'NULL'
         else:
             quoted = str(item)
 
@@ -235,26 +238,34 @@ class Database:
 
     def get_player_match(self, league_title=None, partial_name=None, url=None):
         # find closest name
-        if url:
-            wheres = f'url = {self.needs_quotes(url)}'
-        else:
-            like_name = f'{partial_name}%'
-            wheres = f'player LIKE {self.needs_quotes(partial_name)}'
-
-        sql = f'SELECT player FROM {self.table_name("Members")} WHERE {wheres}'
-
-        names_df = read_sql(sql, self.connection)
-        if len(names_df):
-            if partial_name in names_df['name'].values:
-                # the name is an exact match
-                matched_name = partial_name
+        if url or (league_title and partial_name):
+            # something to search for
+            if url:
+                # search by URL
+                wheres = f'url = {self.needs_quotes(url)}'
             else:
-                # return the first name match
-                matched_name = names_df['name'].iloc[0]
-        elif partial_name:
-            # no name found
+                # search by name and league
+                like_name = f'{partial_name}%'
+                wheres = f'(league = {self.needs_quotes(league_title)}) AND (player LIKE {self.needs_quotes(partial_name)})'
+
+            sql = f'SELECT player FROM {self.table_name("Members")} WHERE {wheres}'
+
+            names_df = read_sql(sql, self.connection)
+            if len(names_df):
+                # potential matches
+                if partial_name in names_df['name'].values:
+                    # the name is an exact match
+                    matched_name = partial_name
+                else:
+                    # return the first name match
+                    matched_name = names_df['name'].iloc[0]
+            else:
+                # no name found
+                matched_name = None
+        else:
             matched_name = None
-        return
+
+        return matched_name
 
     def get_song_ids(self, league_title:str, artists:list, titles:list) -> list:
         # first check for which songs already exists
