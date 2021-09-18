@@ -1,35 +1,25 @@
 from os import getlogin
 from datetime import date
+import json
 
 from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame, isnull
 from pandas.api.types import is_numeric_dtype
 
 class Database:
-    keys = {'Leagues': ['league'],
-            'Players': ['player'],
-            'Members': ['league', 'player'],
-            'Rounds': ['league', 'round'],
-            'Songs': ['league', 'song_id'],    
-            'Votes': ['league', 'player', 'song_id'],
-            'Weights': ['parameter'],
-            'Tracks': ['uri'],
-            'Artists': ['uri'],
-            'Albums': ['uri'],
-            'Genres': ['name'],
-            }
-
-    values = {'Leagues': ['creator', 'date', 'url', 'path'],
-              'Players': ['username', 'src', 'uri', 'followers'],
-              'Rounds': ['creator', 'date', 'status', 'url', 'path'],
-              'Members': ['x', 'y'],
-              'Songs': ['round', 'artist', 'title', 'submitter', 'track_uri'],
-              'Votes': ['vote'],
-              'Tracks': ['name', 'artist_uri', 'album_uri', 'explicit', 'popularity'],
-              'Artists': ['name', 'genres', 'popularity', 'followers'],
-              'Albums': ['name', 'popularity', 'release_date'],
+    tables = {'Leagues': {'keys': ['league'], 'values': ['creator', 'date', 'url', 'path']},
+              'Players': {'keys': ['player'], 'values': ['username', 'src', 'uri', 'followers'],},
+              'Members': {'keys': ['league', 'player'], 'values': ['x', 'y']},
+              'Rounds': {'keys': ['league', 'round'], 'values': ['creator', 'date', 'status', 'url', 'path']},
+              'Songs': {'keys': ['league', 'song_id'], 'values': ['round', 'artist', 'title', 'submitter', 'track_url']},    
+              'Votes': {'keys': ['league', 'player', 'song_id'], 'values': ['vote']},
+              'Weights': {'keys': ['parameter'], 'values': ['value']},
+              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'artist_uri', 'album_uri', 'explicit', 'popularity']},
+              'Artists': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'followers']},
+              'Albums': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'release_date']},
+              'Genres': {'keys': ['name'], 'values': []},
               }
-
+   
     def __init__(self, credentials, structure={}):
         self.language = credentials.get('language')
 
@@ -45,11 +35,11 @@ class Database:
 
         self.directories = structure
 
-        self.keys = Database.keys
-        self.values = Database.values
-        self.columns = {table_name: self.keys[table_name] + self.values.get(table_name, []) for table_name in self.keys}
-        
-        print(f'Connecting to database {self.db}')
+        self.keys = {table_name: self.tables[table_name]['keys'] for table_name in self.tables}
+        self.values = {table_name: self.tables[table_name]['values'] for table_name in self.tables}
+        self.columns = {table_name: self.tables[table_name]['keys'] + self.tables[table_name]['values'] for table_name in self.tables}
+ 
+        print(f'Connecting to database {self.db}...')
         self.engine = create_engine(engine_string)
         self.connection = self.engine.connect()
 
@@ -110,8 +100,13 @@ class Database:
 
     def nullable(self, item):
         # change to None for None, nan, etc
-        is_null = isnull(item)
+        is_null = (not self.jsonable(item)) and (isnull(item) or (item == 'nan'))
         return is_null
+
+    def jsonable(self, item):
+        # add cast information to lists and dicts as JSON
+        is_json = isinstance(item, (list, dict, set))
+        return is_json
 
     def needs_quotes(self, item) -> str:
         # put quotes around strings to account for special characters
@@ -119,12 +114,16 @@ class Database:
             char = '"'
         elif self.language == 'postgres':
             char = "'"
-            add_on = '::date' if self.datable(item) else ''
         else:
             char = ''
 
         if self.quotable(item):
-            quoted = char + str(item).replace(char, char*2) + char + add_on
+            if (self.language == 'postgres') and self.datable(item):
+                quoted = char + str(item) + char + '::date'
+            elif (self.language == 'postgres') and self.jsonable(item):
+                quoted = char + json.dumps(item).replace(char, char*2) + char + '::jsonb'
+            else:
+                quoted = char + str(item).replace(char, char*2) + char
         elif self.nullable(item):
             quoted = 'NULL'
         else:
@@ -251,20 +250,20 @@ class Database:
                 wheres = f'url = {self.needs_quotes(url)}'
             else:
                 # search by name and league
-                like_name = f'{partial_name}%'
-                wheres = f'(league = {self.needs_quotes(league_title)}) AND (player LIKE {self.needs_quotes(partial_name)})'
+                like_name = f'{partial_name}%%'
+                wheres = f'(league = {self.needs_quotes(league_title)}) AND (player LIKE {self.needs_quotes(like_name)})'
 
             sql = f'SELECT player FROM {self.table_name("Members")} WHERE {wheres}'
 
             names_df = read_sql(sql, self.connection)
             if len(names_df):
                 # potential matches
-                if partial_name in names_df['name'].values:
+                if partial_name in names_df['player'].values:
                     # the name is an exact match
                     matched_name = partial_name
                 else:
                     # return the first name match
-                    matched_name = names_df['name'].iloc[0]
+                    matched_name = names_df['player'].iloc[0]
             else:
                 # no name found
                 matched_name = None
@@ -273,15 +272,18 @@ class Database:
 
         return matched_name
 
-    def get_song_ids(self, league_title:str, artists:list, titles:list) -> list:
+    def get_song_ids(self, league_title:str, round_title, artists:list, titles:list) -> list:
         # first check for which songs already exists
         ids_df = self.get_table('Songs', league=league_title).drop(columns='league')
-        songs_df = DataFrame(data=zip(artists, titles), columns=['artist', 'title']).merge(ids_df, on=['artist', 'title'])[['artist', 'title', 'song_id']]
+        merge_cols = ['artist', 'title', 'round']
+        songs_df = DataFrame(data=zip(artists, titles, [round_title]*len(artists)), columns=merge_cols).merge(ids_df, on=merge_cols)[merge_cols + ['song_id']]
         
         # then fill in songs that are new
-        needed_id_count = songs_df['song_id'].insa().sum()
-        new_ids = self.get_new_song_ids(league_title, needed_id_count)
-        songs_df[songs_df.insa()]['song_id'] = new_ids
+        needed_id_count = songs_df['song_id'].isna().sum()
+        if needed_id_count:
+            new_ids = self.get_new_song_ids(league_title, needed_id_count)
+            songs_df.loc[songs_df['song_id'].isna(), 'song_id'] = new_ids
+
         song_ids = songs_df['song_id'].values
 
         return song_ids
@@ -358,10 +360,10 @@ class Database:
         else:
             table_name = 'Rounds'
             sql = f'SELECT * FROM {self.table_name(table_name)} WHERE (league = {self.needs_quotes(league_title)}) AND (round = {self.needs_quotes(round_title)})' 
-            status = read_sql(sql, self.connection)
+            status_df = read_sql(sql, self.connection)
 
-            if len(status):
-                round_status = status['status'].iloc[0] # ['new', 'open', 'closed']
+            if len(status_df) and (not isnull(status_df['status'].iloc[0])):
+                round_status = status_df['status'].iloc[0] # ['new', 'open', 'closed']
             else:
                 round_status = 'missing'
 
@@ -441,6 +443,11 @@ class Database:
         votes_df = self.get_table('Votes', league=league).drop(columns='league')
         return votes_df
 
+    def drop_votes(self, league_title, round_title):
+        # remove placeholder votes when a round closes
+        sql = f'DELETE FROM {self.table_name("Votes")} WHERE (round = {self.needs_quotes(round_title)}) AND (player IS NULL)'
+        self.execute_sql(sql)
+
     def store_members(self, members_df, league_title):
         df = members_df.reindex(columns=self.store_columns('Members'))
         df['league'] = league_title
@@ -497,7 +504,7 @@ class Database:
     def store_tracks(self, tracks_df):
         self.store_spotify(tracks_df, 'Tracks')
 
-    def store_artist(self, artists_df):
+    def store_artists(self, artists_df):
         self.store_spotify(artists_df, 'Artists')
 
     def store_albums(self, albums_df):

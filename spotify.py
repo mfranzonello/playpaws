@@ -1,5 +1,6 @@
 from itertools import chain
 import re
+from datetime import datetime
 
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
@@ -7,9 +8,15 @@ from pandas import DataFrame
 
 class Spotter:
     def __init__(self, credentials, database=None):
-        client_credentials_manager = SpotifyClientCredentials(**credentials)
-        self.sp = Spotify(client_credentials_manager=client_credentials_manager)
+        self.credentials = credentials
         self.database = database
+
+        self.sp = None
+        self.connect_to_spotify()
+
+    def connect_to_spotify(self):
+        print('Connecting to Spotify API...')
+        self.sp = Spotify(client_credentials_manager=SpotifyClientCredentials(**self.credentials))
 
     def get_track_elements(self, uri):
         results = self.sp.track(uri)
@@ -35,14 +42,23 @@ class Spotter:
         return elements
 
     def get_album_elements(self, uri):
-        results = self.ap.album(uri)
+        results = self.sp.album(uri)
 
         elements = {'uri': results['uri'],
                     'name': results['name'],
+                    'genres': results['genres'],
                     'popularity': results['popularity'],
-                    'release_date': results['release_date'],
+                    'release_date': self.get_date(results['release_date'], results['release_date_precision']),
                     }
         return elements
+
+    def get_date(self, string, precision):
+        if precision == 'year':
+            date = datetime.strptime(string, '%Y')
+        else: # precision == 'day':
+            date = datetime.strptime(string, '%Y-%m-%d')
+            
+        return date
 
     def search_for_track(self, artist, title):
         results = self.sp.search(q=f'artist: {artist} track: {title}', type='track')
@@ -83,74 +99,80 @@ class Spotter:
 
         self.update_db_players()
         self.update_db_songs()
-        #self.update_db_tracks()
-        #self.update_db_artists()
-        #self.update_db_albums()
-        #self.update_db_genres()
+        self.update_db_tracks()
+        self.update_db_artists()
+        self.update_db_albums()
+        self.update_db_genres()
 
     def update_db_songs(self):
         urls_db = self.database.get_song_urls()
         tracks_db = self.database.get_tracks()
 
         if len(urls_db):
-            uris = [url for url in urls_db['track_url'] if url not in tracks_db['uri']]
-            tracks_db = tracks_db.append(DataFrame(uris, columns=['uri']), ignore_index=True)
+            urls = [url for url in urls_db['track_url'] if url not in tracks_db['url']]
+            tracks_db = tracks_db.append(DataFrame(urls, columns=['url']), ignore_index=True)
             self.database.store_tracks(tracks_db)
             
+    def append_updates(self, df, updates_list, key='uri'):
+        df_appended = df.append(DataFrame([u for u in updates_list if u not in df[key]],
+                                          columns=[key]), ignore_index=True)
+
+        return df_appended
+
     def get_updates(self, df, func, key='uri'):
         df_update = df[df.isnull().any(1)]
 
         df_elements = [func(uri) for uri in df_update[key]]
         df_to_update = DataFrame(df_elements, index=df_update.index)
-        #df_columns = df_elements[0].keys() #list(set().union(*(d.keys() for d in df_elements)))  
-        df_update[df_to_update.columns] = df_to_update
+        df_update.loc[:, df_to_update.columns] = df_to_update
 
         return df_update
 
+    def update_db_players(self):
+        print('\t...updating Spotify user information')
+        players_db = self.database.get_players()
+
+        players_update = self.get_updates(players_db, self.get_user_elements, key='username')
+        self.database.store_players(players_update)    
+
     def update_db_tracks(self):
+        print('\t...updating Spotify track information')
         tracks_db = self.database.get_tracks()
 
-        tracks_update = self.get_updates(tracks_db, self.get_track_elements)
+        tracks_update = self.get_updates(tracks_db, self.get_track_elements, key='url')
         self.database.store_tracks(tracks_update)
 
     def update_db_artists(self):
+        print('\t...updating Spotify artist information')
         tracks_db = self.database.get_tracks()
-        artist_uris = list(set(chain(*tracks_db['artist_uri'])))
+        artist_uris = set(tracks_db['artist_uri'].sum())
 
         artists_db = self.database.get_artists()
-        artist_uris_update = [uri for uri in artist_uris if uri not in artists_db['uri']]
+        artists_db = self.append_updates(artists_db, artist_uris)
 
-        artists_db = artists_db.append(DataFrame(artist_uris_update,
-                                                 columns=['uri']), ignore_index=True)
-
-        artists_update = self.get_updates(artists_db, self.spotter.get_artists_elements)
+        artists_update = self.get_updates(artists_db, self.get_artist_elements)
         self.database.store_artists(artists_update)
 
     def update_db_albums(self):
+        print('\t...updating Spotify album information')
         tracks_db = self.database.get_tracks()
         album_uris = tracks_db['album_uri']
 
         albums_db = self.database.get_albums()
-        album_uris_update = [uri for uri in album_uris if uri not in albums_db['uri']]
+        albums_db = self.append_updates(albums_db, album_uris)
 
-        albums_db = albums_db.append(DataFrame(album_uris_update,
-                                               columns=['uri']), ignore_index=True)
-
-        albums_update = self.get_updates(albums_db, self.spotter.get_album_elements)
-        self.database.store_albums(albums_update)
-
-    def update_db_players(self):
-        players_db = self.database.get_players()
-
-        players_update = self.get_updates(players_db, self.get_user_elements, key='username')
-        self.database.store_players(players_update)       
+        albums_update = self.get_updates(albums_db, self.get_album_elements)
+        self.database.store_albums(albums_update)  
 
     def update_db_genres(self):
+        print('\t...updating Spotify genre information')
+        artists_db = self.database.get_artists()
         albums_db = self.database.get_albums()
         genres_db = self.database.get_genres()
 
         if len(albums_db):
-            genres = list(set(chain(*albums_db['genre'])))
-            genres = [genre for genre in genres_db['name'] if genre not in genres]
-            genres_update = genres_db.append(DataFrame(genres, columns=['name']), ignore_index=True)
+            genre_names = set(artists_db['genres'].sum() + albums_db['genres'].sum())
+            genres_db = self.append_updates(genres_db, genre_names, key='name')
+
+            genres_update = genres_db
             self.database.store_genres(genres_update)

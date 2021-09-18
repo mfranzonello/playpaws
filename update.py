@@ -93,8 +93,10 @@ class Updater:
             round_urls, round_dates, round_creators = results # _ = league_title
 
         if len(round_titles):
-            round_creators = [self.database.get_player_match(league_title, round_creator) for round_creator in round_creators]
-            
+
+            round_creators = [self.database.get_player_match(league_title=league_title, partial_name=round_creator) \
+                for round_creator in round_creators]
+
             league_creator = self.database.get_league_creator(league_title)
             rounds_df = rounds.sub_rounds(round_titles, league_creator=league_creator,
                                           url=round_urls, date=round_dates, creator=round_creators)
@@ -123,22 +125,20 @@ class Updater:
         if round_available:
             print(f'Loading round {round_title}')
 
-            if round_status in ['missing', 'new', 'open']:
+            if round_status in ['missing', 'new', 'open']:#, 'closed']: # remove 'closed'
                 # round needs to be updated
                 print(f'\t...updating round {round_title}')
 
                 html_text = self.scraper.get_html_text(round_url)
                 results = self.stripper.extract_results(html_text, 'round')
                 _, _, artists, titles, submitters, \
-                    song_ids, player_names, vote_counts, track_urls = results # _, _ = league_title, round_title
+                    song_ids, player_names, vote_counts, vote_totals, track_urls = results # _, _ = league_title, round_title
                 
-                next_song_ids = self.database.get_song_ids(league_title, artists, titles) # -> consider replacing existing song_ids?
+                next_song_ids = self.database.get_song_ids(league_title, round_title, artists, titles) # -> consider replacing existing song_ids?
 
                 # construct details with updates for new and open
                 songs_df = songs.sub_round(round_title, artists, titles, submitters, next_song_ids, track_url=track_urls)
-                votes_df = votes.sub_round(song_ids, player_names, vote_counts, next_song_ids)
-                self.database.store_songs(songs_df, league_title)
-                self.database.store_votes(votes_df, league_title)
+                votes_df = votes.sub_round(song_ids, player_names, vote_counts, vote_totals, next_song_ids)
 
                 # check if round can be closed
                 if len(player_names):
@@ -147,6 +147,15 @@ class Updater:
                     new_status = 'open'
                 else:
                     new_status = 'new'
+
+                if new_status == 'closed':
+                    # remove placeholder votes
+                    self.database.drop_votes(league_title, round_title)
+
+                # store updates
+                self.database.store_songs(songs_df, league_title)
+                self.database.store_votes(votes_df, league_title)
+
                 self.database.store_round(league_title, round_title, new_status, round_url) # -> consider replacing with store_rounds
 
             else:

@@ -34,7 +34,7 @@ class Songs(Results):
             songs_df['submitter'] = submitters
 
         for col in cols:
-            songs_df[col] = col[cols]
+            songs_df[col] = cols[col]
 
         return songs_df
         
@@ -48,10 +48,6 @@ class Songs(Results):
         if not songs_df.empty:
             self.df = self.df.append(songs_df, ignore_index=True)
             self.int_cols()
-
-    ##def get_round(self, round_title):
-    ##    df = self.df.query(f'round == "{round_title}"')
-    ##    return df
 
     def get_songs_ids(self, round_title):
         round_song_ids = self.df.query(f'round == "{round_title}"')['song_id'].to_list()
@@ -102,11 +98,15 @@ class Votes(Results):
     def __repr__(self):
         return f'VOTES\n{self.df}\n'
 
-    def sub_round(self, song_ids, player_names, vote_counts, next_song_ids):
+    def sub_round(self, song_ids, player_names, vote_counts, vote_totals, next_song_ids):
         votes_df = DataFrame(columns=Votes.columns)
         votes_df['song_id'] = [next_song_ids[i-1] for i in song_ids]
-        votes_df['player'] = player_names
-        votes_df['vote'] = vote_counts
+        
+        if len(player_names):
+            votes_df['player'] = player_names
+            votes_df['vote'] = vote_counts
+        else:
+            votes_df['vote'] = vote_totals
 
         return votes_df
 

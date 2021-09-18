@@ -39,6 +39,8 @@ class Simulator:
         return options
 
     def turn_on(self):
+        silent_message = ' in background' if self.silent else ''
+        print('Running web simulator{silent_message}...')
         self.driver = webdriver.Chrome(f'{self.chrome_directory}/chromedriver.exe',
                                        options=self.options)
         
@@ -76,12 +78,12 @@ class Simulator:
                 self.logged_in = self.logged_in_url in post_url
 
             if self.logged_in:
-                print('Log in successful!')
+                print('\t...log in successful!')
                 #print(f'pre: {pre_url}, post: {post_url}')
             else:
                 #self.turn_off()
-                print(f'Log in failed! (attempt {attempt+1}/{attempts})')
-                print(f'pre: {pre_url}, post: {post_url}')
+                print(f'\t...log in failed! (attempt {attempt+1}/{attempts})')
+                print(f'\t\tpre: {pre_url}, post: {post_url}')
 
             attempt += 1
 
@@ -379,7 +381,7 @@ class Stripper:
 
     def extract_results(self, html_text, page_type) -> tuple:
         # extract results from HTML tags
-        print(f'\t...extracting results...')
+        print(f'\t...extracting results')
         results = self.get_results(html_text, page_type)
         
         if page_type == 'home':
@@ -434,10 +436,12 @@ class Stripper:
         round_title = results['round'][0]
 
         artists = results['artist'][0::2]
-        titles = results['track']['title'][0::2]
+        tracks = results['track'][0::2]
+        titles = [track['title'] for track in tracks]
+        track_urls = [track['url'] for track in tracks]
         submitters = results['submitter'][0::2]
-        track_urls = results['track']['url'][0::2]
 
+        vote_totals = results['people']
         player_names = []
         vote_counts = []
         song_ids = []
@@ -454,17 +458,10 @@ class Stripper:
             #for result_type in ['player', 'votes']:
             #    votes.loc[len(votes):len(votes)+count, result_type] = results[result_type][num:first_repeat]
 
-            ## what about overall votes for an open round, where players are unknown?
-
             player_names.extend(results['player'][num:first_repeat])
             vote_counts.extend(results['votes'][num:first_repeat])
             song_ids.extend([song_id]*count)
 
             num += count*2
 
-        return league_title, round_title, artists, titles, submitters, song_ids, player_names, vote_counts, track_urls
-
-
-
-# people = results['people']
-# [sum(p for p in people[0:i]) for i in range(len(people) + 1)] <- shortcut to avoid for loop
+        return league_title, round_title, artists, titles, submitters, song_ids, player_names, vote_counts, vote_totals, track_urls
