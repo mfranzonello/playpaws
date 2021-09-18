@@ -217,18 +217,19 @@ class Stripper:
                                     'attrs': {'data-timestamp': True},
                                     },
                     'round_creators': {'tag': 'span',
-                                       'attrs': {'class': 'status-text',
-                                                 'data-timestamp': False,
-                                                 },
-                                       'string': True,
+                                       'attrs': {'class': 'status-text'},
+                                       'self_only': True,
                                        'remove': {'type': 'in',
-                                                  'rems': ['Chosen by', 'Submitted by']},
+                                                  'rems': [f'{b} by ' for b in ['Chosen', 'Submitted']]},
                                        },
                     'player': {'tag': 'a',
                                'href': 'user/',
                                'multiple': {'name': {'title': True},
                                             'img': {'src': True},
-                                            'url': {'href': True},
+                                            'url': {'href': True,
+                                                    'remove': {'type': 'in',
+                                                               'rems': ['/user/']},
+                                                    },
                                             }
                                },
                     }
@@ -308,28 +309,32 @@ class Stripper:
     def strip_noodle(self, noodle, **attrs):
         # get relevant contents
 
-        if attrs.get('multiple') is not None:
+        if attrs.get('multiple'):
             # dig deeper
             multiple_attrs = attrs['multiple']
             stripped = {m_attrs: self.strip_noodle(noodle, **multiple_attrs[m_attrs]) for m_attrs in multiple_attrs}
+
+        elif attrs.get('self_only') and noodle.span:
+            # cannot have children
+            stripped = None
+
         else:
             # value to strip
-            if attrs.get('sublink'): #, False):
+            if attrs.get('sublink'):
                 # link URL in another tag
                 stripped = noodle.a.string
-            elif attrs.get('href'): #, False) or (attrs.get('href_like') is not None):
+            elif attrs.get('href'):
                 # link URL
                 stripped = noodle['href']
-            elif attrs.get('src'): #, False):
+            elif attrs.get('src'):
                 # image location
                 stripped = noodle.img['src']
-            elif attrs.get('title'): #, False):
+            elif attrs.get('title'):
                 # name
                 stripped = noodle['title']
-            elif attrs.get('attrs') and attrs['attrs'].get('data-timestamp'): #, False):
+            elif attrs.get('attrs') and attrs['attrs'].get('data-timestamp'):
                 # date
                 stripped = parse(noodle['data-timestamp']).date()
-                #stripped = datetime.strptime(noodle['data-timestamp'], '%Y-%m-%dT%H:%M:%SZ').date()
             else:
                 # text
                 stripped = noodle.string
@@ -343,17 +348,15 @@ class Stripper:
                 elif attrs['remove']['type'] == 'in':
                     starts = attrs['remove']['rems']
                     pattern_starts = [start.replace('(','\(').replace(')','\)') for start in starts]
-                    pattern_end = '[,.;() \-]'
-                    pattern = '|'.join(f'({pattern_start}.+?{pattern_end})' for pattern_start in pattern_starts)
+                    pattern_ends = ['[,.;()/\- ]', '$']
+                    pattern = '|'.join(f'({s}(.*?){e})' for s in pattern_starts for e in pattern_ends)
                     searched = re.search(pattern, stripped, flags=re.IGNORECASE)
 
                     if searched:
-                        pattern = '|'.join(f'({pattern_start})' for pattern_start in pattern_starts)
-                        matched = re.match(pattern, searched[0], flags=re.IGNORECASE)
-                        stripped = searched[0][len(matched[0]):-1].strip()
-
+                        # return first match
+                        stripped = next(s for s in searched.groups()[1::2] if s).strip()
                     else:
-                        stripped = None
+                        stripped = ''
                     
             if attrs.get('value', False):
                 # convert to number
@@ -409,8 +412,8 @@ class Stripper:
         # only count URLs for rounds with results
         round_urls_all = [round['url'] if (round['url'] in viewable_urls) else None for round in results['round']]
         round_dates_all = results['round_dates']
-        round_creators_all = results['round_creators'] #[creator for creator in results['round_creators'] if creator is not None] 
-
+        round_creators_all = [creator if len(creator) else None for creator in results['round_creators'] if creator is not None] #[creator for creator in results['round_creators'] if creator is not None]
+  
         # remove rounds titles and URLS that are duplicate (i.e. open)
         round_title_set = list(dict.fromkeys(round_titles_all))
         round_titles = [round_titles_all[round_titles_all.index(s)] for s in round_title_set]

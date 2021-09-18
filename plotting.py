@@ -170,7 +170,7 @@ class Plotter:
         image = self.pictures.get_player_image(player_name)
         if image:
             scaling = [a / max(aspect) for a in aspect]
-            extent = [x + size/2 * scaling[0], x - size/2 * scaling[0],
+            extent = [x - size/2 * scaling[0], x + size/2 * scaling[0],
                       y + size/2 * scaling[1], y - size/2 * scaling[1]]
             ax.imshow(image, extent=extent)
             success = True

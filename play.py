@@ -21,6 +21,7 @@ def main():
         updater = Updater(database, structure, credentials, settings)
         updater.update_database()
         updater.turn_off()
+        updater.update_spotify()
 
     # analyze data
     analyzer = Analyzer(database)

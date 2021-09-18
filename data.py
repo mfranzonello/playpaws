@@ -7,23 +7,27 @@ from pandas.api.types import is_numeric_dtype
 
 class Database:
     keys = {'Leagues': ['league'],
-            'Players': ['url'],
+            'Players': ['player'],
             'Members': ['league', 'player'],
             'Rounds': ['league', 'round'],
             'Songs': ['league', 'song_id'],    
             'Votes': ['league', 'player', 'song_id'],
             'Weights': ['parameter'],
-            'Artists': ['uri'],
             'Tracks': ['uri'],
+            'Artists': ['uri'],
             'Albums': ['uri'],
+            'Genres': ['name'],
             }
 
     values = {'Leagues': ['creator', 'date', 'url', 'path'],
-              'Players': ['player', 'src'],
+              'Players': ['username', 'src', 'uri', 'followers'],
               'Rounds': ['creator', 'date', 'status', 'url', 'path'],
               'Members': ['x', 'y'],
-              'Songs': ['round', 'artist', 'title', 'submitter'],
+              'Songs': ['round', 'artist', 'title', 'submitter', 'track_uri'],
               'Votes': ['vote'],
+              'Tracks': ['name', 'artist_uri', 'album_uri', 'explicit', 'popularity'],
+              'Artists': ['name', 'genres', 'popularity', 'followers'],
+              'Albums': ['name', 'popularity', 'release_date'],
               }
 
     def __init__(self, credentials, structure={}):
@@ -209,32 +213,34 @@ class Database:
 
     def upsert_table(self, table_name, df):
         # update existing rows and insert new rows
-        keys = self.get_keys(table_name)
+        if len(df):
+            # there are values to store
+            keys = self.get_keys(table_name)
 
-        # only store columns that have values, so as to not overwrite with NA
-        df_store = df.dropna(axis='columns', how='all')
+            # only store columns that have values, so as to not overwrite with NA
+            df_store = df.dropna(axis='columns', how='all')
 
-        # get current league if not upserting Leagues or table that doesn't have league as a key
-        if (table_name == 'Leagues') or ('league' not in self.keys[table_name]):
-            league = None
-        else:
-            league = df_store['league'].iloc[0]
+            # get current league if not upserting Leagues or table that doesn't have league as a key
+            if (table_name == 'Leagues') or ('league' not in self.keys[table_name]):
+                league = None
+            else:
+                league = df_store['league'].iloc[0]
 
-        # get existing ids in database
-        df_existing = self.get_table(table_name, columns=keys, league=league)
+            # get existing ids in database
+            df_existing = self.get_table(table_name, columns=keys, league=league)
 
-        # split dataframe into existing updates and new inserts
-        df_updates, df_inserts = self.find_existing(df_store, df_existing, keys)
+            # split dataframe into existing updates and new inserts
+            df_updates, df_inserts = self.find_existing(df_store, df_existing, keys)
 
-        # write SQL for updates and inserts
-        sql_updates = self.update_rows(table_name, df_updates, keys)
-        sql_inserts = self.insert_rows(table_name, df_inserts)
+            # write SQL for updates and inserts
+            sql_updates = self.update_rows(table_name, df_updates, keys)
+            sql_inserts = self.insert_rows(table_name, df_inserts)
 
-        # write combined SQL
-        sql = ' '.join(s for s in [sql_updates, sql_inserts] if len(s))
+            # write combined SQL
+            sql = ' '.join(s for s in [sql_updates, sql_inserts] if len(s))
 
-        # execute SQL
-        self.execute_sql(sql)
+            # execute SQL
+            self.execute_sql(sql)
 
     def get_player_match(self, league_title=None, partial_name=None, url=None):
         # find closest name
@@ -417,8 +423,13 @@ class Database:
         df['league'] = league
         self.upsert_table('Songs', df)
 
-    def get_songs(self, league):
-        songs_df = self.get_table('Songs', league=league).drop(columns='league')
+    def get_songs(self, league_title):
+        songs_df = self.get_table('Songs', league=league_title).drop(columns='league')
+        return songs_df
+
+    def get_song_urls(self):
+        # get just the URLS for all songs
+        songs_df = self.get_table('Songs', columns=['track_url'])
         return songs_df
 
     def store_votes(self, votes_df, league):
@@ -445,11 +456,12 @@ class Database:
     ##    members_df['league'] = league_title
     ##    self.upsert_table('Members', members_df)
 
-    def store_players(self, players_df, league_title):
+    def store_players(self, players_df, league_title=None):
         df = players_df.reindex(columns=self.store_columns('Players'))
         self.upsert_table('Players', df)
 
-        self.store_members(df, league_title)
+        if league_title:
+            self.store_members(df, league_title)
 
     def get_players(self):
         players_df = self.get_table('Players')
@@ -477,3 +489,39 @@ class Database:
             except:
                 clean_value = value
         return clean_value
+
+    def store_spotify(self, df, table_name):
+        df = df.reindex(columns=self.store_columns(table_name))
+        self.upsert_table(table_name, df)
+
+    def store_tracks(self, tracks_df):
+        self.store_spotify(tracks_df, 'Tracks')
+
+    def store_artist(self, artists_df):
+        self.store_spotify(artists_df, 'Artists')
+
+    def store_albums(self, albums_df):
+        self.store_spotify(albums_df, 'Albums')
+
+    def store_genres(self, genres_df):
+        self.store_spotify(genres_df, 'Genres')
+
+    def get_spotify(self, table_name):
+        df = self.get_table(table_name)
+        return df
+
+    def get_tracks(self):
+        df = self.get_spotify('Tracks')
+        return df
+
+    def get_artists(self):
+        df = self.get_spotify('Artists')
+        return df
+
+    def get_albums(self):
+        df = self.get_spotify('Albums')
+        return df
+
+    def get_genres(self):
+        df = self.get_spotify('Genres')
+        return df

@@ -101,8 +101,8 @@ class Updater:
             self.database.store_rounds(rounds_df, league_title)
 
         if(len(player_names)):
-            players_df = players.sub_players(player_names, url=player_urls, src=player_imgs)
-            self.database.store_players(players_df, league_title)
+            players_df = players.sub_players(player_names, username=player_urls)#, src=player_imgs)
+            self.database.store_players(players_df, league_title=league_title)
         
         return round_titles, round_urls
 
@@ -135,7 +135,7 @@ class Updater:
                 next_song_ids = self.database.get_song_ids(league_title, artists, titles) # -> consider replacing existing song_ids?
 
                 # construct details with updates for new and open
-                songs_df = songs.sub_round(round_title, artists, titles, submitters, next_song_ids)
+                songs_df = songs.sub_round(round_title, artists, titles, submitters, next_song_ids, track_url=track_urls)
                 votes_df = votes.sub_round(song_ids, player_names, vote_counts, next_song_ids)
                 self.database.store_songs(songs_df, league_title)
                 self.database.store_votes(votes_df, league_title)
@@ -157,3 +157,7 @@ class Updater:
             # the URL is missing
             print(f'Round {round_title} not found.')
             self.database.store_round(league_title, round_title, 'new')
+
+    def update_spotify(self):
+        'Updating from Spotify'
+        self.spotter.update_database(self.database)
