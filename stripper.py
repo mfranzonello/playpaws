@@ -40,7 +40,7 @@ class Simulator:
 
     def turn_on(self):
         silent_message = ' in background' if self.silent else ''
-        print('Running web simulator{silent_message}...')
+        print(f'Running web simulator{silent_message}...')
         self.driver = webdriver.Chrome(f'{self.chrome_directory}/chromedriver.exe',
                                        options=self.options)
         

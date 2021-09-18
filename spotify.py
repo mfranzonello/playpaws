@@ -114,13 +114,13 @@ class Spotter:
             self.database.store_tracks(tracks_db)
             
     def append_updates(self, df, updates_list, key='uri'):
-        df_appended = df.append(DataFrame([u for u in updates_list if u not in df[key]],
+        df_appended = df.append(DataFrame([u for u in updates_list if u not in df[key].values],
                                           columns=[key]), ignore_index=True)
 
         return df_appended
 
     def get_updates(self, df, func, key='uri'):
-        df_update = df[df.isnull().any(1)]
+        df_update = df[df.isnull().any(1)].copy() # what can be used besides copy?
 
         df_elements = [func(uri) for uri in df_update[key]]
         df_to_update = DataFrame(df_elements, index=df_update.index)
@@ -146,10 +146,10 @@ class Spotter:
         print('\t...updating Spotify artist information')
         tracks_db = self.database.get_tracks()
         artist_uris = set(tracks_db['artist_uri'].sum())
-
+        
         artists_db = self.database.get_artists()
         artists_db = self.append_updates(artists_db, artist_uris)
-
+        
         artists_update = self.get_updates(artists_db, self.get_artist_elements)
         self.database.store_artists(artists_update)
 
