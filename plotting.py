@@ -194,33 +194,31 @@ class Plotter:
             rgb = tuple(c/self.color_wheel for c in rgb_df.iloc[rgb_df.index.get_loc(percent, 'nearest')])
         return rgb
 
-    def add_anaylses(self):#, analyses):
-        league_titles = self.database.get_analyses()#, analyses
+    def add_anaylses(self):
+        league_titles = self.database.get_analyses()
 
         self.league_titles = league_titles
-        self.members_list = [self.database.get_members(league_title) for league_title in league_titles] #[analysis['members'] for analysis in analyses] #[self.database.get_members(league_title) for league_title in league_titles] #[analysis['members'] for analysis in analyses]
-        self.rankings_list = [self.database.get_rankings(league_title) for league_title in league_titles] #[analysis['rankings'] for analysis in analyses]
-        boards_list = [self.database.get_boards(league_title) for league_title in league_titles]
-        self.leaderboard_list = [league[0] for league in boards_list]# [analysis['leaderboard'] for analysis in analyses]
-        self.dnf_list = [league[1] for league in boards_list]#[analysis['dnf'] for analysis in analyses]
-
+        self.members_list = [self.database.get_members(league_title) for league_title in league_titles]
+        self.rankings_list = [self.database.get_rankings(league_title) for league_title in league_titles]
+        self.boards_list = [self.database.get_boards(league_title) for league_title in league_titles]
+        
         self.pictures = Pictures(self.database)
 
     def plot_results(self):
-        # set league title
         nrows = 2
         ncols = 2
         n_leagues = len(self.members_list)
-        #ncols = len(self.members_list)
 
         for n in range(n_leagues):
             fig, axs = plt.subplots(nrows, ncols)
 
+            # set league title
             plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {Texter.clean_text(self.league_titles[n])}') #
+            # set figure size
             fig.set_size_inches(*self.figure_size)
         
             self.plot_players(axs[0][0], self.members_list[n], self.league_titles[n])
-            self.plot_rankings(axs[1][1], self.leaderboard_list[n], self.dnf_list[n])
+            self.plot_rankings(axs[1][1], self.boards_list[n])
 
         #mpld3.show()
 
@@ -311,30 +309,27 @@ class Plotter:
                     members_df['y'].max() + self.name_offset + self.font_size)
         ax.axis('off')
 
-    def plot_rankings(self, ax, leaderboard, dnf): # rankings
-        #leaderboard, dnf = rankings.get_leaderboard()
+    def plot_rankings(self, ax, board):
 
-        n_rounds = len(leaderboard.columns)
-        n_players = len(leaderboard.index)
-        aspect = (n_rounds - 1, n_players - 1) # (+ 1, + 1)?
+        n_rounds = len(board.columns)
+        n_players = len(board.index)
+        aspect = (n_rounds - 1, n_players - 1)
         scaling = [a / b * aspect[1] for a, b in zip(self.subplot_aspect, aspect)]
 
         xs = [x * scaling[0] for x in range(1, n_rounds + 1)]
 
-        has_dnf = dnf.notna().sum().sum() > 0
+        has_dnf = board.where(board < 0, 0).sum().sum() < 0
         
-        lowest_rank = int(leaderboard.max().max())
-        highest_dnf = int(dnf.fillna(0).min().min())
+        lowest_rank = int(board.where(board > 0, 0).max().max())
+        highest_dnf = int(board.where(board < 0, 0).min().min())
 
-        if has_dnf:
-            ax.plot([1, max(xs)], [lowest_rank + 1] * 2, '--', color='0.5')
+        for player in board.index:
+            ys = board.where(board > 0).loc[player]
+            ds = [lowest_rank - d + 1 for d in board.where(board < 0).loc[player]]
 
-        for player in leaderboard.index:
-            ys = leaderboard.loc[player]
-            ds = [lowest_rank - d + 1 for d in dnf.loc[player]]
             display_name = Texter.get_display_name(player)
 
-            color = f'C{leaderboard.index.get_loc(player)}'
+            color = f'C{board.index.get_loc(player)}'
             ax.plot(xs, ys, marker='.', color=color)
             ax.scatter(xs, ds, marker='.', color=color)
 
@@ -351,10 +346,14 @@ class Plotter:
                     if not image_plotted:
                         ax.text(x, d, display_name)
 
-        round_titles = [Texter.clean_text(c) for c in leaderboard.columns]
+        round_titles = [Texter.clean_text(c) for c in board.columns]
         
         x_min = min(xs)
         x_max = max(xs)
+
+        if has_dnf:
+            # plot DNF line
+            ax.plot([x_min - 0.5, x_max + 0.5], [lowest_rank + 1] * 2, '--', color='0.5')
 
         ax.set_xlim(x_min - 0.5, x_max + 0.5)
         ax.set_xticks(xs)
@@ -406,6 +405,6 @@ class Plotter:
         min_dfc = members_df['dfc'].min()
 
         rgb_df = self.grade_colors([self.dfc_green, self.dfc_blue])
-        colors = [self.get_rgb(rgb_df, (dfc - min_dfc)/(max_dfc - min_dfc), fail_color=self.dfc_grey) for dfc in members_df['dfc'].values]
+        colors = [self.get_rgb(rgb_df, 1-(dfc - min_dfc)/(max_dfc - min_dfc), fail_color=self.dfc_grey) for dfc in members_df['dfc'].values]
         
         return colors

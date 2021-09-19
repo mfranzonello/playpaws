@@ -599,21 +599,25 @@ class Database:
 
         return rankings_df
 
-    def store_boards(self, leaderboard, dnf, league_title):
-        boards_df = concat([board.reset_index().melt(id_vars='player', value_vars=board.columns, var_name='round', value_name='place') for board in [leaderboard, dnf]],
-                           ignore_index=True).reindex(columns=self.store_columns('Boards')) #.dropna(subset=['place'])
+    def store_boards(self, leaderboard, dnf, league_title):        
+        boards_df = concat([board.reset_index().melt(id_vars='player',
+                                                     value_vars=board.columns,
+                                                     var_name='round',
+                                                     value_name='place').dropna(subset=['place']) for board in [leaderboard, dnf]],
+                           ignore_index=True).reindex(columns=self.store_columns('Boards'))
         
         boards_df['league'] = league_title
 
         self.upsert_table('Boards', boards_df)
 
     def get_boards(self, league_title):
-        boards_df = self.get_table('Boards', league=league_title).drop(columns='league')
+        boards_df = self.get_table('Boards', league=league_title).drop(columns='league')\
+            .pivot(index='player', columns='round', values='place')
 
-        leaderboard = boards_df.query('place > 0')
-        dnf = boards_df.query('place < 0')
+        ##leaderboard = boards_df.query('place > 0').pivot(index='player', columns='round', values='place')
+        ##dnf = boards_df.query('place < 0').pivot(index='player', columns='round', values='place')
         
-        return leaderboard, dnf
+        return boards_df #leaderboard, dnf
 
 
     ##def get_image_arrays(self):

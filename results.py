@@ -21,7 +21,7 @@ class Songs(Results):
         self.patternizer = None
 
     def __repr__(self):
-        return f'SONGS\n{self.df}\n'
+        return f'SONGS\n{self.df.reindex(columns=self.columns)}\n'
 
     def sub_round(self, round_title, artists, titles, submitters, next_song_ids, **cols):
         songs_df = DataFrame(columns=Songs.columns)
@@ -95,7 +95,7 @@ class Votes(Results):
         super().__init__(columns=Votes.columns, int_columns=Votes.int_columns)
 
     def __repr__(self):
-        return f'VOTES\n{self.df}\n'
+        return f'VOTES\n{self.df.reindex(columns=self.columns)}\n'
 
     def sub_round(self, song_ids, player_names, vote_counts, vote_totals, next_song_ids):
         votes_df = DataFrame(columns=Votes.columns)
@@ -134,7 +134,6 @@ class Rounds(Results):
 
     def sub_rounds(self, round_titles, league_creator=None, **cols):
         rounds_df = DataFrame(columns=Rounds.columns)
-        #rounds_df['league'] = league_titles
         rounds_df['round'] = round_titles
 
         for col in cols:

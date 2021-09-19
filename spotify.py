@@ -75,7 +75,7 @@ class Spotter:
         first_result = results['tracks']['items'][0]
 
         uris = {'track': first_result['uri'],
-                'artists': [artist['uri'] for artist in first_results[artists]],
+                'artists': [artist['uri'] for artist in first_result['artists']],
                 'album': first_result['album']['uri'],
                 }
         return uris
@@ -106,19 +106,14 @@ class Spotter:
         self.update_db_artists()
         self.update_db_albums()
         self.update_db_genres()
-
-    def update_db_songs(self):
-        urls_db = self.database.get_song_urls()
-        tracks_db = self.database.get_tracks()
-
-        if len(urls_db):
-            urls = [url for url in urls_db['track_url'] if url not in tracks_db['url']]
-            tracks_db = tracks_db.append(DataFrame(urls, columns=['url']), ignore_index=True)
-            self.database.store_tracks(tracks_db)
-            
-    def append_updates(self, df, updates_list, key='uri'):
-        df_appended = df.append(DataFrame([u for u in updates_list if u not in df[key].values],
-                                          columns=[key]), ignore_index=True)
+           
+    def append_updates(self, df, updates_list, key='uri', updates_only=False):
+        to_add = [u for u in updates_list if u not in df[key].values]
+        if updates_only:
+            df_appended = DataFrame(columns=df.columns)
+            df_appended[key] = to_add
+        else:
+            df_appended = df.append(DataFrame(to_add, columns=[key]), ignore_index=True)
 
         return df_appended
 
@@ -137,6 +132,15 @@ class Spotter:
 
         players_update = self.get_updates(players_db, self.get_user_elements, key='username')
         self.database.store_players(players_update)    
+
+    def update_db_songs(self):
+        print('\t...updating Spotify URL information')
+        urls_db = self.database.get_song_urls()
+        tracks_db = self.database.get_tracks()
+
+        if len(urls_db):
+            tracks_update = self.append_updates(tracks_db, urls_db['track_url'], key='url', updates_only=True)
+            self.database.store_tracks(tracks_update) 
 
     def update_db_tracks(self):
         print('\t...updating Spotify track information')
@@ -176,10 +180,10 @@ class Spotter:
         artists_db = self.database.get_artists()
         albums_db = self.database.get_albums()
         genres_db = self.database.get_genres()
-
+        
         if len(albums_db):
             genre_names = set(artists_db['genres'].sum() + albums_db['genres'].sum())
-            genres_db = self.append_updates(genres_db, genre_names, key='name')
+            genres_db = self.append_updates(genres_db, genre_names, key='name', updates_only=True)
 
             genres_update = genres_db
             self.database.store_genres(genres_update)
