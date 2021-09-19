@@ -20,6 +20,7 @@ class Database:
               'Albums': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'release_date']},
               'Genres': {'keys': ['name'], 'values': []},
               'Analyses': {'keys': ['league'], 'values': ['date', 'results']},
+              'Images': {'keys': ['player'], 'values': ['array']},
               }
    
     def __init__(self, credentials, structure={}):
@@ -44,6 +45,7 @@ class Database:
         print(f'Connecting to database {self.db}...')
         self.engine = create_engine(engine_string)
         self.connection = self.engine.connect()
+        print(f'\t...success!')
 
         self.jason = Jason()
 
@@ -543,18 +545,17 @@ class Database:
 
     #def store_analyses(self, results):
 
-    def get_analysis(self, league_title):
-        analyses_df = self.get_table('Analyses', league=league_title) #, order_by=['date', 'DESC'])
+    ##def get_analysis(self, league_title):
+    ##    analyses_df = self.get_table('Analyses', league=league_title) #, order_by=['date', 'DESC'])
         
-        if len(analyses_df):
-            results = self.jason.from_json(analyses_df['results'].iloc[0])
+    ##    if len(analyses_df):
+    ##        results = self.jason.from_json(analyses_df['results'].iloc[0])
 
-        return results
+    ##    return results
 
     def get_analyses(self):
         sql = f'SELECT m.* FROM {self.table_name("Analyses")} AS m JOIN {self.table_name("Leagues")} AS f on f.league = m.league ORDER BY f.date ASC'
         analyses_df = read_sql(sql, self.connection)
-        #analyses_df = self.get_table('Analyses')
 
         if len(analyses_df):
             analyses = [self.jason.from_json(analyses_df['results'][i]) for i in analyses_df.index]
@@ -564,3 +565,14 @@ class Database:
             league_titles = None
 
         return league_titles, analyses
+
+    ##def get_image_arrays(self):
+    ##    images_df = self.get_table('Images')
+    ##    #images_df.set_index('player')
+    ##    return images_df
+
+    ##def store_image_arrays(self, images_df):
+    ##    print(f'DB IMAGES_DF: {images_df}')
+    ##    df = images_df.reset_index().reindex(columns=self.store_columns('Images'))
+    ##    print(f'DB DF: {df}')
+    ##    self.upsert_table('Images', df)

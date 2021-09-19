@@ -35,10 +35,10 @@ class Setter:
     def check_network(self, url, timeout=5):
         print(f'Checking network for {url}')
         try:
-            _ = requests.head(url, timeout=timeout)
+            requests.head(url, timeout=timeout)
             print('\t...passed!')
             connected = True
-        except:
+        except requests.ConnectionError:
             print('\t...failed!')
             connected = False
 
