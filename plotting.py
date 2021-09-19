@@ -195,13 +195,14 @@ class Plotter:
         return rgb
 
     def add_anaylses(self):#, analyses):
-        league_titles, analyses = self.database.get_analyses()
+        league_titles = self.database.get_analyses()#, analyses
 
         self.league_titles = league_titles
-        self.members_list = [analysis['members'] for analysis in analyses] #[self.database.get_members(league_title) for league_title in league_titles] #[analysis['members'] for analysis in analyses]
-        ##self.rankings_list = [analysis['rankings'] for analysis in analyses]
-        self.leaderboard_list = [analysis['leaderboard'] for analysis in analyses]
-        self.dnf_list = [analysis['dnf'] for analysis in analyses]
+        self.members_list = [self.database.get_members(league_title) for league_title in league_titles] #[analysis['members'] for analysis in analyses] #[self.database.get_members(league_title) for league_title in league_titles] #[analysis['members'] for analysis in analyses]
+        self.rankings_list = [self.database.get_rankings(league_title) for league_title in league_titles] #[analysis['rankings'] for analysis in analyses]
+        boards_list = [self.database.get_boards(league_title) for league_title in league_titles]
+        self.leaderboard_list = [league[0] for league in boards_list]# [analysis['leaderboard'] for analysis in analyses]
+        self.dnf_list = [league[1] for league in boards_list]#[analysis['dnf'] for analysis in analyses]
 
         self.pictures = Pictures(self.database)
 
@@ -404,7 +405,7 @@ class Plotter:
         max_dfc = members_df['dfc'].max()
         min_dfc = members_df['dfc'].min()
 
-        rgb_df = self.grade_colors([self.dfc_blue, self.dfc_green])
-        colors = [self.get_rgb(rgb_df, 1-(dfc - min_dfc)/(max_dfc - min_dfc), fail_color=self.dfc_grey) for dfc in members_df['dfc'].values]
+        rgb_df = self.grade_colors([self.dfc_green, self.dfc_blue])
+        colors = [self.get_rgb(rgb_df, (dfc - min_dfc)/(max_dfc - min_dfc), fail_color=self.dfc_grey) for dfc in members_df['dfc'].values]
         
         return colors

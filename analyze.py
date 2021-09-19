@@ -2,9 +2,10 @@ from results import Songs, Votes, Rounds, Leagues, Players
 from comparisons import Members, Rankings, Pulse
 
 class Analyzer:
+    version = 1.0
     def __init__(self, database):
         self.database = database
-        self.weights = database.get_weights()
+        self.weights = database.get_weights(self.version)
 
     def analyze_all(self):
         players = Players()
@@ -16,11 +17,16 @@ class Analyzer:
                 analysis = self.analyze_league(league_title, summary=True)
 
                 if analysis:
-                    leaderboard, dnf = analysis['rankings'].get_leaderboard()
-                    results = {'members': analysis['members'].df,
-                               'leaderboard': leaderboard,
-                               'dnf': dnf}
-                    self.database.store_analysis(league_title, results)
+                    members = analysis['members']
+                    rankings = analysis['rankings']
+                    leaderboard, dnf = rankings.get_leaderboard()
+
+                    self.database.store_members(members.df, league_title)
+                    self.database.store_rankings(rankings.df, league_title)
+                    self.database.store_boards(leaderboard, dnf, league_title)
+                    results = None
+
+                    self.database.store_analysis(league_title, self.version, results)#, results)
 
                     analyses.append(analysis)
 
@@ -28,19 +34,17 @@ class Analyzer:
         print(f'Setting up league {league_title}')
         members = self.get_members(league_title)
 
-        weights = self.database.get_weights()
-
         songs, votes, rounds = self.get_songs_and_votes(league_title)
 
         if self.check_songs_and_votes(songs, votes):
             print(f'\t...analyzing {league_title}')
-            rankings = self.crunch_rounds(songs, votes, rounds, members, weights)
+            rankings = self.crunch_rounds(songs, votes, rounds, members)
 
             xy_ = self.get_coordinates(league_title)
 
             pulse = self.get_pulse(songs, votes, members, xy_)
 
-            self.store_coordinates(league_title, members)
+            ##self.store_coordinates(league_title, members)
 
             # display results
             if summary:           
@@ -104,7 +108,7 @@ class Analyzer:
         check = len(songs.df) > 0 # & (len(votes.df) > 0)
         return check
 
-    def crunch_rounds(self, songs, votes, rounds, members, weights):
+    def crunch_rounds(self, songs, votes, rounds, members):
         print('Crunching rounds')
         # count how many submitted per round
         votes.name_rounds(songs)
@@ -112,10 +116,10 @@ class Analyzer:
 
         # total points per song
         songs.add_patternizer(votes, members=members)
-        songs.calculate_points(votes, rounds, weights)
+        songs.calculate_points(votes, rounds, self.weights)
 
         # list winners of each round
-        rankings = Rankings(songs, votes, weights)
+        rankings = Rankings(songs, votes, self.weights)
 
         return rankings
 
@@ -150,8 +154,8 @@ class Analyzer:
         xy_ = members[['player', 'x', 'y']]
         return xy_
 
-    def store_coordinates(self, league_title, members):
-        print('Storing coordinates')
-        members_df = members.get_members()
-        print(members_df)
-        self.database.store_members(members_df, league_title)
+    ##def store_coordinates(self, league_title, members):
+    ##    print('Storing coordinates')
+    ##    members_df = members.get_members()
+    ##    print(members_df)
+    ##    self.database.store_members(members_df, league_title)

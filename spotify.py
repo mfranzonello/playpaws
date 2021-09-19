@@ -5,6 +5,18 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from pandas import DataFrame
 
 class Spotter:
+    audio_features = ['danceability',
+                      'energy',
+                      'key',
+                      'loudness',
+                      #'mode',
+                      'speechiness',
+                      'acousticness',
+                      'instrumentalness',
+                      'liveness',
+                      'valence',
+                      'tempo']
+
     def __init__(self, credentials, database=None):
         self.credentials = credentials
         self.database = database
@@ -68,21 +80,6 @@ class Spotter:
                 }
         return uris
 
-    def get_all_elements_by_url(self, url):
-        track_elements = self.get_track_elements(url)
-        artist_elements = [self.get_album_elements(artist['uri']) for artist in track_elements['artists']]
-        album_elements = self.get_album_elements(track_elements['album']['uri'])
-
-        return track_elements, artist_elements, album_elements
-
-    def get_all_elements_by_query(self, artist, title):
-        uris = self.search_for_track(artist, title)
-        track_elements = self.get_track_elements(uris['track'])
-        artist_elements = [self.get_album_elements(uris['artist']) for artist in track_elements['artists']]
-        album_elements = self.get_album_elements(uris['album'])
-
-        return track_elements, artist_elements, album_elements
-
     def get_user_elements(self, user):
         results = self.sp.user(user)
 
@@ -91,6 +88,14 @@ class Spotter:
                     'src': results['images'][0]['url'],
                     }
         return elements
+
+    def get_audio_features(self, uri):
+        results = self.sp.audio_features(uri)
+
+        features = {key: results[0][key] for key in self.audio_features}
+        features['duration'] = results[0]['duration_ms'] / 1000 / 60
+
+        return features
 
     def update_database(self, database):
         self.database = database
@@ -137,7 +142,11 @@ class Spotter:
         print('\t...updating Spotify track information')
         tracks_db = self.database.get_tracks()
 
-        tracks_update = self.get_updates(tracks_db, self.get_track_elements, key='url')
+        # get tracks information
+        tracks_update_0 = self.get_updates(tracks_db.drop(columns=self.audio_features), self.get_track_elements, key='url')
+
+        # get audio features information
+        tracks_update = self.get_updates(tracks_update_0, self.get_audio_features, key='url')
         self.database.store_tracks(tracks_update)
 
     def update_db_artists(self):

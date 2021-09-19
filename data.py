@@ -2,25 +2,40 @@ from datetime import date
 import json
 
 from sqlalchemy import create_engine
-from pandas import read_sql, DataFrame, isnull
+from pandas import read_sql, DataFrame, isnull, concat
 from pandas.api.types import is_numeric_dtype
 
 from jason import Jason
 
 class Database:
-    tables = {'Leagues': {'keys': ['league'], 'values': ['creator', 'date', 'url', 'path']},
-              'Players': {'keys': ['player'], 'values': ['username', 'src', 'uri', 'followers'],},
-              'Members': {'keys': ['league', 'player'], 'values': ['x', 'y']},
+    tables = {# MusicLeague data
+              'Leagues': {'keys': ['league'], 'values': ['creator', 'date', 'url', 'path']},
+              'Players': {'keys': ['player'], 'values': ['username', 'src', 'uri', 'followers']},
               'Rounds': {'keys': ['league', 'round'], 'values': ['creator', 'date', 'status', 'url', 'path']},
               'Songs': {'keys': ['league', 'song_id'], 'values': ['round', 'artist', 'title', 'submitter', 'track_url']},    
               'Votes': {'keys': ['league', 'player', 'song_id'], 'values': ['vote']},
-              'Weights': {'keys': ['parameter'], 'values': ['value']},
-              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'artist_uri', 'album_uri', 'explicit', 'popularity']},
+
+              ##'Playlists': {'keys': ['url'], 'values': []},
+
+              # Spotify data
+              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'artist_uri', 'album_uri', 'explicit', 'popularity', 'duration',
+                                                     'danceability', 'energy', 'key', 'loudness', #'mode',
+                                                     'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']},
               'Artists': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'followers']},
               'Albums': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'release_date']},
               'Genres': {'keys': ['name'], 'values': []},
-              'Analyses': {'keys': ['league'], 'values': ['date', 'results']},
-              'Images': {'keys': ['player'], 'values': ['array']},
+              
+              # analytics
+              'Members': {'keys': ['league', 'player'], 'values': ['x', 'y', 'wins', 'dfc', 'likes', 'liked']},
+              'Rankings': {'keys': ['league', 'round', 'player'], 'values': ['points', 'score']},
+              'Boards': {'keys': ['league', 'round', 'player'], 'values': ['place']},
+              'Analyses': {'keys': ['league'], 'values': ['date', 'open', 'closed', 'version']},
+              
+              # settings
+              'Weights': {'keys': ['parameter', 'version'], 'values': ['value']},
+              
+              # other 
+              ##'Images': {'keys': ['player'], 'values': ['array']},
               }
    
     def __init__(self, credentials, structure={}):
@@ -479,9 +494,9 @@ class Database:
         player_names = members_df['player'].to_list()
         return player_names
 
-    def get_weights(self):
+    def get_weights(self, version):
         table_name = 'Weights'
-        weights = read_sql(f'SELECT * FROM {self.table_name(table_name)}', self.connection, index_col='parameter')['value']
+        weights = read_sql(f'SELECT * FROM {self.table_name(table_name)} WHERE version = {version}', self.connection, index_col='parameter')['value']
         weights = weights.apply(self.clean_up_weight)
         return weights
 
@@ -533,13 +548,13 @@ class Database:
         df = self.get_spotify('Genres')
         return df
 
-    def store_analysis(self, league_title, results):
+    def store_analysis(self, league_title, version, results):
         today = date.today()
-        results_json = self.jason.to_json(results)
+        #results_json = self.jason.to_json(results)
 
-        analyses_df = DataFrame([[league_title,
-                                  today,
-                                  results_json]], columns=['league', 'date', 'results'])
+        analyses_df = DataFrame([[league_title, today, version]], columns=['league', 'date', 'version'])
+                                #, 'results'])
+                                #results_json]], columns=['league', 'date', 'results'])
 
         self.upsert_table('Analyses', analyses_df)
 
@@ -558,13 +573,48 @@ class Database:
         analyses_df = read_sql(sql, self.connection)
 
         if len(analyses_df):
-            analyses = [self.jason.from_json(analyses_df['results'][i]) for i in analyses_df.index]
+            #analyses = [self.jason.from_json(analyses_df['results'][i]) for i in analyses_df.index]
             league_titles = analyses_df['league']
         else:
-            analyses = None
+            #analyses = None
             league_titles = None
 
-        return league_titles, analyses
+        ### should include some check to see which rounds are open and closed
+        ### if same rounds are open and closed as what is said in the analysis, then no need to rerun unless a manual override is called
+        ### can also check with versioning number
+
+        return league_titles#, analyses
+
+    def store_rankings(self, rankings_df, league_title):
+        df = rankings_df.reset_index().reindex(columns=self.store_columns('Rankings'))
+        df['league'] = league_title
+        self.upsert_table('Rankings', df)
+
+    def get_rankings(self, league_title):
+        # get rankings sorted by round date
+        sql = f'SELECT round FROM {self.table_name("Rounds")} WHERE league = {self.needs_quotes(league_title)} ORDER BY date ASC'
+        reindexer = read_sql(sql, self.connection)['round']
+        rankings_df = self.get_table('Rankings', league=league_title).drop(columns='league')\
+            .set_index(['round', 'player']).sort_values(['round', 'points'], ascending=[True, False]).reindex(reindexer, level=0)
+
+        return rankings_df
+
+    def store_boards(self, leaderboard, dnf, league_title):
+        boards_df = concat([board.reset_index().melt(id_vars='player', value_vars=board.columns, var_name='round', value_name='place') for board in [leaderboard, dnf]],
+                           ignore_index=True).reindex(columns=self.store_columns('Boards')) #.dropna(subset=['place'])
+        
+        boards_df['league'] = league_title
+
+        self.upsert_table('Boards', boards_df)
+
+    def get_boards(self, league_title):
+        boards_df = self.get_table('Boards', league=league_title).drop(columns='league')
+
+        leaderboard = boards_df.query('place > 0')
+        dnf = boards_df.query('place < 0')
+        
+        return leaderboard, dnf
+
 
     ##def get_image_arrays(self):
     ##    images_df = self.get_table('Images')

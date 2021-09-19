@@ -155,7 +155,7 @@ class Pulse:
                 self.df['win'] = self.df['battle'] > 0
 
 class Members:
-    columns = ['player', 'x', 'y', 'wins', 'dfc']
+    columns = ['player', 'x', 'y', 'wins', 'dfc', 'likes', 'liked']
 
     def __init__(self, player_names):
         self.df = DataFrame(columns=self.columns)
