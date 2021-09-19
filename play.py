@@ -19,17 +19,17 @@ def main():
     # update data in database from web or local
     if update_db:
         updater = Updater(database, structure, credentials, settings)
-        #updater.update_database()
-        #updater.turn_off()
+        updater.update_database()
+        updater.turn_off()
         updater.update_spotify()
 
     # analyze data
     analyzer = Analyzer(database)
-    analyses, players = analyzer.analyze_all()
+    analyzer.analyze_all()
     
     # plot results for all leagues
-    plotter = Plotter()
-    plotter.add_anaylses(analyses, players)
+    plotter = Plotter(database)
+    plotter.add_anaylses()
     plotter.plot_results()
 
 main()

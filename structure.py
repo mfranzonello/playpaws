@@ -1,5 +1,5 @@
-from os import getlogin
 import requests
+from os import getlogin
 
 class Setter:
     # structure

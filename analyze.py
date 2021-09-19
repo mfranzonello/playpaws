@@ -16,12 +16,13 @@ class Analyzer:
                 analysis = self.analyze_league(league_title, summary=True)
 
                 if analysis:
+                    leaderboard, dnf = analysis['rankings'].get_leaderboard()
+                    results = {'members': analysis['members'].df,
+                               'leaderboard': leaderboard,
+                               'dnf': dnf}
+                    self.database.store_analysis(league_title, results)
+
                     analyses.append(analysis)
-
-        players_df = self.database.get_players()
-        players.add_players_db(players_df)
-
-        return analyses, players
 
     def analyze_league(self, league_title, summary=True):
         print(f'Setting up league {league_title}')
@@ -89,7 +90,6 @@ class Analyzer:
 
         rounds.add_rounds_db(db_rounds)
         round_titles = rounds.get_titles()
-        ##rounds.sort_titles(round_titles) <- need to ensure rounds are in correct order by adding dates to DB
 
         for round_title in round_titles:
             if self.database.check_data(league_title, round_title=round_title):

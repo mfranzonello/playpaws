@@ -1,5 +1,3 @@
-from itertools import chain
-import re
 from datetime import datetime
 
 from spotipy import Spotify

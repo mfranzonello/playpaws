@@ -136,7 +136,7 @@ class Pulse:
         std_dev = self.df['distance'].std()
         mean = self.df['distance'].mean()
 
-        outliers = self.df['distance'] > self.df['distance'].quantile(self.distance_threshold)
+        outliers = self.df['distance'] > quantile
         UB = mean + std_dev
         below_UB = self.df['distance'] <= UB
        

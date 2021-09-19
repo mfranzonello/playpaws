@@ -1,10 +1,11 @@
-from os import getlogin
 from datetime import date
 import json
 
 from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame, isnull
 from pandas.api.types import is_numeric_dtype
+
+from jason import Jason
 
 class Database:
     tables = {'Leagues': {'keys': ['league'], 'values': ['creator', 'date', 'url', 'path']},
@@ -18,6 +19,7 @@ class Database:
               'Artists': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'followers']},
               'Albums': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'release_date']},
               'Genres': {'keys': ['name'], 'values': []},
+              'Analyses': {'keys': ['league'], 'values': ['date', 'results']},
               }
    
     def __init__(self, credentials, structure={}):
@@ -42,6 +44,8 @@ class Database:
         print(f'Connecting to database {self.db}...')
         self.engine = create_engine(engine_string)
         self.connection = self.engine.connect()
+
+        self.jason = Jason()
 
     def table_name(self, table_name:str) -> str:
         if self.language == 'sqlite':
@@ -105,7 +109,7 @@ class Database:
 
     def jsonable(self, item):
         # add cast information to lists and dicts as JSON
-        is_json = isinstance(item, (list, dict, set))
+        is_json = isinstance(item, (list, dict, set)) or self.jason.is_json(item)
         return is_json
 
     def needs_quotes(self, item) -> str:
@@ -457,12 +461,6 @@ class Database:
         members_df = self.get_table('Members', league=league_title).drop(columns='league')
         return members_df
 
-    ##def store_player_names(self, player_names, league_title):
-    ##    members_df = DataFrame(columns=['league', 'player'])
-    ##    members_df['player'] = player_names
-    ##    members_df['league'] = league_title
-    ##    self.upsert_table('Members', members_df)
-
     def store_players(self, players_df, league_title=None):
         df = players_df.reindex(columns=self.store_columns('Players'))
         self.upsert_table('Players', df)
@@ -532,3 +530,37 @@ class Database:
     def get_genres(self):
         df = self.get_spotify('Genres')
         return df
+
+    def store_analysis(self, league_title, results):
+        today = date.today()
+        results_json = self.jason.to_json(results)
+
+        analyses_df = DataFrame([[league_title,
+                                  today,
+                                  results_json]], columns=['league', 'date', 'results'])
+
+        self.upsert_table('Analyses', analyses_df)
+
+    #def store_analyses(self, results):
+
+    def get_analysis(self, league_title):
+        analyses_df = self.get_table('Analyses', league=league_title) #, order_by=['date', 'DESC'])
+        
+        if len(analyses_df):
+            results = self.jason.from_json(analyses_df['results'].iloc[0])
+
+        return results
+
+    def get_analyses(self):
+        sql = f'SELECT m.* FROM {self.table_name("Analyses")} AS m JOIN {self.table_name("Leagues")} AS f on f.league = m.league ORDER BY f.date ASC'
+        analyses_df = read_sql(sql, self.connection)
+        #analyses_df = self.get_table('Analyses')
+
+        if len(analyses_df):
+            analyses = [self.jason.from_json(analyses_df['results'][i]) for i in analyses_df.index]
+            league_titles = analyses_df['league']
+        else:
+            analyses = None
+            league_titles = None
+
+        return league_titles, analyses

@@ -1,5 +1,3 @@
-from pandas import DataFrame
-
 from stripper import Stripper, Scraper, Simulator
 from spotify import Spotter
 from results import Songs, Votes, Rounds, Leagues, Players

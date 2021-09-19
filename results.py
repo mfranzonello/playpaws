@@ -1,4 +1,3 @@
-from contextlib import AbstractAsyncContextManager
 from pandas import DataFrame
 
 from comparisons import Patternizer
@@ -121,10 +120,6 @@ class Votes(Results):
             self.df = self.df.append(votes_df, ignore_index=True)
             self.int_cols()
 
-    ##def get_round(self, song_ids):
-    ##    df = self.df.query(f'song_id in {song_ids}')
-    ##    return df
-
     def name_rounds(self, songs):
         self.df['round'] = self.df.merge(songs.df, on='song_id')['round']
 
@@ -133,9 +128,6 @@ class Rounds(Results):
 
     def __init__(self):
         super().__init__(columns=Rounds.columns)
-        ##self.name_rounds(songs)
-        ###self.close_rounds(songs, votes)
-        ##self.count_players(votes)
         
     def __repr__(self):
         return f'ROUNDS\n{self.df}\n'
@@ -162,13 +154,6 @@ class Rounds(Results):
     def get_titles(self):
         round_titles = self.df['round'].values
         return round_titles
-
-    ##def name_rounds(self, songs):
-    ##    self.df['round'] = songs.df['round'].unique()
-        
-    #def close_rounds(self, songs, votes):
-    #    self.df['submitted'] = self.df['round'].apply(lambda x: x in songs.df['round'].values)
-    #    self.df['voted'] = self.df['round'].apply(lambda x: x in votes.df[votes.df['player'].notna()]['round'].values)
         
     def count_players(self, votes):
         self.df['player_count'] = votes.df.groupby('round')[['player']].nunique().reset_index()['player']

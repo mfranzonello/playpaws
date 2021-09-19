@@ -3,7 +3,6 @@ from os import listdir
 from difflib import SequenceMatcher
 import re
 from dateutil.parser import parse
-#from datetime import datetime
 
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -165,12 +164,12 @@ class Scraper:
     def get_right_url(self, directory, league_title=None, round_title=None, not_urls=[]):
         # find the right url and search by order
         name = round_title if (round_title is not None) else league_title if (league_title is not None) else None
-        urls = self.stripper.get_urls(directory, name=name, not_urls=not_urls)
+        urls = self.get_urls(directory, name=name, not_urls=not_urls)
         match = False
         i = -1
         while (not match) & (i < len(urls) - 1):
             i += 1
-            match = self.stripper.check_url(f'{directory}/{urls[i]}', league_title, round_title=round_title)
+            match = self.check_url(f'{directory}/{urls[i]}', league_title, round_title=round_title)
 
         if match:
             round_url = f'{directory}/{urls[i]}'
