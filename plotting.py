@@ -3,7 +3,7 @@ from re import compile, UNICODE
 from urllib.request import urlopen
 
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
-from pandas import set_option, DataFrame
+from pandas import set_option, DataFrame, isnull
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 ##import mpld3
@@ -106,10 +106,13 @@ class Pictures:
                 self.images[player] = self.crop_image(image)
 
 class Plotter:
+    color_wheel = 255
+    
     dfc_blue = (44, 165, 235)
     dfc_green = (86, 225, 132)
     dfc_grey = (172, 172, 172)
-    color_wheel = 255
+    dfc_red = (189, 43, 43)
+    dfc_yellow = (255, 242, 119)
 
     marker_sizing = 50
 
@@ -122,7 +125,7 @@ class Plotter:
     like_arrow_length = 0.4
     like_arrow_split = 0.05
 
-    figure_size = (16, 10)
+    #figure_size = (16, 10)
     figure_title = 'MusicLeague'
 
     subplot_aspect = ((1 + 5**0.5) / 2, 1)
@@ -136,7 +139,6 @@ class Plotter:
         self.pictures = None
 
         self.database = database
-
 
     def translate(self, x:float, y:float, theta:float, rotate:float, shift_distance:float=0):
         x_shifted = x + shift_distance*cos(theta + rotate*pi/2)
@@ -185,10 +187,11 @@ class Plotter:
             fig.suptitle(Texter.clean_text(league_title))
             plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {Texter.clean_text(league_title)}') #
             # set figure size
-            fig.set_size_inches(*self.figure_size)
+            #fig.set_size_inches(*self.figure_size)
         
-            self.plot_players(axs[0][0], self.members_list[n], league_title)
-            self.plot_rankings(axs[1][1], self.boards_list[n])
+            self.plot_members(axs[0][0], self.members_list[n], league_title)
+            self.plot_boards(axs[1][1], self.boards_list[n])
+            self.plot_rankings(axs[1][0], self.rankings_list[n])
 
         #mpld3.show()
 
@@ -215,7 +218,7 @@ class Plotter:
 
         return image, imgs
 
-    def plot_players(self, ax, members_df, league_title):
+    def plot_members(self, ax, members_df, league_title):
         # plot nodes for players
         x = members_df['x']
         y = members_df['y']
@@ -279,7 +282,7 @@ class Plotter:
                     members_df['y'].max() + self.name_offset + self.font_size)
         ax.axis('off')
 
-    def plot_rankings(self, ax, board):
+    def plot_boards(self, ax, board):
 
         n_rounds = len(board.columns)
         n_players = len(board.index)
@@ -336,6 +339,32 @@ class Plotter:
         ax.set_ylim(y_min + 0.5, y_max + 0.5)
         ax.set_yticks(yticks)
         ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
+
+    def plot_rankings(self, ax, rankings):
+        #input(rankings)
+        rankings_df = rankings.reset_index().pivot(index='player', columns='round', values='score').div(100)
+
+        player_names = rankings_df.index
+        n_rounds = len(rankings_df.columns)
+
+        rgb_df = self.grade_colors([self.dfc_red, self.dfc_yellow, self.dfc_green, self.dfc_blue])
+        
+        xs = range(n_rounds)
+        for player in player_names:
+            y = player_names.get_loc(player)
+            ys = [y] * n_rounds
+            scores = rankings_df.loc[player]
+            colors = [self.get_rgb(rgb_df, score, divisor=self.color_wheel, fail_color=self.dfc_grey) \
+                for score in scores]
+            ax.scatter(xs, ys, s=20**2, c=colors)
+            image, imgs = self.plot_image(ax, -1, y, player, size=0.9)
+            for x, score in zip(xs, scores):
+                ax.text(x, y, round(score*100) if not isnull(score) else 'DNF',
+                        horizontalalignment='center', verticalalignment='center', color='white')
+
+        ax.axis('equal')
+        ax.tick_params(axis='both', which='both',
+                       bottom='off', top='off', left='off', right='off') # get rid of ticks?
 
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
