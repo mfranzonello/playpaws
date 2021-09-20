@@ -29,7 +29,7 @@ class Analyzer:
                     analysis_complete = False
 
                 if analysis_complete:
-                    print('Analysis for {league_title} already up to date')
+                    print(f'Analysis for {league_title} already up to date')
                 else:
                     analysis = self.analyze_league(league_title, summary=True)
 

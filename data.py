@@ -77,13 +77,25 @@ class Database:
     def get_table(self, table_name, columns=None, league=None, order_by=None):
         # get values from database
 
+        if order_by and order_by.get('other'):
+            other_table = order_by['other']
+            m_ = 'm.'
+            f_ = 'f.'
+            mf_join = ' AND '.join(f'(m.{m} = f.{f})' for m, f in zip(order_by.get('on', order_by.get('left_on')),
+                                                                      order_by.get('on', order_by.get('right_on'))))
+
+            joins = f' AS m JOIN {self.table_name(other_table)} AS f ON {mf_join} '
+
+        else:
+            m_, f_, joins = ['']*3
+
         # check if column specific
         if columns is None:
             # return full table
-            cols = '*'
+            cols = f'{m_}*'
         else:
             # return only specific rows, like finding keys
-            cols = ', '.join(columns)
+            cols = ', '.join(f'{m_}{col}' for col in columns)
 
         # check if league specific
         if league is None:
@@ -91,16 +103,16 @@ class Database:
             wheres = ''
         else:
             # return only league values
-            wheres = f' WHERE league = {self.needs_quotes(league)}'
+            wheres = f' WHERE {m_}league = {self.needs_quotes(league)}'
 
         if order_by:
-            orders = f' ORDER BY {order_by[0]} {order_by[1]}'
+            orders = f' ORDER BY {f_}{order_by["column"]} {order_by["sort"]}'
         else:
             orders = ''
 
         # write and execute SQL
-        sql = f'SELECT {cols} FROM {self.table_name(table_name)}{wheres}{orders};'
-        table = read_sql(sql, self.connection, coerce_float=True)
+        sql = f'SELECT {cols} FROM {self.table_name(table_name)}{joins}{wheres}{orders};'
+        table = read_sql(sql, self.connection, coerce_float=True)        
 
         return table
 
@@ -323,7 +335,7 @@ class Database:
 
     def get_leagues(self):
         # get league names
-        leagues_df = self.get_table('Leagues', order_by=['date', 'ASC'])
+        leagues_df = self.get_table('Leagues', order_by={'column': 'date', 'sort': 'ASC'})
         return leagues_df
 
     def store_leagues(self, leagues_df):
@@ -360,7 +372,7 @@ class Database:
         return check
 
     def get_rounds(self, league):
-        rounds_df = self.get_table('Rounds', league=league, order_by=['date', 'ASC']).drop(columns='league')
+        rounds_df = self.get_table('Rounds', league=league, order_by={'column': 'date', 'sort': 'ASC'}).drop(columns='league')
         return rounds_df
 
     def get_url_status(self, url):
@@ -559,7 +571,7 @@ class Database:
     #def store_analyses(self, results):
 
     ##def get_analysis(self, league_title):
-    ##    analyses_df = self.get_table('Analyses', league=league_title) #, order_by=['date', 'DESC'])
+    ##    analyses_df = self.get_table('Analyses', league=league_title) #, order_by={'column': 'date', 'sort': 'DESC'})
         
     ##    if len(analyses_df):
     ##        results = self.jason.from_json(analyses_df['results'].iloc[0])
@@ -567,8 +579,12 @@ class Database:
     ##    return results
 
     def get_analyses(self):
-        sql = f'SELECT m.* FROM {self.table_name("Analyses")} AS m JOIN {self.table_name("Leagues")} AS f on f.league = m.league ORDER BY f.date ASC'
-        analyses_df = read_sql(sql, self.connection)
+        analyses_df = self.get_table('Analyses', order_by={'other': 'Leagues',
+                                                           'on': ['league'],
+                                                           'column': 'date',
+                                                           'sort': 'ASC'})
+        ##sql = f'SELECT m.* FROM {self.table_name("Analyses")} AS m JOIN {self.table_name("Leagues")} AS f on f.league = m.league ORDER BY f.date ASC'
+        ##analyses_df = read_sql(sql, self.connection)
         return analyses_df
 
     def store_rankings(self, rankings_df, league_title):
@@ -578,12 +594,17 @@ class Database:
 
     def get_rankings(self, league_title):
         # get rankings sorted by round date
-        sql = f'SELECT round FROM {self.table_name("Rounds")} WHERE league = {self.needs_quotes(league_title)} ORDER BY date ASC'
-        reindexer = read_sql(sql, self.connection)['round']
+        reindexer = self.get_round_order(league_title)
         rankings_df = self.get_table('Rankings', league=league_title).drop(columns='league')\
             .set_index(['round', 'player']).sort_values(['round', 'points'], ascending=[True, False]).reindex(reindexer, level=0)
 
         return rankings_df
+
+    def get_round_order(self, league_title):
+        reindexer = self.get_table('Rounds', columns=['round'], league=league_title, order_by={'column': 'date',
+                                                                                               'sort': 'ASC'})['round']
+
+        return reindexer
 
     def store_boards(self, boards_df, league_title):
         df = boards_df.reset_index().melt(id_vars='player',
@@ -595,8 +616,15 @@ class Database:
         self.upsert_table('Boards', df)
 
     def get_boards(self, league_title):
-        boards_df = self.get_table('Boards', league=league_title).drop(columns='league')\
+        reindexer = self.get_round_order(league_title)
+        boards_df = self.get_table('Boards', league=league_title, order_by={'other': 'Rounds', 
+                                                                            'on': ['league', 'round'],
+                                                                            'column': 'date',
+                                                                            'sort': 'ASC'}).drop(columns='league')\
             .pivot(index='player', columns='round', values='place')
+        
+        reindexer = [r for r in reindexer if r in boards_df.columns]
+        boards_df = boards_df.reindex(columns=reindexer)
         
         return boards_df
 
