@@ -548,13 +548,11 @@ class Database:
         df = self.get_spotify('Genres')
         return df
 
-    def store_analysis(self, league_title, version, results):
+    def store_analysis(self, league_title, version, statuses):
         today = date.today()
-        #results_json = self.jason.to_json(results)
-
-        analyses_df = DataFrame([[league_title, today, version]], columns=['league', 'date', 'version'])
-                                #, 'results'])
-                                #results_json]], columns=['league', 'date', 'results'])
+        analyses_df = DataFrame([[league_title, today, version,
+                                  statuses['open'], statuses['closed']]],
+                                columns=['league', 'date', 'version', 'open', 'closed'])
 
         self.upsert_table('Analyses', analyses_df)
 
@@ -571,19 +569,7 @@ class Database:
     def get_analyses(self):
         sql = f'SELECT m.* FROM {self.table_name("Analyses")} AS m JOIN {self.table_name("Leagues")} AS f on f.league = m.league ORDER BY f.date ASC'
         analyses_df = read_sql(sql, self.connection)
-
-        if len(analyses_df):
-            #analyses = [self.jason.from_json(analyses_df['results'][i]) for i in analyses_df.index]
-            league_titles = analyses_df['league']
-        else:
-            #analyses = None
-            league_titles = None
-
-        ### should include some check to see which rounds are open and closed
-        ### if same rounds are open and closed as what is said in the analysis, then no need to rerun unless a manual override is called
-        ### can also check with versioning number
-
-        return league_titles#, analyses
+        return analyses_df
 
     def store_rankings(self, rankings_df, league_title):
         df = rankings_df.reset_index().reindex(columns=self.store_columns('Rankings'))
@@ -599,25 +585,20 @@ class Database:
 
         return rankings_df
 
-    def store_boards(self, leaderboard, dnf, league_title):        
-        boards_df = concat([board.reset_index().melt(id_vars='player',
-                                                     value_vars=board.columns,
-                                                     var_name='round',
-                                                     value_name='place').dropna(subset=['place']) for board in [leaderboard, dnf]],
-                           ignore_index=True).reindex(columns=self.store_columns('Boards'))
-        
-        boards_df['league'] = league_title
+    def store_boards(self, boards_df, league_title):
+        df = boards_df.reset_index().melt(id_vars='player',
+                                          value_vars=board.columns,
+                                          var_name='round',
+                                          value_name='place').dropna(subset=['place']).reindex(columns=self.store_columns('Boards'))
+        df['league'] = league_title
 
-        self.upsert_table('Boards', boards_df)
+        self.upsert_table('Boards', df)
 
     def get_boards(self, league_title):
         boards_df = self.get_table('Boards', league=league_title).drop(columns='league')\
             .pivot(index='player', columns='round', values='place')
-
-        ##leaderboard = boards_df.query('place > 0').pivot(index='player', columns='round', values='place')
-        ##dnf = boards_df.query('place < 0').pivot(index='player', columns='round', values='place')
         
-        return boards_df #leaderboard, dnf
+        return boards_df
 
 
     ##def get_image_arrays(self):

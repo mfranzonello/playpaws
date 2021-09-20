@@ -171,6 +171,7 @@ class Plotter:
         self.league_titles = []
         self.members_list = []
         self.rankings_list = []
+        self.boards_list = []
         self.pictures = None
 
         self.database = database
@@ -195,14 +196,16 @@ class Plotter:
         return rgb
 
     def add_anaylses(self):
-        league_titles = self.database.get_analyses()
+        analyses_df = self.database.get_analyses()
 
-        self.league_titles = league_titles
-        self.members_list = [self.database.get_members(league_title) for league_title in league_titles]
-        self.rankings_list = [self.database.get_rankings(league_title) for league_title in league_titles]
-        self.boards_list = [self.database.get_boards(league_title) for league_title in league_titles]
+        if len(analyses_df):
+            league_titles = analyses_df['league']
+            self.league_titles = league_titles
+            self.members_list = [self.database.get_members(league_title) for league_title in league_titles]
+            self.rankings_list = [self.database.get_rankings(league_title) for league_title in league_titles]
+            self.boards_list = [self.database.get_boards(league_title) for league_title in league_titles]
         
-        self.pictures = Pictures(self.database)
+            self.pictures = Pictures(self.database)
 
     def plot_results(self):
         nrows = 2

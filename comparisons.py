@@ -276,11 +276,13 @@ class Rankings:
         reindexer = songs.df['round'].drop_duplicates()
         self.df = self.df.sort_values(['round', 'points'], ascending=[True, False]).reindex(reindexer, level=0)
 
-    def get_leaderboard(self):
+    def get_board(self):
         pointsboard = self.df.reset_index().pivot(columns='round', values='points', index='player')\
             .reindex(columns=self.df.index.levels[0])
 
         dnf = -pointsboard.fillna(1).where(pointsboard.isna()).where(self.submitted_per_round).rank(method='first')
         leaderboard = pointsboard.rank(ascending=False, method='first')
+
+        board = leaderboard.add(dnf, fill_value=0)
         
-        return leaderboard, dnf
+        return board

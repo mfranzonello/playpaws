@@ -11,24 +11,47 @@ class Analyzer:
         players = Players()
         league_titles = self.get_league_titles()
 
-        analyses = []
+        analyses = self.database.get_analyses()
+
         for league_title in league_titles:
             if self.database.check_data(league_title):
-                analysis = self.analyze_league(league_title, summary=True)
+                rounds_db = self.database.get_rounds(league_title)
 
-                if analysis:
-                    members = analysis['members']
-                    rankings = analysis['rankings']
-                    leaderboard, dnf = rankings.get_leaderboard()
+                statuses = self.get_statuses(rounds_db)
+                
+                version_q = f'(version == {self.version})'
+                open_q = f'(open == [{statuses["open"]}])'
+                closed_q = f'(closed == [{statuses["closed"]}])'
+                query = analyses.query(version_q).query(open_q).query(closed_q)
+                if len(query):
+                    analysis_complete = True
+                else:
+                    analysis_complete = False
 
-                    self.database.store_members(members.df, league_title)
-                    self.database.store_rankings(rankings.df, league_title)
-                    self.database.store_boards(leaderboard, dnf, league_title)
-                    results = None
+                if analysis_complete:
+                    print('Analysis for {league_title} already up to date')
+                else:
+                    analysis = self.analyze_league(league_title, summary=True)
 
-                    self.database.store_analysis(league_title, self.version, results)#, results)
+                    if analysis:
+                        members = analysis['members']
+                        rankings = analysis['rankings']
+                        board = rankings.get_board()
+                        rounds = analysis['rounds']
+                    
+                        statuses = self.get_statuses(rounds.df)
+                        
+                        self.database.store_members(members.df, league_title)
+                        self.database.store_rankings(rankings.df, league_title)
+                        self.database.store_boards(board, league_title)
 
-                    analyses.append(analysis)
+                        self.database.store_analysis(league_title, self.version, statuses)
+
+    def get_statuses(self, rounds_df):
+        statuses = {status: [round_title for round_title in rounds_df.query(f'status == "{status}"')['round']] \
+                        for status in ['open', 'closed']}
+
+        return statuses
 
     def analyze_league(self, league_title, summary=True):
         print(f'Setting up league {league_title}')
