@@ -6,8 +6,6 @@ from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 from pandas import set_option, DataFrame
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-##from numpy import array as im_array
 ##import mpld3
 
 rcParams['font.family'] = 'sans-serif'
@@ -58,20 +56,12 @@ class Pictures:
 
     def download_images(self):
         images = {}
-        #images_df = self.get_image_arrays()
 
         print('Downloading profile images...')
         for i in self.players_df.index:
             player_name = self.players_df['player'][i]
             print(f'\t...{player_name}')
 
-            ##array = images_df.query(f'player == "{player_name}"')['array']
-            ##if array.empty:
-            # player is not in array, so add
-                ##images_df.loc[len(images_df), 'player'] = player_name
-                
-            ##if array.isna().all():
-            ##    # no array in database
             # download image
             src = self.players_df['src'][i]
             if src[:len('http')] != 'http':
@@ -86,19 +76,8 @@ class Pictures:
                 print(f'unable to read image for {player_name}')
                 image = None
 
-                ### add arrays
-                ##images_df.at[images_df['player'] == player_name,
-                ##             'array'] = [self.store_array(image)]
-
-            ##else:
-            ##    image = self.retrieve_array(images_df['array'][player_name])
-
-
             # store in images dictionary
             images[player_name] = image
-
-        # store new arrays
-        ##self.database.store_image_arrays(images_df)
 
         return images
 
@@ -106,10 +85,10 @@ class Pictures:
         image = self.images[player_name]
         return image
 
-    def get_image_arrays(self):
-        images_df = self.database.get_image_arrays()#.reindex(self.players_df['player'])
-        return images_df
-
+    def get_color_image(self, color, size):
+        image = self.crop_image(Image.new('RGB', size, color))
+        return image
+    
     def crop_image(self, image):
         size = image.size
         mask = Image.new('L', size, 0)
@@ -125,24 +104,6 @@ class Pictures:
             image = self.images[player]
             if image:
                 self.images[player] = self.crop_image(image)
-
-    ##def store_array(self, image):
-    ##    if image:
-    ##        print('\t\t...to array')
-    ##        array = im_array(image)
-    ##    else:
-    ##        array = None
-
-    ##    return array
-
-    ##def retrieve_array(self, array):
-    ##    if array:
-    ##        image = Image.fromarray(array)
-    ##    else:
-    ##        array = None
-
-    ##    return image
-
 
 class Plotter:
     dfc_blue = (44, 165, 235)
@@ -187,12 +148,16 @@ class Plotter:
         rgb_df = DataFrame(colors, columns=['R', 'G', 'B'], index=[round(x/(len(colors)+1), 2) for x in range(len(colors))]).reindex([x/10**precision for x in range(10**precision+1)]).interpolate()
         return rgb_df
 
-    def get_rgb(self, rgb_df:DataFrame, percent:float, fail_color=(0, 0, 0)):
+    def get_rgb(self, rgb_df:DataFrame, percent:float, fail_color=(0, 0, 0), divisor=1):
         # get color based on interpolation of a list of colors
         if isnan(percent):
-            rgb = tuple(g/self.color_wheel for g in fail_color)
+            rgb = tuple(g/divisor for g in fail_color)
         else:
-            rgb = tuple(c/self.color_wheel for c in rgb_df.iloc[rgb_df.index.get_loc(percent, 'nearest')])
+            rgb = tuple(c/divisor for c in rgb_df.iloc[rgb_df.index.get_loc(percent, 'nearest')])
+
+        if divisor == 1:
+            rgb = tuple(round(c) for c in rgb)
+
         return rgb
 
     def add_anaylses(self):
@@ -216,43 +181,41 @@ class Plotter:
             fig, axs = plt.subplots(nrows, ncols)
 
             # set league title
-            plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {Texter.clean_text(self.league_titles[n])}') #
+            league_title = self.league_titles[n]
+            fig.suptitle(Texter.clean_text(league_title))
+            plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {Texter.clean_text(league_title)}') #
             # set figure size
             fig.set_size_inches(*self.figure_size)
         
-            self.plot_players(axs[0][0], self.members_list[n], self.league_titles[n])
+            self.plot_players(axs[0][0], self.members_list[n], league_title)
             self.plot_rankings(axs[1][1], self.boards_list[n])
 
         #mpld3.show()
 
         plt.show()
 
-    def plot_image(self, ax, player_name, x, y, size=0.5, aspect=(1, 1), flipped=False, zorder=0):
+    def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5, image_size=(0, 0), padding=0, aspect=(1, 1), flipped=False, zorder=0):
         flip = -1 if flipped else 1
 
-        image = self.pictures.get_player_image(player_name)
+        if player_name:
+            image = self.pictures.get_player_image(player_name)
+        elif color:
+            image = self.pictures.get_color_image(color, image_size)
+        else:
+            image = None
+
         if image:
-            ##im = OffsetImage(image)
-            ##im.image.axes = ax
-
-            ##ab = AnnotationBbox(im, (x, y), frameon=False, pad=0.0) # zoom=72/ax.figure.dpi
-            ##ax.add_artist(ab)
-
             scaling = [a / max(aspect) for a in aspect]
 
-            extent = [x - size/2 * scaling[0], x + size/2 * scaling[0],
-                      y - flip*size/2 * scaling[1], y + flip*size/2 * scaling[1]]
-            ax.imshow(image, extent=extent, zorder=zorder)
-            success = True
-        else:
-            success = False
+            x_ex = (size + padding)/2 * scaling[0]
+            y_ex = (size + padding)/2 * scaling[1]
+            extent = [x - x_ex, x + x_ex,
+                      y - flip*y_ex, y + flip*y_ex]
+            imgs = ax.imshow(image, extent=extent, zorder=zorder)
 
-        return success
+        return image, imgs
 
     def plot_players(self, ax, members_df, league_title):
-        # set subplot title
-        ax.set_title(Texter.clean_text(league_title))
-
         # plot nodes for players
         x = members_df['x']
         y = members_df['y']
@@ -260,11 +223,15 @@ class Plotter:
 
         sizes = self.get_scatter_sizes(members_df)
         colors = self.get_scatter_colors(members_df)
+        colors_scatter = self.get_scatter_colors(members_df, divisor=self.color_wheel)
 
-        ax.scatter(x, y, s=sizes, c=colors)
-
-        for x_p, y_p, p_name, s_p in zip(x, y, player_names, sizes):
-            image_plotted = self.plot_image(ax, p_name, x_p, y_p, size=(s_p/2)**0.5/pi/20, flipped=False, zorder=100)
+        for x_p, y_p, p_name, s_p, c_p, c_s in zip(x, y, player_names, sizes, colors, colors_scatter):
+            plot_size = size=(s_p/2)**0.5/pi/20
+            image, imgs_1 = self.plot_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False, zorder=1)
+            if image:
+                _, imgs_2 = self.plot_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05, zorder=0)
+            else:
+                ax.plot(x_p, y_p, s=s_p, c=c_s)
 
         # split if likes is liked
         split = members_df.set_index('player')
@@ -273,7 +240,7 @@ class Plotter:
         for i in members_df.index:
             # plot center
             x_center, y_center = self.get_center(members_df)
-            ax.scatter(x_center, y_center, marker='1')
+            ax.scatter(x_center, y_center, marker='1', zorder=3)
 
             # get name
             me = player_names[i]
@@ -286,7 +253,7 @@ class Plotter:
             v_align = 'top' if (theta_me > 0) else 'bottom'
             display_name = Texter.get_display_name(me)
             
-            ax.text(x_1, y_1, display_name, horizontalalignment=h_align, verticalalignment=v_align)
+            ax.text(x_1, y_1, display_name, horizontalalignment=h_align, verticalalignment=v_align, zorder=4)
 
             # split if liked
             split_distance = split[me] * self.like_arrow_split
@@ -297,7 +264,7 @@ class Plotter:
             x_2, y_2 = self.translate(x_likes, y_likes, theta_us, -1, shift_distance=split_distance)
             ax.arrow(x_1, y_1, x_2-x_1, y_2-y_1,
                         width=self.like_arrow_width, facecolor=self.likes_color,
-                        edgecolor='none', length_includes_head=True)
+                        edgecolor='none', length_includes_head=True, zorder=2)
 
             # find liked
             x_liked, y_liked, theta_us = self.who_likes_whom(members_df, me, 'liked', line_dist=self.like_arrow_length)
@@ -305,7 +272,7 @@ class Plotter:
             x_2, y_2 = self.translate(x_liked, y_liked, theta_us, 1, shift_distance=split_distance)
             ax.arrow(x_2, y_2, x_1-x_2, y_1-y_2,
                         width=self.like_arrow_width, facecolor=self.liked_color,
-                        edgecolor='none', length_includes_head=True)
+                        edgecolor='none', length_includes_head=True, zorder=2)
 
         ax.axis('equal')
         ax.set_ylim(members_df['y'].min() - self.name_offset - self.font_size,
@@ -339,14 +306,14 @@ class Plotter:
             for x, y, d in zip(xs, ys, ds):
                 if y > 0:
                     # plot finishers
-                    image_plotted = self.plot_image(ax, player, x, y, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
-                    if not image_plotted:
+                    image, imgs = self.plot_image(ax, x, y, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
+                    if not image:
                         ax.text(x, y, display_name)
 
                 if d > lowest_rank + 1:
                     # plot DNFs
-                    image_plotted = self.plot_image(ax, player, x, d, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
-                    if not image_plotted:
+                    image, imgs = self.plot_image(ax, x, d, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
+                    if not image:
                         ax.text(x, d, display_name)
 
         round_titles = [Texter.clean_text(c) for c in board.columns]
@@ -403,11 +370,12 @@ class Plotter:
         sizes = (members_df['wins'] + 1) * self.marker_sizing
         return sizes
 
-    def get_scatter_colors(self, members_df):
+    def get_scatter_colors(self, members_df, divisor=1):
         max_dfc = members_df['dfc'].max()
         min_dfc = members_df['dfc'].min()
 
         rgb_df = self.grade_colors([self.dfc_green, self.dfc_blue])
-        colors = [self.get_rgb(rgb_df, 1-(dfc - min_dfc)/(max_dfc - min_dfc), fail_color=self.dfc_grey) for dfc in members_df['dfc'].values]
+        colors = [self.get_rgb(rgb_df, 1-(dfc - min_dfc)/(max_dfc - min_dfc),
+                               fail_color=self.dfc_grey, divisor=divisor) for dfc in members_df['dfc'].values]
         
         return colors
