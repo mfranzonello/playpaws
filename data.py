@@ -238,6 +238,20 @@ class Database:
 
         return keys
 
+    ### NEED TO FIX
+    def get_values(self, table_name, match=None):
+        if self.language == 'sqlite':
+            values = read_sql(f'PRAGMA TABLE_INFO({table_name})', self.connection).query('pk == 0')['name']
+        elif self.language == 'postgres':
+            values = self.values[table_name]
+        else:
+            values = []
+
+        if len(match):
+            values = [v for v in values if v in match]
+
+        return values
+
     def execute_sql(self, sql):
         for s in sql.split(';'):
             if len(s):
@@ -250,8 +264,10 @@ class Database:
             keys = self.get_keys(table_name)
 
             # only store columns that have values, so as to not overwrite with NA
-            df_store = df.dropna(axis='columns', how='all')
-
+            # retain key columns that have NA values, such as Votes table
+            value_columns = self.get_values(table_name, match=df.columns)
+            df_store = df.drop(columns=df[value_columns].columns[df[value_columns].isna().all()])
+            
             # get current league if not upserting Leagues or table that doesn't have league as a key
             if (table_name == 'Leagues') or ('league' not in self.keys[table_name]):
                 league = None
@@ -309,14 +325,14 @@ class Database:
         # first check for which songs already exists
         ids_df = self.get_table('Songs', league=league_title).drop(columns='league')
         merge_cols = ['artist', 'title', 'round']
-        songs_df = DataFrame(data=zip(artists, titles, [round_title]*len(artists)), columns=merge_cols).merge(ids_df, on=merge_cols)[merge_cols + ['song_id']]
+        songs_df = DataFrame(data=zip(artists, titles, [round_title]*len(artists)), columns=merge_cols).merge(ids_df, on=merge_cols, how='left')[merge_cols + ['song_id']]
         
         # then fill in songs that are new
-        needed_id_count = songs_df['song_id'].isna().sum()
-        if needed_id_count:
-            new_ids = self.get_new_song_ids(league_title, needed_id_count)
+        n_retrieve = songs_df['song_id'].isna().sum()
+        if n_retrieve:
+            new_ids = self.get_new_song_ids(league_title, n_retrieve)
             songs_df.loc[songs_df['song_id'].isna(), 'song_id'] = new_ids
-
+            
         song_ids = songs_df['song_id'].values
 
         return song_ids
@@ -478,9 +494,12 @@ class Database:
 
     def drop_votes(self, league_title, round_title):
         # remove placeholder votes when a round closes
-        sql = f'DELETE FROM {self.table_name("Votes")} WHERE (round = {self.needs_quotes(round_title)}) AND (player IS NULL)'
-        self.execute_sql(sql)
-
+        ##joins = f'AS m JOIN {self.table_name("Songs")} AS f ON m.song_id = f.song_id'
+        ##wheres = f'(f.round = {self.needs_quotes(round_title)}) AND (m.player IS NULL)' 
+        ##sql = f'DELETE FROM {self.table_name("Votes")} {joins} WHERE {wheres}'
+        ##self.execute_sql(sql)
+        return
+        
     def store_members(self, members_df, league_title):
         df = members_df.reindex(columns=self.store_columns('Members'))
         df['league'] = league_title
@@ -608,7 +627,7 @@ class Database:
 
     def store_boards(self, boards_df, league_title):
         df = boards_df.reset_index().melt(id_vars='player',
-                                          value_vars=board.columns,
+                                          value_vars=boards_df.columns,
                                           var_name='round',
                                           value_name='place').dropna(subset=['place']).reindex(columns=self.store_columns('Boards'))
         df['league'] = league_title

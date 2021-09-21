@@ -2,14 +2,11 @@ from math import sin, cos, atan2, pi, isnan
 from re import compile, UNICODE
 from urllib.request import urlopen
 
-from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from pandas import set_option, DataFrame, isnull
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 ##import mpld3
-
-rcParams['font.family'] = 'sans-serif'
-rcParams['font.sans-serif'] = ['Segoe UI', 'Tahoma']
 
 class Printer:
     def __init__(self, *options):
@@ -34,11 +31,17 @@ class Texter:
                             u'\U000023E9-\U000023F3' # play, pause
                             ']+', flags=UNICODE)
 
-    def clean_text(text:str) -> str:
-        cleaned_text = Texter.emoji_pattern.sub(r'', text).strip()
+    fonts = {'Segoe UI': 'segoeui.ttf',
+             'Tahoma': 'tahoma.ttf'}
+
+    def __init__(self):
+        pass
+
+    def clean_text(self, text:str) -> str:
+        cleaned_text = self.emoji_pattern.sub(r'', text).strip()
         return cleaned_text
 
-    def get_display_name(name:str) -> str:
+    def get_display_name(self, name:str) -> str:
         if ' ' in name:
             display_name = name[:name.index(' ')]
         elif '.' in name:
@@ -53,7 +56,7 @@ class Pictures:
         self.players_df = self.database.get_players()
         self.images = self.download_images()
         self.crop_player_images()
-
+        
     def download_images(self):
         images = {}
 
@@ -83,10 +86,12 @@ class Pictures:
 
     def get_player_image(self, player_name):
         image = self.images[player_name]
+
         return image
 
     def get_color_image(self, color, size):
         image = self.crop_image(Image.new('RGB', size, color))
+
         return image
     
     def crop_image(self, image):
@@ -104,6 +109,22 @@ class Pictures:
             image = self.images[player]
             if image:
                 self.images[player] = self.crop_image(image)
+
+    def add_text(self, image, text, font, color=(255, 255, 255), padding=0.05):
+        draw = ImageDraw.Draw(image)
+
+        text_str = str(text)
+        
+        W, H = image.size
+        font_size = round(H * 0.75 * (1-padding))
+        font = ImageFont.truetype(font, font_size)
+        
+        w, h = draw.textsize(text_str, font=font)
+        position = ((W-w)/2,(H-h)/2)
+
+        draw.text(position, text_str, color, font=font)
+
+        return image
 
 class Plotter:
     color_wheel = 255
@@ -132,10 +153,18 @@ class Plotter:
     ranking_size = 0.75
 
     def __init__(self, database):
-        self.league_titles = []
-        self.members_list = []
-        self.rankings_list = []
-        self.boards_list = []
+        self.texter = Texter()
+
+        self.fonts = [font for font in self.texter.fonts]
+        self.font = self.texter.fonts[self.fonts[0]]
+
+        rcParams['font.family'] = 'sans-serif'
+        rcParams['font.sans-serif'] = self.fonts
+        
+        self.league_titles = None
+        self.members_list = None
+        self.rankings_list = None
+        self.boards_list = None
         self.pictures = None
 
         self.database = database
@@ -184,20 +213,24 @@ class Plotter:
 
             # set league title
             league_title = self.league_titles[n]
-            fig.suptitle(Texter.clean_text(league_title))
-            plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {Texter.clean_text(league_title)}') #
+            fig.suptitle(self.texter.clean_text(league_title))
+            plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {self.texter.clean_text(league_title)}') #
             # set figure size
             #fig.set_size_inches(*self.figure_size)
         
+            print(f'Preparing plot for {league_title}...')
             self.plot_members(axs[0][0], self.members_list[n], league_title)
             self.plot_boards(axs[1][1], self.boards_list[n])
             self.plot_rankings(axs[1][0], self.rankings_list[n])
 
         #mpld3.show()
 
+        print('Generating plot...')
         plt.show()
 
-    def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5, image_size=(0, 0), padding=0, aspect=(1, 1), flipped=False, zorder=0):
+    def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5,
+                   image_size=(0, 0), padding=0, text=None,
+                   aspect=(1, 1), flipped=False, zorder=0):
         flip = -1 if flipped else 1
 
         if player_name:
@@ -206,6 +239,10 @@ class Plotter:
             image = self.pictures.get_color_image(color, image_size)
         else:
             image = None
+            imgs = None
+
+        if image and text:
+            image = self.pictures.add_text(image, text, self.font)
 
         if image:
             scaling = [a / max(aspect) for a in aspect]
@@ -220,6 +257,7 @@ class Plotter:
 
     def plot_members(self, ax, members_df, league_title):
         # plot nodes for players
+        print('\t...relationships')
         x = members_df['x']
         y = members_df['y']
         player_names = members_df['player']
@@ -254,7 +292,7 @@ class Plotter:
 
             h_align = 'right' if (theta_me > -pi/2) & (theta_me < pi/2) else 'left'
             v_align = 'top' if (theta_me > 0) else 'bottom'
-            display_name = Texter.get_display_name(me)
+            display_name = self.texter.get_display_name(me)
             
             ax.text(x_1, y_1, display_name, horizontalalignment=h_align, verticalalignment=v_align, zorder=4)
 
@@ -283,7 +321,7 @@ class Plotter:
         ax.axis('off')
 
     def plot_boards(self, ax, board):
-
+        print('\t...rankings')
         n_rounds = len(board.columns)
         n_players = len(board.index)
         aspect = (n_rounds - 1, n_players - 1)
@@ -300,7 +338,7 @@ class Plotter:
             ys = board.where(board > 0).loc[player]
             ds = [lowest_rank - d + 1 for d in board.where(board < 0).loc[player]]
 
-            display_name = Texter.get_display_name(player)
+            display_name = self.texter.get_display_name(player)
 
             color = f'C{board.index.get_loc(player)}'
             ax.plot(xs, ys, marker='.', color=color)
@@ -319,7 +357,7 @@ class Plotter:
                     if not image:
                         ax.text(x, d, display_name)
 
-        round_titles = [Texter.clean_text(c) for c in board.columns]
+        round_titles = [self.texter.clean_text(c) for c in board.columns]
         
         x_min = min(xs)
         x_max = max(xs)
@@ -341,30 +379,43 @@ class Plotter:
         ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
 
     def plot_rankings(self, ax, rankings):
-        #input(rankings)
-        rankings_df = rankings.reset_index().pivot(index='player', columns='round', values='score').div(100)
+        print('\t...scores')
+        rankings_df = rankings.reset_index().pivot(index='player', columns='round', values='score').div(100)\
+            .reindex(columns=rankings.index.get_level_values(0).drop_duplicates()).sort_index(ascending=False)
 
         player_names = rankings_df.index
         n_rounds = len(rankings_df.columns)
 
+        max_score = rankings_df.max().max()
         rgb_df = self.grade_colors([self.dfc_red, self.dfc_yellow, self.dfc_green, self.dfc_blue])
         
         xs = range(n_rounds)
         for player in player_names:
-            y = player_names.get_loc(player)
-            ys = [y] * n_rounds
-            scores = rankings_df.loc[player]
-            colors = [self.get_rgb(rgb_df, score, divisor=self.color_wheel, fail_color=self.dfc_grey) \
-                for score in scores]
-            ax.scatter(xs, ys, s=20**2, c=colors)
-            image, imgs = self.plot_image(ax, -1, y, player, size=0.9)
-            for x, score in zip(xs, scores):
-                ax.text(x, y, round(score*100) if not isnull(score) else 'DNF',
-                        horizontalalignment='center', verticalalignment='center', color='white')
-
+            self.plot_player_scores(ax, player, xs, player_names.get_loc(player), rankings_df, max_score, rgb_df)
+            
         ax.axis('equal')
         ax.tick_params(axis='both', which='both',
                        bottom='off', top='off', left='off', right='off') # get rid of ticks?
+
+    def plot_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df):
+        ys = [y] * len(xs)
+        
+        scores = rankings_df.loc[player]
+        colors = [self.get_rgb(rgb_df, score/max_score, fail_color=self.dfc_grey) \
+            for score in scores]
+        colors_scatter = [self.get_rgb(rgb_df, score/max_score, divisor=self.color_wheel, fail_color=self.dfc_grey) \
+            for score in scores]
+
+        marker_size = 0.9
+        image, imgs = self.plot_image(ax, -1, y, player_name=player, size=marker_size)
+        if image:
+            for x, c, score in zip(xs, colors, scores):
+                self.plot_image(ax, x, y, color=c, image_size=image.size, size=marker_size, text=round(score*100) if not isnull(score) else 'DNF')
+        else:
+            ax.scatter(xs, ys, s=20**2, c=colors_scatter) 
+            for x, score in zip(xs, scores):
+                ax.text(x, y, round(score*100) if not isnull(score) else 'DNF',
+                        horizontalalignment='center', verticalalignment='center', color='white')
 
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
