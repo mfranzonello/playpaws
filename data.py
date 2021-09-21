@@ -1,5 +1,6 @@
 from datetime import date
 import json
+from PIL.ImageFont import load_default
 
 from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame, isnull, concat
@@ -647,14 +648,124 @@ class Database:
         
         return boards_df
 
+    # things that don't require analysis
+    def get_dirtiness(self, league_title, player_name):
+        sql = (f'SELECT '
+               f'count(CASE WHEN f.explicit THEN 1 END) / '
+               f'count(CASE WHEN NOT f.explicit THEN 1 END)::real AS dirtiness '
+               f'FROM {self.table_name("Votes")} AS v '
+               f'LEFT JOIN {self.table_name("Songs")} AS s ON v.song_id = s.song_id '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
+               f'WHERE (v.league = {self.needs_quotes(league_title)}) AND (s.league = {self.needs_quotes(league_title)}) '
+               f'AND (v.player = {self.needs_quotes(player_name)};'
+               )
 
-    ##def get_image_arrays(self):
-    ##    images_df = self.get_table('Images')
-    ##    #images_df.set_index('player')
-    ##    return images_df
+        dirtiness = read_sql(sql, self.connection)['dirtiness'].iloc[0]
 
-    ##def store_image_arrays(self, images_df):
-    ##    print(f'DB IMAGES_DF: {images_df}')
-    ##    df = images_df.reset_index().reindex(columns=self.store_columns('Images'))
-    ##    print(f'DB DF: {df}')
-    ##    self.upsert_table('Images', df)
+        return dirtiness
+
+    def get_audio_features(self, league_title, round_title):
+        values = ['duration', 'danceability', 'energy', 'key', 'loudness', #'mode',
+                  'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']
+        methods = ['MIN', 'AVG', 'MAX']
+        jsons = ', '.join('json_build_object(' +
+                          ', '.join(f'{self.needs_quotes(method)}, {method}(s.{k})' for method in methods) +
+                          f') AS {k}' for k in values)
+
+        sql = (f'SELECT s.round, {jsons} '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
+               f'WHERE s.league = {self.needs_quotes(league_title)} '
+               f'GROUP BY s.round;'
+               )
+
+        features_df = read_sql(sql, self.connection)
+
+        return features_df
+
+    def get_discoveries(self, league_title):
+        sql = (f'SELECT s.song_id, 1-t.popularity/100::real AS discovery '
+               f'FROM {self.talbe_name("Songs")} AS s '
+               f'LEFT JOIN {self.talbe_name("Tracks")} AS t ON s.track_url = t.url '
+               f'WHERE s.league = {self.needs_quotes(league_title)};'
+               )
+
+        discoveries_df = read_sql(sql, self.connection)
+
+        return discoveries_df
+
+    def get_genres(self, leauge_title):
+        sql = (f'SELECT s.round, json_agg(DISTINCT g.name) AS genres '
+               f'FROM {self.talbe_name("Songs")} AS s '
+               f'LEFT JOIN {self.talbe_name("Tracks")} AS t '
+               f'ON s.track_url = t.url '
+               f'LEFT JOIN {self.talbe_name("Artists")} AS a '
+               f'ON t.artist_uri ? a.uri '
+               f'LEFT JOIN {self.talbe_name("Genres")} AS g '
+               f'ON a.genres ? g.name '
+               f'WHERE (s.league = {self.needs_quotes(league_title)}) AND (g.name IS NOT NULL) '
+               f'GROUP BY s.round;'
+               )
+
+        genres_df = read_sql(sql, self.connection)
+
+        return genres_df
+
+    def get_all_artists(league_title):
+        sql = (f'SELECT s.league, s.song_id, json_agg(DISTINCT a.name) as arist '
+               f'FROM {self.talbe_name("Songs")} AS s '
+               f'LEFT JOIN {self.talbe_name("Tracks")}AS t ON s.track_url = t.url '
+               f'LEFT JOIN {self.talbe_name("Artists")} AS a ON t.artist_uri ? a.uri '
+               f'WHERE s.league = {self.needs_quotes(league_title)} '
+               f'GROUP BY s.song_id, s.league;'
+               )
+
+        all_artists_df = read_sql(sql, self.connection)
+
+        return all_artists_df
+
+    def get_all_info():
+        sql = (f'SELECT q.league, x.song_id, q.round, x.artist, q.title, q.submitter FROM '
+               f'(SELECT s.league, s.song_id, json_agg(DISTINCT a.name) as artist '
+               f'FROM {self.talbe_name("Songs")} AS s '
+               f'LEFT JOIN {self.talbe_name("Tracks")} AS t ON s.track_url = t.url '
+               f'LEFT JOIN {self.talbe_name("Artists")} AS a ON t.artist_uri ? a.uri '
+               f'GROUP BY s.song_id, s.league) x '
+               f'LEFT JOIN {self.talbe_name("Songs")} AS q '
+               f'ON (x.song_id = q.song_id) AND (x.league = q.league);'
+               )
+
+        all_info_df = read_sql(sql, self.connection)
+
+        return all_info_df
+        
+
+    ###def get_artists_by_vote(self):
+    ###    pass
+        '''
+        Getting artists voted for by a player
+
+        SELECT DISTINCT m.player, q.name, v.artist, v.title FROM "mfranzonello/playpaws"."votes" AS m
+        LEFT JOIN "mfranzonello/playpaws"."songs" AS v ON m.song_id = v.song_id
+    
+        LEFT JOIN "mfranzonello/playpaws"."tracks" AS f ON v.track_url = f.url
+        LEFT JOIN "mfranzonello/playpaws"."artists" AS q ON f.artist_uri ? q.uri
+  
+        WHERE (m.league LIKE 'Play%') AND (v.league LIKE 'Play%') AND (m.player LIKE 'Michael%');
+        '''
+
+        '''
+        Getting top genres voted for by a player
+
+        SELECT r.name, count(r.name) FROM "mfranzonello/playpaws"."votes" AS m
+          LEFT JOIN "mfranzonello/playpaws"."songs" AS v ON m.song_id = v.song_id
+    
+          LEFT JOIN "mfranzonello/playpaws"."tracks" AS f ON v.track_url = f.url
+          LEFT JOIN "mfranzonello/playpaws"."artists" AS q ON f.artist_uri ? q.uri
+          LEFT JOIN "mfranzonello/playpaws"."genres" AS r ON q.genres ? r.name
+          WHERE (m.league LIKE 'Brad%') AND (v.league LIKE 'Brad%')
+            AND (m.player LIKE 'Chris%') AND (r.name IS NOT NULL)
+        GROUP BY r.name ORDER BY count(r.name) DESC LIMIT 5;
+        '''
+
+        
