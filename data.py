@@ -649,16 +649,25 @@ class Database:
         return boards_df
 
     # things that don't require analysis
-    def get_dirtiness(self, league_title):
-        sql = (f'SELECT '
-               f'count(CASE WHEN t.explicit THEN 1 END) / '
-               f'count(CASE WHEN NOT t.explicit THEN 1 END)::real AS dirtiness '
-               f'FROM {self.table_name("Votes")} AS v '
-               f'LEFT JOIN {self.table_name("Songs")} AS s '
-               f'ON (v.song_id = s.song_id) AND (v.league = s.league)'
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
-               f'WHERE v.league = {self.needs_quotes(league_title)};'
-               )
+    def get_dirtiness(self, league_title, vote):
+        if vote:
+            sql = (f'SELECT '
+                   f'count(CASE WHEN t.explicit THEN 1 END) / '
+                   f'count(CASE WHEN NOT t.explicit THEN 1 END)::real AS dirtiness '
+                   f'FROM {self.table_name("Votes")} AS v '
+                   f'LEFT JOIN {self.table_name("Songs")} AS s '
+                   f'ON (v.song_id = s.song_id) AND (v.league = s.league)'
+                   f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
+                   f'WHERE s.league = {self.needs_quotes(league_title)};'
+                   )
+        else:
+            sql = (f'SELECT '
+                   f'count(CASE WHEN t.explicit THEN 1 END) / '
+                   f'count(CASE WHEN NOT t.explicit THEN 1 END)::real AS dirtiness '
+                   f'FROM {self.table_name("Songs")} AS s '
+                   f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
+                   f'WHERE s.league = {self.needs_quotes(league_title)};'
+                   )
 
         dirtiness = read_sql(sql, self.connection)['dirtiness'].iloc[0]
 

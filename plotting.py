@@ -119,9 +119,12 @@ class Pictures:
         font_size = round(H * 0.75 * (1-padding))
         font = ImageFont.truetype(font, font_size)
         
-        w, h = draw.textsize(text_str, font=font)
-        position = ((W-w)/2,(H-h)/2)
+        x0, y0, x1, y1 = draw.textbbox((0, 0), text_str, font=font)
+        w = x1 - x0
+        h = y1 + y0
 
+        position = ((W-w)/2,(H-h)/2)
+       
         draw.text(position, text_str, color, font=font)
 
         return image
@@ -176,18 +179,17 @@ class Plotter:
 
     def grade_colors(self, colors:list, precision:int=2):
         # create color gradient
-        rgb_df = DataFrame(colors, columns=['R', 'G', 'B'], index=[round(x/(len(colors)+1), 2) for x in range(len(colors))]).reindex([x/10**precision for x in range(10**precision+1)]).interpolate()
+        rgb_df = DataFrame(colors, columns=['R', 'G', 'B'],
+                           index=[round(x/(len(colors)+1), 2) for x in range(len(colors))])\
+                               .reindex([x/10**precision for x in range(10**precision+1)]).interpolate()
         return rgb_df
 
-    def get_rgb(self, rgb_df:DataFrame, percent:float, fail_color=(0, 0, 0), divisor=1):
+    def get_rgb(self, rgb_df:DataFrame, percent:float, fail_color=(0, 0, 0)):
         # get color based on interpolation of a list of colors
         if isnan(percent):
-            rgb = tuple(g/divisor for g in fail_color)
+            rgb = fail_color
         else:
-            rgb = tuple(c/divisor for c in rgb_df.iloc[rgb_df.index.get_loc(percent, 'nearest')])
-
-        if divisor == 1:
-            rgb = tuple(round(c) for c in rgb)
+            rgb = tuple(rgb_df.iloc[rgb_df.index.get_loc(percent, 'nearest')].astype(int))
 
         return rgb
 
@@ -213,10 +215,7 @@ class Plotter:
 
             # set league title
             league_title = self.league_titles[n]
-            fig.suptitle(self.texter.clean_text(league_title))
-            plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {self.texter.clean_text(league_title)}') #
-            # set figure size
-            #fig.set_size_inches(*self.figure_size)
+            self.plot_title(fig, league_title)
         
             print(f'Preparing plot for {league_title}...')
             self.plot_members(axs[0][0], self.members_list[n], league_title)
@@ -227,6 +226,12 @@ class Plotter:
 
         print('Generating plot...')
         plt.show()
+
+    def plot_title(self, fig, title):
+        fig.suptitle(self.texter.clean_text(title))
+        plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {self.texter.clean_text(title)}')
+        # set figure size
+        #fig.set_size_inches(*self.figure_size)
 
     def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5,
                    image_size=(0, 0), padding=0, text=None,
@@ -262,63 +267,75 @@ class Plotter:
         y = members_df['y']
         player_names = members_df['player']
 
-        sizes = self.get_scatter_sizes(members_df)
-        colors = self.get_scatter_colors(members_df)
-        colors_scatter = self.get_scatter_colors(members_df, divisor=self.color_wheel)
+        # plot center
+        x_center, y_center = self.get_center(members_df)
+        ax.scatter(x_center, y_center, marker='1', zorder=3)
 
+        sizes = self.get_scatter_sizes(members_df)
+        colors = self.get_colors(members_df)
+        colors_scatter = self.get_scatter_colors(colors, divisor=self.color_wheel)
+        
         for x_p, y_p, p_name, s_p, c_p, c_s in zip(x, y, player_names, sizes, colors, colors_scatter):
-            plot_size = size=(s_p/2)**0.5/pi/20
-            image, imgs_1 = self.plot_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False, zorder=1)
-            if image:
-                _, imgs_2 = self.plot_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05, zorder=0)
-            else:
-                ax.plot(x_p, y_p, s=s_p, c=c_s)
+            self.plot_member_nodes(ax, x_p, y_p, p_name, s_p, c_p, c_s)
 
         # split if likes is liked
         split = members_df.set_index('player')
         split = split['likes'] == split['liked']
 
         for i in members_df.index:
-            # plot center
-            x_center, y_center = self.get_center(members_df)
-            ax.scatter(x_center, y_center, marker='1', zorder=3)
-
-            # get name
-            me = player_names[i]
-            x_me, y_me, theta_me = self.where_am_i(members_df, me)
-
-            # plot names
-            x_1, y_1 = self.translate(x_me, y_me, theta_me, 0, shift_distance=-self.name_offset)
-
-            h_align = 'right' if (theta_me > -pi/2) & (theta_me < pi/2) else 'left'
-            v_align = 'top' if (theta_me > 0) else 'bottom'
-            display_name = self.texter.get_display_name(me)
-            
-            ax.text(x_1, y_1, display_name, horizontalalignment=h_align, verticalalignment=v_align, zorder=4)
-
-            # split if liked
-            split_distance = split[me] * self.like_arrow_split
-
-            # find likes
-            x_likes, y_likes, theta_us = self.who_likes_whom(members_df, me, 'likes', self.like_arrow_length)
-            x_1, y_1 = self.translate(x_me, y_me, theta_us, -1, shift_distance=split_distance)
-            x_2, y_2 = self.translate(x_likes, y_likes, theta_us, -1, shift_distance=split_distance)
-            ax.arrow(x_1, y_1, x_2-x_1, y_2-y_1,
-                        width=self.like_arrow_width, facecolor=self.likes_color,
-                        edgecolor='none', length_includes_head=True, zorder=2)
-
-            # find liked
-            x_liked, y_liked, theta_us = self.who_likes_whom(members_df, me, 'liked', line_dist=self.like_arrow_length)
-            x_1, y_1 = self.translate(x_me, y_me, theta_us, 1, shift_distance=split_distance)
-            x_2, y_2 = self.translate(x_liked, y_liked, theta_us, 1, shift_distance=split_distance)
-            ax.arrow(x_2, y_2, x_1-x_2, y_1-y_2,
-                        width=self.like_arrow_width, facecolor=self.liked_color,
-                        edgecolor='none', length_includes_head=True, zorder=2)
+            self.plot_member_relationships(ax, player_names[i], members_df, split)
 
         ax.axis('equal')
         ax.set_ylim(members_df['y'].min() - self.name_offset - self.font_size,
                     members_df['y'].max() + self.name_offset + self.font_size)
         ax.axis('off')
+
+    def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
+        plot_size = size=(s_p/2)**0.5/pi/20
+        image, imgs_1 = self.plot_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False, zorder=1)
+        if image:
+            _, imgs_2 = self.plot_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05, zorder=0)
+        else:
+            ax.plot(x_p, y_p, s=s_p, c=c_s)
+
+    def plot_member_relationships(self, ax, me, members_df, split):
+        # get location
+        x_me, y_me, theta_me = self.where_am_i(members_df, me)
+
+        # plot names
+        self.plot_member_names(ax, me, x_me, y_me, theta_me)
+
+        # split if liked
+        split_distance = split[me] * self.like_arrow_split
+
+        # find likes
+        self.plot_member_likers(ax, members_df, me, x_me, y_me, split_distance, direction='likes', color=self.likes_color)
+        self.plot_member_likers(ax, members_df, me, x_me, y_me, split_distance, direction='liked', color=self.liked_color)
+
+    def plot_member_names(self, ax, me, x_me, y_me, theta_me):
+        x_1, y_1 = self.translate(x_me, y_me, theta_me, 0, shift_distance=-self.name_offset)
+
+        h_align = 'right' if (theta_me > -pi/2) & (theta_me < pi/2) else 'left'
+        v_align = 'top' if (theta_me > 0) else 'bottom'
+        display_name = self.texter.get_display_name(me)
+            
+        ax.text(x_1, y_1, display_name, horizontalalignment=h_align, verticalalignment=v_align, zorder=4)
+        
+    def plot_member_likers(self, ax, members_df, me, x_me, y_me, split_distance, direction, color):
+        x_like, y_like, theta_us = self.who_likes_whom(members_df, me, direction, self.like_arrow_length)
+
+        side = {'likes': -1,
+                'liked': 1}[direction]
+
+        x_1, y_1 = self.translate(x_me, y_me, theta_us, side, shift_distance=split_distance)
+        x_2, y_2 = self.translate(x_like, y_like, theta_us, side, shift_distance=split_distance)
+
+        xy = {'likes': [x_1, y_1, x_2-x_1, y_2-y_1],
+              'liked': [x_2, y_2, x_1-x_2, y_1-y_2]}[direction]
+
+        ax.arrow(*xy,
+                 width=self.like_arrow_width, facecolor=color,
+                 edgecolor='none', length_includes_head=True, zorder=2)
 
     def plot_boards(self, ax, board):
         print('\t...rankings')
@@ -335,27 +352,7 @@ class Plotter:
         highest_dnf = int(board.where(board < 0, 0).min().min())
 
         for player in board.index:
-            ys = board.where(board > 0).loc[player]
-            ds = [lowest_rank - d + 1 for d in board.where(board < 0).loc[player]]
-
-            display_name = self.texter.get_display_name(player)
-
-            color = f'C{board.index.get_loc(player)}'
-            ax.plot(xs, ys, marker='.', color=color)
-            ax.scatter(xs, ds, marker='.', color=color)
-
-            for x, y, d in zip(xs, ys, ds):
-                if y > 0:
-                    # plot finishers
-                    image, imgs = self.plot_image(ax, x, y, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
-                    if not image:
-                        ax.text(x, y, display_name)
-
-                if d > lowest_rank + 1:
-                    # plot DNFs
-                    image, imgs = self.plot_image(ax, x, d, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
-                    if not image:
-                        ax.text(x, d, display_name)
+            self.plot_board_player(ax, xs, player, board, lowest_rank)
 
         round_titles = [self.texter.clean_text(c) for c in board.columns]
         
@@ -377,6 +374,29 @@ class Plotter:
         ax.set_ylim(y_min + 0.5, y_max + 0.5)
         ax.set_yticks(yticks)
         ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
+
+    def plot_board_player(self, ax, xs, player, board, lowest_rank):
+        ys = board.where(board > 0).loc[player]
+        ds = [lowest_rank - d + 1 for d in board.where(board < 0).loc[player]]
+
+        display_name = self.texter.get_display_name(player)
+
+        color = f'C{board.index.get_loc(player)}'
+        ax.plot(xs, ys, marker='.', color=color)
+        ax.scatter(xs, ds, marker='.', color=color)
+
+        for x, y, d in zip(xs, ys, ds):
+            if y > 0:
+                # plot finishers
+                image, imgs = self.plot_image(ax, x, y, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
+                if not image:
+                    ax.text(x, y, display_name)
+
+            if d > lowest_rank + 1:
+                # plot DNFs
+                image, imgs = self.plot_image(ax, x, d, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
+                if not image:
+                    ax.text(x, d, display_name)
 
     def plot_rankings(self, ax, rankings):
         print('\t...scores')
@@ -403,8 +423,7 @@ class Plotter:
         scores = rankings_df.loc[player]
         colors = [self.get_rgb(rgb_df, score/max_score, fail_color=self.dfc_grey) \
             for score in scores]
-        colors_scatter = [self.get_rgb(rgb_df, score/max_score, divisor=self.color_wheel, fail_color=self.dfc_grey) \
-            for score in scores]
+        colors_scatter = self.get_scatter_colors(colors, divisor=self.color_wheel)
 
         marker_size = 0.9
         image, imgs = self.plot_image(ax, -1, y, player_name=player, size=marker_size)
@@ -431,8 +450,8 @@ class Plotter:
 
         return x_me, y_me, theta_me
 
-    def who_likes_whom(self, members_df, player_name, like, line_dist):
-        likes_me = members_df[like][members_df['player'] == player_name].values[0]
+    def who_likes_whom(self, members_df, player_name, direction, line_dist):
+        likes_me = members_df[direction][members_df['player'] == player_name].values[0]
 
         x_me, y_me, _ = self.where_am_i(members_df, player_name)
         
@@ -450,12 +469,16 @@ class Plotter:
         sizes = (members_df['wins'] + 1) * self.marker_sizing
         return sizes
 
-    def get_scatter_colors(self, members_df, divisor=1):
+    def get_colors(self, members_df):
         max_dfc = members_df['dfc'].max()
         min_dfc = members_df['dfc'].min()
 
         rgb_df = self.grade_colors([self.dfc_green, self.dfc_blue])
         colors = [self.get_rgb(rgb_df, 1-(dfc - min_dfc)/(max_dfc - min_dfc),
-                               fail_color=self.dfc_grey, divisor=divisor) for dfc in members_df['dfc'].values]
+                               fail_color=self.dfc_grey) for dfc in members_df['dfc'].values]
         
+        return colors
+
+    def get_scatter_colors(self, colors_rgb, divisor=1):
+        colors = [tuple(c / divisor for c in rgb) for rgb in colors_rgb]
         return colors
