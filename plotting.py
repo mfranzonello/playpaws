@@ -139,6 +139,7 @@ class Plotter:
     dfc_yellow = (255, 242, 119)
     dfc_purple = (192, 157, 224)
     dfc_peach = (224, 157, 204)
+    dfc_dark_blue = (31, 78, 148)
 
     marker_sizing = 50
 
@@ -201,18 +202,29 @@ class Plotter:
         if len(analyses_df):
             league_titles = analyses_df['league']
             self.league_titles = league_titles
-            self.members_list = [self.database.get_members(league_title) for league_title in league_titles]
-            self.rankings_list = [self.database.get_rankings(league_title) for league_title in league_titles]
-            self.boards_list = [self.database.get_boards(league_title) for league_title in league_titles]
 
-            self.dirty_list = [self.database.get_dirtiness(league_title) for league_title in league_titles]
-            self.features_list = [self.database.get_audio_features(league_title) for league_title in league_titles]
+            db_calls = [self.database.get_members,
+                        self.database.get_rankings,
+                        self.database.get_boards,
+                        self.database.get_dirtiness,
+                        self.database.get_discovery_scores,
+                        self.database.get_audio_features,
+                        self.database.get_genres_pie]
 
+            db_lists = [[db_call(league_title) for league_title in league_titles] for db_call in db_calls]
+            (self.members_list,
+             self.rankings_list,
+             self.boards_list,
+             self.dirty_list,
+             self.discoveries_list,
+             self.features_list,
+             self.genres_list) = db_lists
+             
             self.pictures = Pictures(self.database)
 
     def plot_results(self):
         nrows = 2
-        ncols = 2
+        ncols = 3
         n_leagues = len(self.members_list)
 
         for n in range(n_leagues):
@@ -223,10 +235,13 @@ class Plotter:
             self.plot_title(fig, league_title)
         
             print(f'Preparing plot for {league_title}...')
-            self.plot_members(axs[0][0], self.members_list[n], league_title)
+            self.plot_members(axs[0][0], self.members_list[n])
             self.plot_boards(axs[1][1], self.boards_list[n])
-            self.plot_rankings(axs[1][0], self.rankings_list[n], self.dirty_list[n])
+            self.plot_rankings(axs[1][0], self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
             self.plot_features(axs[0][1], self.features_list[n])
+            self.plot_genres(axs[0][2], self.genres_list[n])
+            # self.plot_top_songs(axs[0][1])
+
         #mpld3.show()
 
         print('Generating plot...')
@@ -265,7 +280,7 @@ class Plotter:
 
         return image, imgs
 
-    def plot_members(self, ax, members_df, league_title):
+    def plot_members(self, ax, members_df):
         # plot nodes for players
         print('\t...relationships')
         x = members_df['x']
@@ -350,6 +365,7 @@ class Plotter:
         scaling = [a / b * aspect[1] for a, b in zip(self.subplot_aspect, aspect)]
 
         xs = [x * scaling[0] for x in range(1, n_rounds + 1)]
+        ## self.xs = xs <- store? or just return
 
         has_dnf = board.where(board < 0, 0).sum().sum() < 0
         
@@ -403,7 +419,7 @@ class Plotter:
                 if not image:
                     ax.text(x, d, display_name)
 
-    def plot_rankings(self, ax, rankings, dirty_df):
+    def plot_rankings(self, ax, rankings, dirty_df, discovery_df):
         print('\t...scores')
         rankings_df = rankings.reset_index().pivot(index='player', columns='round', values='score').div(100)\
             .reindex(columns=rankings.index.get_level_values(0).drop_duplicates()).sort_index(ascending=False)
@@ -417,12 +433,18 @@ class Plotter:
         max_dirty = max(0.5, dirty_df.max())
         rgb_dirty_df = self.grade_colors([self.dfc_peach, self.dfc_purple])
 
+        max_discovery = 1
+        rgb_discovery_df = self.grade_colors([self.dfc_grey, self.dfc_dark_blue])
+
         xs = range(n_rounds)
         for player in player_names:
             y = player_names.get_loc(player)
             marker_size = 0.9
             image_size = self.plot_player_scores(ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size)
-            self.plot_player_dirty(ax, len(xs), y, dirty_df[player], max_dirty, rgb_dirty_df, marker_size, image_size)
+            self.plot_player_score(ax, len(xs), y, dirty_df[player], max_dirty, rgb_dirty_df,
+                                   marker_size, image_size, percent=True)
+            self.plot_player_score(ax, len(xs)+1, y, discovery_df[player], max_discovery, rgb_discovery_df,
+                                   marker_size, image_size, percent=True)
             
         ax.axis('equal')
         ax.tick_params(axis='both', which='both',
@@ -451,12 +473,21 @@ class Plotter:
 
         return image_size
 
-    def plot_player_dirty(self, ax, x, y, dirtiness, max_dirty, rgb_dirty_df, marker_size, image_size=None):
-        color = self.get_rgb(rgb_dirty_df, dirtiness/max_dirty)
-        if image_size:
-            self.plot_image(ax, x, y, color=color, image_size=image_size, size=marker_size,
-                            text=f'{dirtiness:.0%}')
+    def plot_player_score(self, ax, x, y, score, max_score, rgb_df, marker_size, image_size=None, percent=None):
+        if percent:
+            text = f'{score:.0%}'
+        elif isnull(score):
+            text = 'DNF'
+        else:
+            text = score
 
+        color = self.get_rgb(rgb_df, score/max_score)
+        if image_size:
+            image, imgs = self.plot_image(ax, x, y, color=color, image_size=image_size, size=marker_size, text=text)
+        else:
+            image, imgs = None
+        return image, imgs
+            
     def plot_features(self, ax, features_df):
         features_solo = ['duration', 'tempo']
         features_like = ['danceability', 'energy', 'liveness', 'valence',
@@ -471,6 +502,9 @@ class Plotter:
         
         features_df[features_like].plot(use_index=True, y=features_df[features_like].columns,
                                         kind='bar', legend=False, rot=45, ax=ax)
+
+    def plot_genres(self, ax, genres_df):
+        genres_df.groupby('genre').sum().plot(y='representation', kind='pie', ax=ax)
         
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
