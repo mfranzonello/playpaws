@@ -206,7 +206,8 @@ class Plotter:
             self.boards_list = [self.database.get_boards(league_title) for league_title in league_titles]
 
             self.dirty_list = [self.database.get_dirtiness(league_title) for league_title in league_titles]
-         
+            self.features_list = [self.database.get_audio_features(league_title) for league_title in league_titles]
+
             self.pictures = Pictures(self.database)
 
     def plot_results(self):
@@ -225,7 +226,7 @@ class Plotter:
             self.plot_members(axs[0][0], self.members_list[n], league_title)
             self.plot_boards(axs[1][1], self.boards_list[n])
             self.plot_rankings(axs[1][0], self.rankings_list[n], self.dirty_list[n])
-
+            self.plot_features(axs[0][1], self.features_list[n])
         #mpld3.show()
 
         print('Generating plot...')
@@ -456,6 +457,21 @@ class Plotter:
             self.plot_image(ax, x, y, color=color, image_size=image_size, size=marker_size,
                             text=f'{dirtiness:.0%}')
 
+    def plot_features(self, ax, features_df):
+        features_solo = ['duration', 'tempo']
+        features_like = ['danceability', 'energy', 'liveness', 'valence',
+                         'speechiness', 'acousticness', 'instrumentalness']
+        
+        # ['loudness', 'key', 'mode']
+        features_all = features_solo + features_like
+        mapper = {f'avg_{f}': f'{f}' for f in features_all}
+        
+        features_df = features_df.set_index('round').rename(columns=mapper)[features_all]
+        features_df[features_solo] = features_df[features_solo].abs().div(features_df[features_solo].max())
+        
+        features_df[features_like].plot(use_index=True, y=features_df[features_like].columns,
+                                        kind='bar', legend=False, rot=45, ax=ax)
+        
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
         y_center = members_df['y'].mean()

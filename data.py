@@ -677,20 +677,27 @@ class Database:
 
         return dirtiness
 
-    def get_audio_features(self, league_title, round_title):
+    def get_audio_features(self, league_title, json=False, methods=None):
         values = ['duration', 'danceability', 'energy', 'key', 'loudness', #'mode',
                   'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']
-        methods = ['MIN', 'AVG', 'MAX']
-        jsons = ', '.join('json_build_object(' +
-                          ', '.join(f'{self.needs_quotes(method)}, {method}(s.{k})' for method in methods) +
-                          f') AS {k}' for k in values)
 
-        sql = (f'SELECT s.round, {jsons} '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
-               f'WHERE s.league = {self.needs_quotes(league_title)} '
-               f'GROUP BY s.round;'
-               )
+        if not methods:
+            methods = ['MIN', 'AVG', 'MAX']
+
+        if json:
+            jsons = ', '.join('json_build_object(' +
+                              ', '.join(f'{self.needs_quotes(method)}, {method}(t.{k})' for method in methods) +
+                              f') AS {k}' for k in values)
+
+        else:
+            jsons = ', '.join(f'{method}(t.{k}) AS {method}_{k}' for method in methods for k in values)
+
+            sql = (f'SELECT s.round, {jsons} '
+                   f'FROM {self.table_name("Songs")} AS s '
+                   f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
+                   f'WHERE s.league = {self.needs_quotes(league_title)} '
+                   f'GROUP BY s.round;'
+                   )
 
         features_df = read_sql(sql, self.connection)
 
