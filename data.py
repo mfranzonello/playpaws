@@ -649,27 +649,31 @@ class Database:
         return boards_df
 
     # things that don't require analysis
-    def get_dirtiness(self, league_title, vote):
+    def get_dirtiness(self, league_title, vote=False):
         if vote:
-            sql = (f'SELECT '
+            gb = 'player'
+            sql = (f'SELECT v.player, '
                    f'count(CASE WHEN t.explicit THEN 1 END) / '
                    f'count(CASE WHEN NOT t.explicit THEN 1 END)::real AS dirtiness '
                    f'FROM {self.table_name("Votes")} AS v '
                    f'LEFT JOIN {self.table_name("Songs")} AS s '
                    f'ON (v.song_id = s.song_id) AND (v.league = s.league)'
                    f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
-                   f'WHERE s.league = {self.needs_quotes(league_title)};'
+                   f'WHERE s.league = {self.needs_quotes(league_title)} '
+                   f'GROUP BY v.player;'
                    )
         else:
-            sql = (f'SELECT '
+            gb = 'submitter'
+            sql = (f'SELECT s.submitter, '
                    f'count(CASE WHEN t.explicit THEN 1 END) / '
                    f'count(CASE WHEN NOT t.explicit THEN 1 END)::real AS dirtiness '
                    f'FROM {self.table_name("Songs")} AS s '
                    f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
-                   f'WHERE s.league = {self.needs_quotes(league_title)};'
+                   f'WHERE s.league = {self.needs_quotes(league_title)} '
+                   f'GROUP BY s.submitter;'
                    )
 
-        dirtiness = read_sql(sql, self.connection)['dirtiness'].iloc[0]
+        dirtiness = read_sql(sql, self.connection).set_index(gb)['dirtiness']
 
         return dirtiness
 

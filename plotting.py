@@ -137,6 +137,8 @@ class Plotter:
     dfc_grey = (172, 172, 172)
     dfc_red = (189, 43, 43)
     dfc_yellow = (255, 242, 119)
+    dfc_purple = (192, 157, 224)
+    dfc_peach = (224, 157, 204)
 
     marker_sizing = 50
 
@@ -202,7 +204,9 @@ class Plotter:
             self.members_list = [self.database.get_members(league_title) for league_title in league_titles]
             self.rankings_list = [self.database.get_rankings(league_title) for league_title in league_titles]
             self.boards_list = [self.database.get_boards(league_title) for league_title in league_titles]
-        
+
+            self.dirty_list = [self.database.get_dirtiness(league_title) for league_title in league_titles]
+         
             self.pictures = Pictures(self.database)
 
     def plot_results(self):
@@ -220,7 +224,7 @@ class Plotter:
             print(f'Preparing plot for {league_title}...')
             self.plot_members(axs[0][0], self.members_list[n], league_title)
             self.plot_boards(axs[1][1], self.boards_list[n])
-            self.plot_rankings(axs[1][0], self.rankings_list[n])
+            self.plot_rankings(axs[1][0], self.rankings_list[n], self.dirty_list[n])
 
         #mpld3.show()
 
@@ -398,7 +402,7 @@ class Plotter:
                 if not image:
                     ax.text(x, d, display_name)
 
-    def plot_rankings(self, ax, rankings):
+    def plot_rankings(self, ax, rankings, dirty_df):
         print('\t...scores')
         rankings_df = rankings.reset_index().pivot(index='player', columns='round', values='score').div(100)\
             .reindex(columns=rankings.index.get_level_values(0).drop_duplicates()).sort_index(ascending=False)
@@ -409,15 +413,21 @@ class Plotter:
         max_score = rankings_df.max().max()
         rgb_df = self.grade_colors([self.dfc_red, self.dfc_yellow, self.dfc_green, self.dfc_blue])
         
+        max_dirty = max(0.5, dirty_df.max())
+        rgb_dirty_df = self.grade_colors([self.dfc_peach, self.dfc_purple])
+
         xs = range(n_rounds)
         for player in player_names:
-            self.plot_player_scores(ax, player, xs, player_names.get_loc(player), rankings_df, max_score, rgb_df)
+            y = player_names.get_loc(player)
+            marker_size = 0.9
+            image_size = self.plot_player_scores(ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size)
+            self.plot_player_dirty(ax, len(xs), y, dirty_df[player], max_dirty, rgb_dirty_df, marker_size, image_size)
             
         ax.axis('equal')
         ax.tick_params(axis='both', which='both',
                        bottom='off', top='off', left='off', right='off') # get rid of ticks?
 
-    def plot_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df):
+    def plot_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size):
         ys = [y] * len(xs)
         
         scores = rankings_df.loc[player]
@@ -425,16 +435,26 @@ class Plotter:
             for score in scores]
         colors_scatter = self.get_scatter_colors(colors, divisor=self.color_wheel)
 
-        marker_size = 0.9
         image, imgs = self.plot_image(ax, -1, y, player_name=player, size=marker_size)
         if image:
+            image_size = image.size
             for x, c, score in zip(xs, colors, scores):
-                self.plot_image(ax, x, y, color=c, image_size=image.size, size=marker_size, text=round(score*100) if not isnull(score) else 'DNF')
+                self.plot_image(ax, x, y, color=c, image_size=image_size, size=marker_size,
+                                text=round(score*100) if not isnull(score) else 'DNF')
         else:
+            image_size = None
             ax.scatter(xs, ys, s=20**2, c=colors_scatter) 
             for x, score in zip(xs, scores):
                 ax.text(x, y, round(score*100) if not isnull(score) else 'DNF',
                         horizontalalignment='center', verticalalignment='center', color='white')
+
+        return image_size
+
+    def plot_player_dirty(self, ax, x, y, dirtiness, max_dirty, rgb_dirty_df, marker_size, image_size=None):
+        color = self.get_rgb(rgb_dirty_df, dirtiness/max_dirty)
+        if image_size:
+            self.plot_image(ax, x, y, color=color, image_size=image_size, size=marker_size,
+                            text=f'{dirtiness:.0%}')
 
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
