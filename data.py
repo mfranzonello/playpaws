@@ -19,12 +19,13 @@ class Database:
               ##'Playlists': {'keys': ['url'], 'values': []},
 
               # Spotify data
-              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'artist_uri', 'album_uri', 'explicit', 'popularity', 'duration',
-                                                     'danceability', 'energy', 'key', 'loudness', #'mode',
-                                                     'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']},
+              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'artist_uri', 'album_uri', 'explicit', 'popularity',
+                                                     'duration', 'key', 'mode', 'loudness', 'tempo',
+                                                     'danceability', 'energy', 'liveness', 'valence',
+                                                     'speechiness', 'acousticness', 'instrumentalness']},
               'Artists': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'followers']},
               'Albums': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'release_date']},
-              'Genres': {'keys': ['name'], 'values': []},
+              'Genres': {'keys': ['name'], 'values': ['category']},
               
               # analytics
               'Members': {'keys': ['league', 'player'], 'values': ['x', 'y', 'wins', 'dfc', 'likes', 'liked']},

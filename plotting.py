@@ -34,6 +34,8 @@ class Texter:
     fonts = {'Segoe UI': 'segoeui.ttf',
              'Tahoma': 'tahoma.ttf'}
 
+    emoji_fonts = {'Segoe UI Emoji': 'seguiemj.ttf'}
+
     def __init__(self):
         pass
 
@@ -132,14 +134,16 @@ class Pictures:
 class Plotter:
     color_wheel = 255
     
+    dfc_grey = (172, 172, 172)
     dfc_blue = (44, 165, 235)
     dfc_green = (86, 225, 132)
-    dfc_grey = (172, 172, 172)
     dfc_red = (189, 43, 43)
     dfc_yellow = (255, 242, 119)
     dfc_purple = (192, 157, 224)
     dfc_peach = (224, 157, 204)
     dfc_dark_blue = (31, 78, 148)
+    dfc_orange = (245, 170, 66)
+    dfc_aqua = (85, 230, 203)
 
     marker_sizing = 50
 
@@ -161,11 +165,15 @@ class Plotter:
     def __init__(self, database):
         self.texter = Texter()
 
-        self.fonts = [font for font in self.texter.fonts]
-        self.font = self.texter.fonts[self.fonts[0]]
+        self.fonts = list(self.texter.fonts.keys())
+        self.emoji_fonts = list(self.texter.emoji_fonts.keys())
+
+        self.image_font = list(self.texter.fonts.values())[0]
+        self.emoji_font = self.emoji_fonts[0]
 
         rcParams['font.family'] = 'sans-serif'
         rcParams['font.sans-serif'] = self.fonts
+        ##rcParams['font.emoji'] = self.texter.emoji_fonts
         
         self.league_titles = None
         self.members_list = None
@@ -183,7 +191,7 @@ class Plotter:
     def grade_colors(self, colors:list, precision:int=2):
         # create color gradient
         rgb_df = DataFrame(colors, columns=['R', 'G', 'B'],
-                           index=[round(x/(len(colors)+1), 2) for x in range(len(colors))])\
+                           index=[round(x/(len(colors)-1), 2) for x in range(len(colors))])\
                                .reindex([x/10**precision for x in range(10**precision+1)]).interpolate()
         return rgb_df
 
@@ -267,7 +275,7 @@ class Plotter:
             imgs = None
 
         if image and text:
-            image = self.pictures.add_text(image, text, self.font)
+            image = self.pictures.add_text(image, text, self.image_font)
 
         if image:
             scaling = [a / max(aspect) for a in aspect]
@@ -431,7 +439,7 @@ class Plotter:
         rgb_df = self.grade_colors([self.dfc_red, self.dfc_yellow, self.dfc_green, self.dfc_blue])
         
         max_dirty = max(0.5, dirty_df.max())
-        rgb_dirty_df = self.grade_colors([self.dfc_peach, self.dfc_purple])
+        rgb_dirty_df = self.grade_colors([self.dfc_purple, self.dfc_peach])
 
         max_discovery = 1
         rgb_discovery_df = self.grade_colors([self.dfc_grey, self.dfc_dark_blue])
@@ -441,8 +449,12 @@ class Plotter:
             y = player_names.get_loc(player)
             marker_size = 0.9
             image_size = self.plot_player_scores(ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size)
+
+            # plot dirtiness
             self.plot_player_score(ax, len(xs), y, dirty_df[player], max_dirty, rgb_dirty_df,
                                    marker_size, image_size, percent=True)
+
+            # plot discovery
             self.plot_player_score(ax, len(xs)+1, y, discovery_df[player], max_discovery, rgb_discovery_df,
                                    marker_size, image_size, percent=True)
             
@@ -492,6 +504,19 @@ class Plotter:
         features_solo = ['duration', 'tempo']
         features_like = ['danceability', 'energy', 'liveness', 'valence',
                          'speechiness', 'acousticness', 'instrumentalness']
+        features_mapping = {'danceability': '💃',
+                            'energy': '⚡',
+                            'liveness': '🏟',
+                            'valence': '💖',
+                            'speechiness': '💬',
+                            'acousticness': '🎸',
+                            'instrumentalness': '🎹',
+                            }
+        features_like_colors = self.get_scatter_colors([self.dfc_red, self.dfc_blue, self.dfc_purple, self.dfc_yellow,
+                                                        self.dfc_dark_blue, self.dfc_orange, self.dfc_aqua],
+                                                       divisor=self.color_wheel)
+
+        n_rounds = len(features_df)
         
         # ['loudness', 'key', 'mode']
         features_all = features_solo + features_like
@@ -500,11 +525,20 @@ class Plotter:
         features_df = features_df.set_index('round').rename(columns=mapper)[features_all]
         features_df[features_solo] = features_df[features_solo].abs().div(features_df[features_solo].max())
         
-        features_df[features_like].plot(use_index=True, y=features_df[features_like].columns,
-                                        kind='bar', legend=False, rot=45, ax=ax)
+        features_df.plot(use_index=True, y=features_like, color=features_like_colors,
+                         kind='bar', legend=False, rot=45, ax=ax)
+
+        for c in range(len(features_like)):
+            #c = ax.containers.index(container)
+            ax.bar_label(ax.containers[c], color=features_like_colors[c], labels=[features_mapping[features_like[c]]]*n_rounds,
+                         font=self.emoji_font, horizontalalignment='center')
+
+        features_df.plot(y='tempo', secondary_y='tempo',
+                         kind='line', legend=False, ax=ax)
 
     def plot_genres(self, ax, genres_df):
-        genres_df.groupby('genre').sum().plot(y='representation', kind='pie', ax=ax)
+        genres_df.groupby('genre').sum().plot(y='representation', kind='pie', legend=False, labeldistance=None,
+                                              ax=ax)
         
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
@@ -550,5 +584,9 @@ class Plotter:
         return colors
 
     def get_scatter_colors(self, colors_rgb, divisor=1):
-        colors = [tuple(c / divisor for c in rgb) for rgb in colors_rgb]
+        colors = [self.normalize_color(rgb, divisor) for rgb in colors_rgb]
         return colors
+
+    def normalize_color(self, color, divisor):
+        color = tuple(c / divisor for c in color)
+        return color

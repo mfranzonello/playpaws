@@ -9,7 +9,7 @@ class Spotter:
                       'energy',
                       'key',
                       'loudness',
-                      #'mode',
+                      'mode',
                       'speechiness',
                       'acousticness',
                       'instrumentalness',
