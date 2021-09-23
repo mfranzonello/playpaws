@@ -764,9 +764,9 @@ class Database:
 
         return discoveries_df
 
-    def get_discovery_scores(self, league_title):
+    def get_discovery_scores(self, league_title, base=1000):
         sql = (f'SELECT s.submitter, '
-               f'AVG(1/LOG(GREATEST(10, t.scrobbles))) AS discovery, '
+               f'AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) AS discovery, '
                f'AVG(t.popularity::real/100) AS popularity '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
