@@ -4,122 +4,140 @@ from difflib import SequenceMatcher
 import re
 from dateutil.parser import parse
 
+import requests
+import browser_cookie3 as browsercookie
+from bs4 import BeautifulSoup
+
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions
 from selenium.common.exceptions import TimeoutException
-from bs4 import BeautifulSoup
 
-class Simulator:
-    def __init__(self, main_url=None, credentials=None,
-                 chrome_directory=None, chrome_profile=None,
-                 silent=True):
+class Getter:
+    def __init__(self, main_url):
+        self.cj = browsercookie.chrome()
         self.main_url = main_url
-        self.credentials = credentials
         
-        self.chrome_directory = chrome_directory
-        self.chrome_profile = chrome_profile
-        self.silent = silent#False
-        self.options = self.get_options()
-        self.driver = None
-
-        self.logged_in_url = f'{self.main_url}/user/'
-        self.logged_in = False
-
-    def get_options(self):
-        options = Options()
-        options.add_argument(f'user-data-dir={self.chrome_profile}')
-        options.add_experimental_option('excludeSwitches', ['enable-logging']) # shut up debugger
-        if self.silent:
-            options.add_argument("--headless")
-            options.add_argument("--window-size=%s" % '1920,1080')
-        
-        return options
-
-    def turn_on(self):
-        silent_message = ' in background' if self.silent else ''
-        print(f'Running web simulator{silent_message}...')
-        self.driver = webdriver.Chrome(f'{self.chrome_directory}/chromedriver.exe',
-                                       options=self.options)
-        
-    def turn_off(self):
-        if self.driver is not None:
-            self.driver.close()
-            self.driver = None
-
-    def login(self, attempts=5):
-        attempt = 0
-
-        if self.driver is None:
-            self.turn_on()
-
-        while (attempt < attempts) and (not self.logged_in):
-
-            self.driver.get(self.main_url)
-
-            # check if already on user page
-            pre_url = self.driver.current_url
-            if self.logged_in_url in pre_url:
-                # already logged in
-                self.logged_in = True
-                post_url = self.driver.current_url
-                   
-            else:
-                # still on main page
-                self.driver.find_element_by_link_text('Log In!').click()
-
-                self.authenticate()
-
-                post_url = self.driver.current_url
-
-                # log in is successful if the page looks different but has same starting HTTPS
-                self.logged_in = self.logged_in_url in post_url
-
-            if self.logged_in:
-                print('\t...log in successful!')
-                #print(f'pre: {pre_url}, post: {post_url}')
-            else:
-                #self.turn_off()
-                print(f'\t...log in failed! (attempt {attempt+1}/{attempts})')
-                print(f'\t\tpre: {pre_url}, post: {post_url}')
-
-            attempt += 1
-
-    def authenticate(self):
-        pre_url = self.driver.current_url
-        for credential in self.credentials:
-            self.driver.find_element_by_id(credential).clear()
-            self.driver.find_element_by_id(credential).send_keys(self.credentials[credential])
-
-        self.driver.find_element_by_id('login-button').click()
-
-        self.driver.implicitly_wait(2)
-        try:
-            element = WebDriverWait(self.driver, 10).until(expected_conditions.url_contains(self.logged_in_url)) #url_changes(pre_url)) #
-            print('\t\t...authenticated')
-        except TimeoutException:
-            print('\t\t...failed to authenticate')
-
     def get_html_text(self, url):
-        if not self.logged_in:
-            self.login()
-
-        print(f'Accessing {url}...')
-        self.driver.get(url)
-
-        html_text = self.driver.page_source
+        response = requests.get(url, cookies=self.cj, timeout=10)
+        if response.ok:
+            html_text = response.text
+        else:
+            html_text = None
 
         return html_text
 
+##class Simulator:
+##    def __init__(self, main_url=None, credentials=None,
+##                 chrome_directory=None, chrome_profile=None,
+##                 silent=True):
+##        self.main_url = main_url
+##        self.credentials = credentials
+        
+##        self.chrome_directory = chrome_directory
+##        self.chrome_profile = chrome_profile
+##        self.silent = silent#False
+##        self.options = self.get_options()
+##        self.driver = None
+
+##        self.logged_in_url = f'{self.main_url}/user/'
+##        self.logged_in = False
+
+##    def get_options(self):
+##        options = Options()
+##        options.add_argument(f'user-data-dir={self.chrome_profile}')
+##        options.add_experimental_option('excludeSwitches', ['enable-logging']) # shut up debugger
+##        if self.silent:
+##            options.add_argument("--headless")
+##            options.add_argument("--window-size=%s" % '1920,1080')
+        
+##        return options
+
+##    def turn_on(self):
+##        silent_message = ' in background' if self.silent else ''
+##        print(f'Running web simulator{silent_message}...')
+##        self.driver = webdriver.Chrome(f'{self.chrome_directory}/chromedriver.exe',
+##                                       options=self.options)
+        
+##    def turn_off(self):
+##        if self.driver is not None:
+##            self.driver.close()
+##            self.driver = None
+
+##    def login(self, attempts=5):
+##        attempt = 0
+
+##        if self.driver is None:
+##            self.turn_on()
+
+##        while (attempt < attempts) and (not self.logged_in):
+
+##            self.driver.get(self.main_url)
+
+##            # check if already on user page
+##            pre_url = self.driver.current_url
+##            if self.logged_in_url in pre_url:
+##                # already logged in
+##                self.logged_in = True
+##                post_url = self.driver.current_url
+                   
+##            else:
+##                # still on main page
+##                self.driver.find_element_by_link_text('Log In!').click()
+
+##                self.authenticate()
+
+##                post_url = self.driver.current_url
+
+##                # log in is successful if the page looks different but has same starting HTTPS
+##                self.logged_in = self.logged_in_url in post_url
+
+##            if self.logged_in:
+##                print('\t...log in successful!')
+##                #print(f'pre: {pre_url}, post: {post_url}')
+##            else:
+##                #self.turn_off()
+##                print(f'\t...log in failed! (attempt {attempt+1}/{attempts})')
+##                print(f'\t\tpre: {pre_url}, post: {post_url}')
+
+##            attempt += 1
+
+##    def authenticate(self):
+##        pre_url = self.driver.current_url
+##        for credential in self.credentials:
+##            self.driver.find_element_by_id(credential).clear()
+##            self.driver.find_element_by_id(credential).send_keys(self.credentials[credential])
+
+##        self.driver.find_element_by_id('login-button').click()
+
+##        self.driver.implicitly_wait(2)
+##        try:
+##            element = WebDriverWait(self.driver, 10).until(expected_conditions.url_contains(self.logged_in_url)) #url_changes(pre_url)) #
+##            print('\t\t...authenticated')
+##        except TimeoutException:
+##            print('\t\t...failed to authenticate')
+
+##    def get_html_text(self, url):
+##        if not self.logged_in:
+##            self.login()
+
+##        print(f'Accessing {url}...')
+##        self.driver.get(url)
+
+##        html_text = self.driver.page_source
+
+##        return html_text
+
 class Scraper:
-    def __init__(self, simulator, stripper):
-        self.simulator = simulator
+    def __init__(self, getter, stripper): ##simulator,
+        self.getter = getter
+        ##self.simulator = simulator
         self.stripper = stripper
         
     def get_html_text(self, path):
         if path[0] == '/':
-            path = f'{self.simulator.main_url}{path}'
+            path = f'{self.getter.main_url}{path}' ##simulator
         if path[:len('http')] == 'http':
             html_text = self.get_from_web(path)
         else:
@@ -128,7 +146,7 @@ class Scraper:
         return html_text
 
     def get_from_web(self, url):
-        html_text = self.simulator.get_html_text(url)
+        html_text = self.getter.get_html_text(url) ##simulator
         return html_text
 
     def get_from_local(self, path):

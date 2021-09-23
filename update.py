@@ -1,4 +1,4 @@
-from stripper import Stripper, Scraper, Simulator
+from stripper import Stripper, Scraper, Getter ##Simulator
 from spotify import Spotter, FMer
 from results import Songs, Votes, Rounds, Leagues, Players
 
@@ -13,16 +13,17 @@ class Updater:
         self.spotter = Spotter(credentials['spotify'])
         self.fmer = FMer(credentials['lastfm'])
 
-        self.simulator = Simulator(main_url=self.main_url, credentials=credentials['musicleague'],
-                                   chrome_directory=structure['web']['chrome_driver'], chrome_profile=structure['web']['chrome_profile'],
-                                   silent=settings['silent'])
+        self.getter = Getter(main_url=self.main_url)
+        ##self.simulator = Simulator(main_url=self.main_url, credentials=credentials['musicleague'],
+        ##                           chrome_directory=structure['web']['chrome_driver'], chrome_profile=structure['web']['chrome_profile'],
+        ##                           silent=settings['silent'])
 
         self.stripper = Stripper(main_url = self.main_url if self.local else '')
-        self.scraper = Scraper(self.simulator, self.stripper)
+        self.scraper = Scraper(self.getter, self.stripper) ##self.simulator, 
 
-    def turn_off(self):
-        if not self.local:
-            self.simulator.turn_off()
+    ##def turn_off(self):
+    ##    if not self.local:
+    ##        self.simulator.turn_off()
 
     def get_right_url(self, url=None, league_title=None, round_title=None):
         if (league_title == None) and (round_title == None):
