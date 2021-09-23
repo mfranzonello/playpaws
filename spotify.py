@@ -2,6 +2,7 @@ from datetime import datetime
 
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
+from pylast import LastFMNetwork
 from pandas import DataFrame
 
 class Spotter:
@@ -187,3 +188,47 @@ class Spotter:
 
             genres_update = genres_db
             self.database.store_genres(genres_update)
+
+
+class FMer:
+    def __init__(self, credentials):
+        self.credentials = credentials
+
+        self.fm = None
+        self.connect_to_lastfm()
+
+    def connect_to_lastfm(self):
+        print('Connecting to LastFM API...')
+        self.fm = LastFMNetwork(**self.credentials)
+
+    def get_track_info(self, artist, title):
+        track = self.fm.get_track(artist, title)
+
+        print(f'{artist} - {title}')
+
+        max_tags = 5
+        top_tags = track.get_top_tags()
+        elements = {'scrobbles': track.get_playcount(),
+                    'listeners': track.get_listener_count(),
+                    'top_tags': [tag.item.get_name() for tag in top_tags[:min(max_tags, len(top_tags))]],
+                    }
+        
+        #tags = [tag.item.get_name() for tag in track.get_top_tags()] <- really just want first results
+        ##src = track.get_cover_image() <- better to get from Spotify
+
+        return elements
+
+    def update_database(self, database):
+        self.database = database
+
+        self.update_db_tracks()
+
+    def update_db_tracks(self):
+        print('\t\t...track information')
+        tracks_update_db = self.database.get_tracks_update_fm()
+
+        df_elements = [self.get_track_info(artist, title) for artist, title in tracks_update_db[['artist', 'title']].values]
+
+        df_to_update = DataFrame(df_elements, index=tracks_update_db.index)
+        tracks_update_db.loc[:, df_to_update.columns] = df_to_update
+        self.database.store_tracks(tracks_update_db)

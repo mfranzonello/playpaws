@@ -1,5 +1,5 @@
 from stripper import Stripper, Scraper, Simulator
-from spotify import Spotter
+from spotify import Spotter, FMer
 from results import Songs, Votes, Rounds, Leagues, Players
 
 class Updater:
@@ -11,6 +11,7 @@ class Updater:
 
         self.local = settings['local']
         self.spotter = Spotter(credentials['spotify'])
+        self.fmer = FMer(credentials['lastfm'])
 
         self.simulator = Simulator(main_url=self.main_url, credentials=credentials['musicleague'],
                                    chrome_directory=structure['web']['chrome_driver'], chrome_profile=structure['web']['chrome_profile'],
@@ -166,5 +167,9 @@ class Updater:
             self.database.store_round(league_title, round_title, 'new')
 
     def update_spotify(self):
-        'Updating from Spotify'
+        print('\t...updating from Spotify')
         self.spotter.update_database(self.database)
+
+    def update_lastfm(self):
+        print('\t...updating from LastFM')
+        self.fmer.update_database(self.database)

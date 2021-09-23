@@ -22,7 +22,8 @@ class Database:
               'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'artist_uri', 'album_uri', 'explicit', 'popularity',
                                                      'duration', 'key', 'mode', 'loudness', 'tempo',
                                                      'danceability', 'energy', 'liveness', 'valence',
-                                                     'speechiness', 'acousticness', 'instrumentalness']},
+                                                     'speechiness', 'acousticness', 'instrumentalness',
+                                                     'scrobbles', 'listeners', 'top_tags']},
               'Artists': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'followers']},
               'Albums': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'release_date']},
               'Genres': {'keys': ['name'], 'values': ['category']},
@@ -545,6 +546,7 @@ class Database:
                 clean_value = value
         return clean_value
 
+    # Spotify functions
     def store_spotify(self, df, table_name):
         df = df.reindex(columns=self.store_columns(table_name))
         self.upsert_table(table_name, df)
@@ -581,6 +583,21 @@ class Database:
         df = self.get_spotify('Genres')
         return df
 
+    # LastFM functions
+    def get_tracks_update_fm(self):
+        sql = (f'SELECT t.url, t.name AS title, a.name AS artist, '
+               f't.scrobbles, t.listeners, t.top_tags '
+               f'FROM {self.table_name("Tracks")} as t '
+               f'LEFT JOIN {self.table_name("Artists")} AS a '
+               f'ON (t.artist_uri->>0) = a.uri '
+               f'WHERE (t.scrobbles IS NULL) AND (t.listeners IS NULL) AND (t.top_tags IS NULL);'
+               )
+
+        tracks_df = read_sql(sql, self.connection)
+
+        return tracks_df
+
+    # analytics functions
     def store_analysis(self, league_title, version, statuses):
         today = date.today()
         analyses_df = DataFrame([[league_title, today, version,
@@ -591,21 +608,11 @@ class Database:
 
     #def store_analyses(self, results):
 
-    ##def get_analysis(self, league_title):
-    ##    analyses_df = self.get_table('Analyses', league=league_title) #, order_by={'column': 'date', 'sort': 'DESC'})
-        
-    ##    if len(analyses_df):
-    ##        results = self.jason.from_json(analyses_df['results'].iloc[0])
-
-    ##    return results
-
     def get_analyses(self):
         analyses_df = self.get_table('Analyses', order_by={'other': 'Leagues',
                                                            'on': ['league'],
                                                            'column': 'date',
                                                            'sort': 'ASC'})
-        ##sql = f'SELECT m.* FROM {self.table_name("Analyses")} AS m JOIN {self.table_name("Leagues")} AS f on f.league = m.league ORDER BY f.date ASC'
-        ##analyses_df = read_sql(sql, self.connection)
         return analyses_df
 
     def store_rankings(self, rankings_df, league_title):
