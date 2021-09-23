@@ -19,7 +19,7 @@ class Database:
               ##'Playlists': {'keys': ['url'], 'values': []},
 
               # Spotify data
-              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'artist_uri', 'album_uri', 'explicit', 'popularity',
+              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'title', 'artist_uri', 'album_uri', 'explicit', 'popularity',
                                                      'duration', 'key', 'mode', 'loudness', 'tempo',
                                                      'danceability', 'energy', 'liveness', 'valence',
                                                      'speechiness', 'acousticness', 'instrumentalness',
@@ -585,12 +585,12 @@ class Database:
 
     # LastFM functions
     def get_tracks_update_fm(self):
-        sql = (f'SELECT t.url, t.name AS title, a.name AS artist, '
+        sql = (f'SELECT t.url, t.name AS unclean, t.title, a.name AS artist, '
                f't.scrobbles, t.listeners, t.top_tags '
                f'FROM {self.table_name("Tracks")} as t '
                f'LEFT JOIN {self.table_name("Artists")} AS a '
                f'ON (t.artist_uri->>0) = a.uri '
-               f'WHERE (t.scrobbles IS NULL) AND (t.listeners IS NULL) AND (t.top_tags IS NULL);'
+               f'WHERE (t.title IS NULL) OR ((t.scrobbles IS NULL) AND (t.listeners IS NULL) AND (t.top_tags IS NULL));'
                )
 
         tracks_df = read_sql(sql, self.connection)

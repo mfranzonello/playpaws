@@ -19,9 +19,9 @@ def main():
     # update data in database from web or local
     if update_db:
         updater = Updater(database, structure, credentials, settings)
-        updater.update_database()
-        ##updater.turn_off()
-        updater.update_spotify()
+        ##updater.update_database()
+        ###updater.turn_off()
+        ##updater.update_spotify()
         updater.update_lastfm()
 
     # analyze data
