@@ -16,7 +16,7 @@ from selenium.common.exceptions import TimeoutException
 
 class Getter:
     def __init__(self, main_url):
-        self.cj = browsercookie.chrome()
+        self.cj = browsercookie.chrome(domain_name=main_url.replace('https://', ''))
         self.main_url = main_url
         
     def get_html_text(self, url):
