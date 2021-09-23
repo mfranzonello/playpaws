@@ -17,16 +17,16 @@ def main():
     database = Database(credentials[server['db_name']], structure)
     
     # update data in database from web or local
-    if update_db:
-        updater = Updater(database, structure, credentials, settings)
-        ##updater.update_database()
-        ###updater.turn_off()
-        ##updater.update_spotify()
-        updater.update_lastfm()
+    ##if update_db:
+    ##    updater = Updater(database, structure, credentials, settings)
+    ##    ##updater.update_database()
+    ##    ###updater.turn_off()
+    ##    ##updater.update_spotify()
+    ##    updater.update_lastfm()
 
-    # analyze data
-    analyzer = Analyzer(database)
-    analyzer.analyze_all()
+    ### analyze data
+    ##analyzer = Analyzer(database)
+    ##analyzer.analyze_all()
     
     # plot results for all leagues
     plotter = Plotter(database)

@@ -455,7 +455,9 @@ class Plotter:
                                    marker_size, image_size, percent=True)
 
             # plot discovery
-            self.plot_player_score(ax, len(xs)+1, y, discovery_df[player], max_discovery, rgb_discovery_df,
+            self.plot_player_score(ax, len(xs)+1, y, discovery_df['discovery'][player], max_discovery, rgb_discovery_df,
+                                   marker_size, image_size, percent=True)
+            self.plot_player_score(ax, len(xs)+2, y, discovery_df['popularity'][player], max_discovery, rgb_discovery_df,
                                    marker_size, image_size, percent=True)
             
         ax.axis('equal')

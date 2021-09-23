@@ -1,12 +1,9 @@
 from datetime import date
 import json
-from PIL.ImageFont import load_default
 
 from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame, isnull, concat
 from pandas.api.types import is_numeric_dtype
-
-from jason import Jason
 
 class Database:
     tables = {# MusicLeague data
@@ -36,9 +33,6 @@ class Database:
               
               # settings
               'Weights': {'keys': ['parameter', 'version'], 'values': ['value']},
-              
-              # other 
-              ##'Images': {'keys': ['player'], 'values': ['array']},
               }
    
     def __init__(self, credentials, structure={}):
@@ -64,8 +58,6 @@ class Database:
         self.engine = create_engine(engine_string)
         self.connection = self.engine.connect()
         print(f'\t...success!')
-
-        self.jason = Jason()
 
     def table_name(self, table_name:str) -> str:
         if self.language == 'sqlite':
@@ -141,7 +133,7 @@ class Database:
 
     def jsonable(self, item):
         # add cast information to lists and dicts as JSON
-        is_json = isinstance(item, (list, dict, set)) or self.jason.is_json(item)
+        is_json = isinstance(item, (list, dict, set))
         return is_json
 
     def needs_quotes(self, item) -> str:
@@ -497,11 +489,17 @@ class Database:
 
     def drop_votes(self, league_title, round_title):
         # remove placeholder votes when a round closes
-        ##joins = f'AS m JOIN {self.table_name("Songs")} AS f ON m.song_id = f.song_id'
-        ##wheres = f'(f.round = {self.needs_quotes(round_title)}) AND (m.player IS NULL)' 
-        ##sql = f'DELETE FROM {self.table_name("Votes")} {joins} WHERE {wheres}'
-        ##self.execute_sql(sql)
-        return
+        sql = (f'DELETE FROM {self.table_name("Votes")} '
+               f'WHERE song_id IN '
+               f'('
+               f'SELECT DISTINCT v.song_id FROM {self.table_name("Votes")} AS v '
+               f'LEFT JOIN {self.table_name("Songs")} AS s '
+               f'ON v.song_id = s.song_id '
+               f'WHERE (s.round = {self.needs_quotes(round_title)}) AND (s.submitter IS NULL)'
+               f');'
+               )
+
+        self.execute_sql(sql)
         
     def store_members(self, members_df, league_title):
         df = members_df.reindex(columns=self.store_columns('Members'))
@@ -553,7 +551,7 @@ class Database:
 
     def store_tracks(self, tracks_df):
         self.store_spotify(tracks_df, 'Tracks')
-
+        
     def store_artists(self, artists_df):
         self.store_spotify(artists_df, 'Artists')
 
@@ -582,6 +580,50 @@ class Database:
     def get_genres(self):
         df = self.get_spotify('Genres')
         return df
+
+    def get_tracks_update_sp(self):
+        sql = (f'SELECT DISTINCT track_url FROM {self.table_name("Songs")} AS url '
+               f'WHERE track_url NOT IN '
+               f'(SELECT url FROM {self.table_name("Tracks")})'
+               )
+
+        tracks_df = read_sql(sql, self.connection)
+
+        return tracks_df
+    
+    def get_artists_update_sp(self):
+        sql = (f'SELECT t.a_uri as uri FROM '
+               f'(SELECT DISTINCT jsonb_array_elements(artist_uri)->>0 AS a_uri '
+               f'FROM {self.table_name("Tracks")}) AS t '
+               f'WHERE t.a_uri NOT IN (SELECT uri FROM {self.table_name("Artists")});'
+               )
+
+        artists_df = read_sql(sql, self.connection)
+
+        return artists_df
+
+    def get_albums_update_sp(self):
+        sql = (f'SELECT DISTINCT album_uri AS uri FROM {self.table_name("Tracks")} '
+               f'WHERE album_uri NOT IN (SELECT uri FROM {self.table_name("Albums")})'
+               )
+
+        albums_df = read_sql(sql, self.connection)
+
+        return albums_df
+
+    def get_genres_update(self):
+        sql = (f'SELECT u.genre FROM (SELECT DISTINCT '
+               f'jsonb_array_elements(genres)->>0 AS genre '
+               f'FROM {self.table_name("Artists")} '
+               f'UNION SELECT jsonb_array_elements(genres)->>0 AS genre '
+               f'FROM {self.table_name("Albums")}) AS u '
+               f'WHERE u.genre NOT IN (SELECT name FROM {self.table_name("Genres")});'
+               )
+
+        genres_df = read_sql(sql, self.connection)
+
+        return genres_df
+
 
     # LastFM functions
     def get_tracks_update_fm(self):
@@ -723,14 +765,16 @@ class Database:
         return discoveries_df
 
     def get_discovery_scores(self, league_title):
-        sql = (f'SELECT s.submitter, 1-AVG(t.popularity::real/100) AS discovery '
+        sql = (f'SELECT s.submitter, '
+               f'AVG(1/LOG(GREATEST(10, t.scrobbles))) AS discovery, '
+               f'AVG(t.popularity::real/100) AS popularity '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
                f'WHERE s.league = {self.needs_quotes(league_title)} '
                f'GROUP BY s.submitter;'
                )
 
-        discoveries_df = read_sql(sql, self.connection).set_index('submitter')['discovery']
+        discoveries_df = read_sql(sql, self.connection).set_index('submitter')
 
         return discoveries_df
 
