@@ -280,7 +280,12 @@ class Stripper:
         round_urls_all = [round['url'] if (round['url'] in viewable_urls) else None for round in results['round']]
         round_dates_all = results['round_dates']
         round_creators_all = [creator if len(creator) else None for creator in results['round_creators'] if creator is not None] #[creator for creator in results['round_creators'] if creator is not None]
-  
+
+        round_dates_all = round_dates_all[(len(round_dates_all)-len(round_titles_all)+1)//2:\
+            (len(round_dates_all)-len(round_titles_all)+1)//2+len(round_titles_all)]
+        round_creators_all = round_creators_all[(len(round_creators_all)-len(round_titles_all)+1)//2:\
+            (len(round_creators_all)-len(round_titles_all)+1)//2+len(round_titles_all)]
+
         # remove rounds titles and URLS that are duplicate (i.e. open)
         round_title_set = list(dict.fromkeys(round_titles_all))
         round_titles = [round_titles_all[round_titles_all.index(s)] for s in round_title_set]

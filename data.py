@@ -1,12 +1,9 @@
 from datetime import date
 import json
-from PIL.ImageFont import load_default
 
 from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame, isnull, concat
 from pandas.api.types import is_numeric_dtype
-
-from jason import Jason
 
 class Database:
     tables = {# MusicLeague data
@@ -19,7 +16,7 @@ class Database:
               ##'Playlists': {'keys': ['url'], 'values': []},
 
               # Spotify data
-              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'artist_uri', 'album_uri', 'explicit', 'popularity',
+              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'title', 'artist_uri', 'album_uri', 'explicit', 'popularity',
                                                      'duration', 'key', 'mode', 'loudness', 'tempo',
                                                      'danceability', 'energy', 'liveness', 'valence',
                                                      'speechiness', 'acousticness', 'instrumentalness',
@@ -36,9 +33,6 @@ class Database:
               
               # settings
               'Weights': {'keys': ['parameter', 'version'], 'values': ['value']},
-              
-              # other 
-              ##'Images': {'keys': ['player'], 'values': ['array']},
               }
    
     def __init__(self, credentials, server, structure):
@@ -56,8 +50,6 @@ class Database:
         self.engine = create_engine(engine_string)
         self.connection = self.engine.connect()
         print(f'\t...success!')
-
-        self.jason = Jason()
 
     def table_name(self, table_name:str) -> str:
         full_table_name = f'{self.db}."{table_name.lower()}"'
@@ -128,7 +120,7 @@ class Database:
 
     def jsonable(self, item):
         # add cast information to lists and dicts as JSON
-        is_json = isinstance(item, (list, dict, set)) or self.jason.is_json(item)
+        is_json = isinstance(item, (list, dict, set))
         return is_json
 
     def needs_quotes(self, item) -> str:
@@ -473,7 +465,7 @@ class Database:
 
     def store_tracks(self, tracks_df):
         self.store_spotify(tracks_df, 'Tracks')
-
+        
     def store_artists(self, artists_df):
         self.store_spotify(artists_df, 'Artists')
 
@@ -503,14 +495,58 @@ class Database:
         df = self.get_spotify('Genres')
         return df
 
+    def get_tracks_update_sp(self):
+        sql = (f'SELECT DISTINCT track_url FROM {self.table_name("Songs")} AS url '
+               f'WHERE track_url NOT IN '
+               f'(SELECT url FROM {self.table_name("Tracks")})'
+               )
+
+        tracks_df = read_sql(sql, self.connection)
+
+        return tracks_df
+    
+    def get_artists_update_sp(self):
+        sql = (f'SELECT t.a_uri as uri FROM '
+               f'(SELECT DISTINCT jsonb_array_elements(artist_uri)->>0 AS a_uri '
+               f'FROM {self.table_name("Tracks")}) AS t '
+               f'WHERE t.a_uri NOT IN (SELECT uri FROM {self.table_name("Artists")});'
+               )
+
+        artists_df = read_sql(sql, self.connection)
+
+        return artists_df
+
+    def get_albums_update_sp(self):
+        sql = (f'SELECT DISTINCT album_uri AS uri FROM {self.table_name("Tracks")} '
+               f'WHERE album_uri NOT IN (SELECT uri FROM {self.table_name("Albums")})'
+               )
+
+        albums_df = read_sql(sql, self.connection)
+
+        return albums_df
+
+    def get_genres_update(self):
+        sql = (f'SELECT u.genre FROM (SELECT DISTINCT '
+               f'jsonb_array_elements(genres)->>0 AS genre '
+               f'FROM {self.table_name("Artists")} '
+               f'UNION SELECT jsonb_array_elements(genres)->>0 AS genre '
+               f'FROM {self.table_name("Albums")}) AS u '
+               f'WHERE u.genre NOT IN (SELECT name FROM {self.table_name("Genres")});'
+               )
+
+        genres_df = read_sql(sql, self.connection)
+
+        return genres_df
+
+
     # LastFM functions
     def get_tracks_update_fm(self):
-        sql = (f'SELECT t.url, t.name AS title, a.name AS artist, '
+        sql = (f'SELECT t.url, t.name AS unclean, t.title, a.name AS artist, '
                f't.scrobbles, t.listeners, t.top_tags '
                f'FROM {self.table_name("Tracks")} as t '
                f'LEFT JOIN {self.table_name("Artists")} AS a '
                f'ON (t.artist_uri->>0) = a.uri '
-               f'WHERE (t.scrobbles IS NULL) AND (t.listeners IS NULL) AND (t.top_tags IS NULL);'
+               f'WHERE (t.title IS NULL) OR ((t.scrobbles IS NULL) AND (t.listeners IS NULL) AND (t.top_tags IS NULL));'
                )
 
         tracks_df = read_sql(sql, self.connection)
@@ -642,15 +678,17 @@ class Database:
 
         return discoveries_df
 
-    def get_discovery_scores(self, league_title):
-        sql = (f'SELECT s.submitter, 1-AVG(t.popularity::real/100) AS discovery '
+    def get_discovery_scores(self, league_title, base=1000):
+        sql = (f'SELECT s.submitter, '
+               f'AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) AS discovery, '
+               f'AVG(t.popularity::real/100) AS popularity '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
                f'WHERE s.league = {self.needs_quotes(league_title)} '
                f'GROUP BY s.submitter;'
                )
 
-        discoveries_df = read_sql(sql, self.connection).set_index('submitter')['discovery']
+        discoveries_df = read_sql(sql, self.connection).set_index('submitter')
 
         return discoveries_df
 

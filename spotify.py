@@ -1,4 +1,5 @@
 from datetime import datetime
+import re
 
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
@@ -201,6 +202,30 @@ class FMer:
         print('Connecting to LastFM API...')
         self.fm = LastFMNetwork(**self.credentials)
 
+        
+    def clean_title(self, title):
+        # remove featuring artists
+        featuring = ['feat', 'with']
+        title = self.remove_parenthetical(title, ['feat', 'with '], position='start') #<- should with only be for []?
+        title = self.remove_parenthetical(title, ['remix'], position='end')
+
+        # remove description after dash
+        if ' - ' in title:
+            title = title[:title.find(' - ')].strip()
+
+        return title
+
+    def remove_parenthetical(self, title, words, position):
+        parentheses = [['(', ')'], ['[', ']']]
+        capture_s = '(.*?)' if position == 'end' else ''
+        capture_e = '(.*?)' if position == 'start' else ''
+        pattern = '|'.join(f'(\{s}{capture_s}{w}{capture_e}\{e})' for w in words for s, e in parentheses)
+        searched = re.search(pattern, title, flags=re.IGNORECASE)
+        if searched:
+            title = title.replace(next(s for s in searched.groups() if s), '').strip()
+
+        return title
+
     def get_track_info(self, artist, title):
         track = self.fm.get_track(artist, title)
 
@@ -227,6 +252,11 @@ class FMer:
         print('\t\t...track information')
         tracks_update_db = self.database.get_tracks_update_fm()
 
+        # strip featured artists and remix call outs from track title
+        ## add binary for Remix status?
+        tracks_update_db['title'] = tracks_update_db.apply(lambda x: self.clean_title(x['unclean']), axis=1)
+
+        # get LastFM elements
         df_elements = [self.get_track_info(artist, title) for artist, title in tracks_update_db[['artist', 'title']].values]
 
         df_to_update = DataFrame(df_elements, index=tracks_update_db.index)

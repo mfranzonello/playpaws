@@ -6,6 +6,8 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from pandas import set_option, DataFrame, isnull
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
+from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+from numpy import asarray
 ##import mpld3
 
 class Printer:
@@ -58,6 +60,7 @@ class Pictures:
         self.players_df = self.database.get_players()
         self.images = self.download_images()
         self.crop_player_images()
+        self.mask_url = 'https://1drv.ms/u/s!AmvtWraFDWXijohogLktabekPCkCFw'
         
     def download_images(self):
         images = {}
@@ -130,6 +133,16 @@ class Pictures:
         draw.text(position, text_str, color, font=font)
 
         return image
+
+    def get_mask_array(self):
+        fp = urlopen(self.mask_url)
+        try:
+            image = Image.open(fp)
+        except UnidentifiedImageError:
+            print('can\'t open image')
+            image = Image.open('C:/Users/Michael/OneDrive/Projects/Play Paws/paw.png')
+        mask = asarray(image)
+        return mask
 
 class Plotter:
     color_wheel = 255
@@ -455,7 +468,9 @@ class Plotter:
                                    marker_size, image_size, percent=True)
 
             # plot discovery
-            self.plot_player_score(ax, len(xs)+1, y, discovery_df[player], max_discovery, rgb_discovery_df,
+            self.plot_player_score(ax, len(xs)+1, y, discovery_df['discovery'][player], max_discovery, rgb_discovery_df,
+                                   marker_size, image_size, percent=True)
+            self.plot_player_score(ax, len(xs)+2, y, discovery_df['popularity'][player], max_discovery, rgb_discovery_df,
                                    marker_size, image_size, percent=True)
             
         ax.axis('equal')
@@ -537,8 +552,15 @@ class Plotter:
                          kind='line', legend=False, ax=ax)
 
     def plot_genres(self, ax, genres_df):
-        genres_df.groupby('genre').sum().plot(y='representation', kind='pie', legend=False, labeldistance=None,
-                                              ax=ax)
+        mask = self.pictures.get_mask_array()
+        wordcloud = WordCloud(background_color='white', mask=mask).generate(' '.join(genres_df['genre'])) #max_font_size=50, max_words=100, 
+        ax.imshow(wordcloud, interpolation="bilinear")
+        ax.axis('off')
+
+    def plot_tags(self, ax, tags_df):
+        pass
+        #genres_df.groupby('genre').sum().plot(y='representation', kind='pie', legend=False, labeldistance=None,
+        #                                      ax=ax)
         
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
