@@ -12,7 +12,7 @@ class Results:
             self.df[col] = self.df[col].apply(lambda x: int(x) if str(x).isnumeric() else x)
 
 class Songs(Results):
-    columns = ['song_id', 'round', 'artist','title','submitter',
+    columns = ['song_id', 'round', 'artist','title','submitter', 'track_url',
                                   'votes', 'people', 'closed', 'points']
     int_columns = ['song_id', 'votes']
 
@@ -23,12 +23,13 @@ class Songs(Results):
     def __repr__(self):
         return f'SONGS\n{self.df.reindex(columns=self.columns)}\n'
 
-    def sub_round(self, round_title, artists, titles, submitters, next_song_ids, **cols):
+    def sub_round(self, round_title, artists, titles, track_urls, submitters, next_song_ids, **cols):
         songs_df = DataFrame(columns=Songs.columns)
         songs_df['song_id'] = next_song_ids
         songs_df['round'] = round_title
         songs_df['artist'] = artists
         songs_df['title'] = titles
+        songs_df['track_url'] = track_urls
         if len(submitters):
             songs_df['submitter'] = submitters
 
@@ -36,12 +37,6 @@ class Songs(Results):
             songs_df[col] = cols[col]
 
         return songs_df
-        
-    def add_round(self, round_title, artists, titles, submitters, next_song_ids):
-        songs_df = self.sub_round(round_title, artists, titles, submitters, next_song_ids)
-
-        self.df = self.df.append(songs_df, ignore_index=True)
-        self.int_cols()
 
     def add_round_db(self, songs_df):
         if not songs_df.empty:
@@ -108,12 +103,6 @@ class Votes(Results):
             votes_df['vote'] = vote_totals
 
         return votes_df
-
-    def add_round(self, song_ids, player_names, vote_counts, next_song_ids):
-        votes_df = self.sub_round(song_ids, player_names, vote_counts, next_song_ids)
-
-        self.df = self.df.append(votes_df, ignore_index=True)
-        self.int_cols()
 
     def add_round_db(self, votes_df):
         if not votes_df.empty:

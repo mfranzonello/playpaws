@@ -1,65 +1,28 @@
-from stripper import Stripper, Scraper, Getter ##Simulator
+from stripper import Stripper, Scraper, Getter
 from spotify import Spotter, FMer
 from results import Songs, Votes, Rounds, Leagues, Players
 
 class Updater:
-    def __init__(self, database, structure, credentials, settings):
+    def __init__(self, database, structure, credentials):
         self.database = database
         self.structure = structure
         self.credentials = credentials
-        self.main_url = structure['web']['main_url']
+        self.main_url = structure['main_url']
 
-        self.local = settings['local']
         self.spotter = Spotter(credentials['spotify'])
         self.fmer = FMer(credentials['lastfm'])
 
         self.getter = Getter(main_url=self.main_url)
-        ##self.simulator = Simulator(main_url=self.main_url, credentials=credentials['musicleague'],
-        ##                           chrome_directory=structure['web']['chrome_driver'], chrome_profile=structure['web']['chrome_profile'],
-        ##                           silent=settings['silent'])
 
-        self.stripper = Stripper(main_url = self.main_url if self.local else '')
-        self.scraper = Scraper(self.getter, self.stripper) ##self.simulator, 
-
-    ##def turn_off(self):
-    ##    if not self.local:
-    ##        self.simulator.turn_off()
-
-    def get_right_url(self, url=None, league_title=None, round_title=None):
-        if (league_title == None) and (round_title == None):
-            # main url
-            if self.local:
-                directory = self.structure['local']['home']
-                right_url = self.scraper.get_right_url(directory)
-            else:
-                right_url = self.structure['web']['main_url']
-            
-        elif round_title == None:
-            # league url
-            if self.local:
-                directory = self.structure['local']['league']
-                right_url = self.scraper.get_right_url(directory, league_title=league_title)
-            else:
-                right_url = url
-
-        else:
-            # round url
-            if self.local:
-                directory = self.structure['local']['round']
-                right_url = self.scraper.get_right_url(directory, league_title=league_title, round_title=round_title)
-            else:
-                right_url = url
-
-        return right_url
+        self.stripper = Stripper(main_url = self.main_url)
+        self.scraper = Scraper(self.getter, self.stripper)
 
     def update_database(self):
         print('Updating database')
         leagues = Leagues()
 
         # get information from home page
-        main_url = self.get_right_url()
-
-        html_text = self.scraper.get_html_text(main_url)
+        html_text = self.scraper.get_html_text(self.main_url)
         results = self.stripper.extract_results(html_text, page_type='home')
 
         league_titles, league_urls, league_creators, league_dates = results
@@ -82,8 +45,6 @@ class Updater:
     def update_league(self, league_title, league_url):
         rounds = Rounds()
         players = Players()
-
-        league_url = self.get_right_url(url=league_url, league_title=league_title)
 
         html_text = self.scraper.get_html_text(league_url)
         results = self.stripper.extract_results(html_text, page_type='league')
@@ -117,7 +78,6 @@ class Updater:
 
         # extract results from URL if new or open
         if round_status in ['missing', 'new', 'open']:
-            round_url = self.get_right_url(url=round_url, league_title=league_title, round_title=round_title)
             round_available = (round_url is not None)
         else: # round_status == closed
             round_available = True
@@ -137,7 +97,7 @@ class Updater:
                 next_song_ids = self.database.get_song_ids(league_title, round_title, artists, titles) # -> consider replacing existing song_ids?
 
                 # construct details with updates for new and open
-                songs_df = songs.sub_round(round_title, artists, titles, submitters, next_song_ids, track_url=track_urls)
+                songs_df = songs.sub_round(round_title, artists, titles, track_urls, submitters, next_song_ids)
                 votes_df = votes.sub_round(song_ids, player_names, vote_counts, vote_totals, next_song_ids)
 
                 # check if round can be closed

@@ -10,9 +10,9 @@ from jason import Jason
 
 class Database:
     tables = {# MusicLeague data
-              'Leagues': {'keys': ['league'], 'values': ['creator', 'date', 'url', 'path']},
+              'Leagues': {'keys': ['league'], 'values': ['creator', 'date', 'url']},
               'Players': {'keys': ['player'], 'values': ['username', 'src', 'uri', 'followers']},
-              'Rounds': {'keys': ['league', 'round'], 'values': ['creator', 'date', 'status', 'url', 'path']},
+              'Rounds': {'keys': ['league', 'round'], 'values': ['creator', 'date', 'status', 'url']},
               'Songs': {'keys': ['league', 'song_id'], 'values': ['round', 'artist', 'title', 'submitter', 'track_url']},    
               'Votes': {'keys': ['league', 'player', 'song_id'], 'values': ['vote']},
 
@@ -41,20 +41,12 @@ class Database:
               ##'Images': {'keys': ['player'], 'values': ['array']},
               }
    
-    def __init__(self, credentials, structure={}):
-        self.language = credentials.get('language')
-
-        if self.language == 'sqlite':
-            self.db = credentials['db_name']
-            engine_string = f'sqlite:///{self.db}.db'
-        elif self.language == 'postgres':
-            self.db = f'"{credentials["username"]}/{credentials["db_name"]}"'
-            engine_string = f'postgresql://{credentials["username"]}{credentials["add_on"]}:{credentials["password"]}@{credentials["host"]}'
-        else:
-            self.db = ''
-            engine_string = ''
-
-        self.directories = structure
+    def __init__(self, credentials, server, structure):
+        credentials_db = credentials[server['db_name']]
+        self.db = f'"{credentials_db["username"]}/{credentials_db["db_name"]}"'
+        engine_string = f'postgresql://{credentials_db["username"]}{credentials_db["add_on"]}:{credentials_db["password"]}@{credentials_db["host"]}'
+        
+        self.main_url = structure['main_url']
 
         self.keys = {table_name: self.tables[table_name]['keys'] for table_name in self.tables}
         self.values = {table_name: self.tables[table_name]['values'] for table_name in self.tables}
@@ -68,12 +60,7 @@ class Database:
         self.jason = Jason()
 
     def table_name(self, table_name:str) -> str:
-        if self.language == 'sqlite':
-            full_table_name = table_name
-        elif self.language == 'postgres':
-            full_table_name = f'{self.db}."{table_name.lower()}"'
-        else:
-            full_table_name = ''
+        full_table_name = f'{self.db}."{table_name.lower()}"'
 
         return full_table_name
 
@@ -146,17 +133,12 @@ class Database:
 
     def needs_quotes(self, item) -> str:
         # put quotes around strings to account for special characters
-        if self.language == 'sqlite':
-            char = '"'
-        elif self.language == 'postgres':
-            char = "'"
-        else:
-            char = ''
+        char = "'"
 
         if self.quotable(item):
-            if (self.language == 'postgres') and self.datable(item):
+            if self.datable(item):
                 quoted = char + str(item) + char + '::date'
-            elif (self.language == 'postgres') and self.jsonable(item):
+            elif self.jsonable(item):
                 quoted = char + json.dumps(item).replace(char, char*2) + char + '::jsonb'
             else:
                 quoted = char + str(item).replace(char, char*2) + char
@@ -173,29 +155,16 @@ class Database:
             sql = ''
 
         else:
-            if self.language == 'sqlite':
-                updates = []
-                for i in df.index:
-                    df_row = df.loc[i]
-                    key_values = df_row[keys].values
-                    columns = df_row.drop(keys).index
-                    values = df_row.drop(keys).values
-                    sets = ', '.join(f'{column} = ' + self.needs_quotes(value) for column, value in zip(columns, values))
-                    wheres = ' AND '.join(f'({key} = ' + self.needs_quotes(key_value) + ')' for key, key_value in zip(keys, key_values))
-                    updates.append(f'UPDATE {self.table_name(table_name)} SET {sets} WHERE {wheres};')
-                sql = ' '.join(updates)
+            value_columns = df.drop(columns=keys).columns
+            all_columns = keys + value_columns.to_list()
+            df_upsert = df.reindex(columns=all_columns) # -> may not need, see insert_rows below
 
-            elif self.language == 'postgres':
-                value_columns = df.drop(columns=keys).columns
-                all_columns = keys + value_columns.to_list()
-                df_upsert = df.reindex(columns=all_columns) # -> may not need, see insert_rows below
-
-                sets = ', '.join(f'{col} = c.{col}' for col in value_columns)
-                values = ', '.join('(' + ', '.join(self.needs_quotes(v) for v in df_upsert.loc[i].values) + ')' for i in df_upsert.index)
-                cols = ', '.join(f'{col}' for col in all_columns)
-                wheres = ' AND '.join(f'(c.{key} = t.{key})' for key in keys)
+            sets = ', '.join(f'{col} = c.{col}' for col in value_columns)
+            values = ', '.join('(' + ', '.join(self.needs_quotes(v) for v in df_upsert.loc[i].values) + ')' for i in df_upsert.index)
+            cols = ', '.join(f'{col}' for col in all_columns)
+            wheres = ' AND '.join(f'(c.{key} = t.{key})' for key in keys)
                 
-                sql = f'UPDATE {self.table_name(table_name)} AS t SET {sets} FROM (VALUES {values}) AS c({cols}) WHERE {wheres};'
+            sql = f'UPDATE {self.table_name(table_name)} AS t SET {sets} FROM (VALUES {values}) AS c({cols}) WHERE {wheres};'
 
         return sql
 
@@ -230,25 +199,13 @@ class Database:
         
         return df_updates, df_inserts
 
-    ### NEED TO FIX
     def get_keys(self, table_name):
-        if self.language == 'sqlite':
-            keys = read_sql(f'PRAGMA TABLE_INFO({table_name})', self.connection).query('pk > 0')['name']
-        elif self.language == 'postgres':
-            keys = self.keys[table_name]
-        else:
-            keys = []
+        keys = self.keys[table_name]
 
         return keys
 
-    ### NEED TO FIX
     def get_values(self, table_name, match=None):
-        if self.language == 'sqlite':
-            values = read_sql(f'PRAGMA TABLE_INFO({table_name})', self.connection).query('pk == 0')['name']
-        elif self.language == 'postgres':
-            values = self.values[table_name]
-        else:
-            values = []
+        values = self.values[table_name]
 
         if len(match):
             values = [v for v in values if v in match]
@@ -324,11 +281,11 @@ class Database:
 
         return matched_name
 
-    def get_song_ids(self, league_title:str, round_title, artists:list, titles:list) -> list:
+    def get_song_ids(self, league_title:str, round_title:str, track_urls:list) -> list:
         # first check for which songs already exists
         ids_df = self.get_table('Songs', league=league_title).drop(columns='league')
-        merge_cols = ['artist', 'title', 'round']
-        songs_df = DataFrame(data=zip(artists, titles, [round_title]*len(artists)), columns=merge_cols).merge(ids_df, on=merge_cols, how='left')[merge_cols + ['song_id']]
+        merge_cols = ['track_url', 'round']
+        songs_df = DataFrame(data=zip(track_urls, [round_title]*len(track_urls)), columns=merge_cols).merge(ids_df, on=merge_cols, how='left')[merge_cols + ['song_id']]
         
         # then fill in songs that are new
         n_retrieve = songs_df['song_id'].isna().sum()
@@ -432,46 +389,6 @@ class Database:
             df = df.drop(columns='status') # only store status if it is there
         self.upsert_table('Rounds', df)
 
-    def get_url(self, url_type, league_title, round_title=None):
-        # return specific URL
-        table_name = {'league': 'Leagues',
-                      'round': 'Rounds'}[url_type]
-
-        wheres = f'(league = {self.needs_quotes(league_title)})'
-        if round_title is not None:
-            wheres += f' AND (round = {self.needs_quotes(round_title)})'
-    
-        sql = f'SELECT url FROM {self.table_name(table_name)} WHERE {wheres}'
-        urls = read_sql(sql, self.connection)['url'].values
-        url = urls[0] if len(urls) else None
-
-        # see if url exists
-        if url is not None:
-            # if file is stored locally, return URL with full directory
-            if url[:len('http')] != 'http':
-                # local file
-                page_type = 'round' if (round_title is not None) else 'league'
-                directory = self.directories['local'].get(page_type)
-
-            else:
-                # web URL
-                directory = self.directories['web'].get('main_url')
-
-            if url is not None:
-                url = f'{directory}/{url}'.replace('//','/')
-        
-        return url
-
-    def get_urls(self, url_type, directory):
-        # return list of URLs for a type
-        table_name = {'league': 'Leagues',
-                      'round': 'Rounds'}[url_type]
-        sql = f'SELECT url FROM {self.table_name(table_name)}'
-        urls = read_sql(sql, self.connection)['url'].values
-
-        urls = [f'{directory}/{url}' for url in urls]
-        return urls
-
     def store_songs(self, songs_df, league):
         df = songs_df.reindex(columns=self.store_columns('Songs'))
         df['league'] = league
@@ -497,11 +414,14 @@ class Database:
 
     def drop_votes(self, league_title, round_title):
         # remove placeholder votes when a round closes
-        ##joins = f'AS m JOIN {self.table_name("Songs")} AS f ON m.song_id = f.song_id'
-        ##wheres = f'(f.round = {self.needs_quotes(round_title)}) AND (m.player IS NULL)' 
-        ##sql = f'DELETE FROM {self.table_name("Votes")} {joins} WHERE {wheres}'
-        ##self.execute_sql(sql)
-        return
+        sql = (f'DELETE FROM {self.table_name("Votes")} AS v '
+               f'WHERE (v.player IS NULL) AND (v.song_id IN '
+               f'(SELECT s.song_id FROM {self.table_name("Songs")} AS s'
+               f'WHERE (s.league == {self.needs_quotes(league_title)}) '
+               f'AND (s.round == {self.needs_quotes(round_title)})));'
+               )
+
+        self.execute_sql(sql)
         
     def store_members(self, members_df, league_title):
         df = members_df.reindex(columns=self.store_columns('Members'))
@@ -734,8 +654,8 @@ class Database:
 
         return discoveries_df
 
-    def get_genres(self, league_title):
-        sql = (f'SELECT s.round, json_agg(DISTINCT g.name) AS genres '
+    def get_genres_and_tags(self, league_title):
+        sql = (f'SELECT s.round, json_agg(DISTINCT g.name) AS genres, t.top_tags '
                f'FROM {self.talbe_name("Songs")} AS s '
                f'LEFT JOIN {self.talbe_name("Tracks")} AS t '
                f'ON s.track_url = t.url '
@@ -799,34 +719,3 @@ class Database:
         all_info_df = read_sql(sql, self.connection)
 
         return all_info_df
-        
-
-    ###def get_artists_by_vote(self):
-    ###    pass
-        '''
-        Getting artists voted for by a player
-
-        SELECT DISTINCT m.player, q.name, v.artist, v.title FROM "mfranzonello/playpaws"."votes" AS m
-        LEFT JOIN "mfranzonello/playpaws"."songs" AS v ON m.song_id = v.song_id
-    
-        LEFT JOIN "mfranzonello/playpaws"."tracks" AS f ON v.track_url = f.url
-        LEFT JOIN "mfranzonello/playpaws"."artists" AS q ON f.artist_uri ? q.uri
-  
-        WHERE (m.league LIKE 'Play%') AND (v.league LIKE 'Play%') AND (m.player LIKE 'Michael%');
-        '''
-
-        '''
-        Getting top genres voted for by a player
-
-        SELECT r.name, count(r.name) FROM "mfranzonello/playpaws"."votes" AS m
-          LEFT JOIN "mfranzonello/playpaws"."songs" AS v ON m.song_id = v.song_id
-    
-          LEFT JOIN "mfranzonello/playpaws"."tracks" AS f ON v.track_url = f.url
-          LEFT JOIN "mfranzonello/playpaws"."artists" AS q ON f.artist_uri ? q.uri
-          LEFT JOIN "mfranzonello/playpaws"."genres" AS r ON q.genres ? r.name
-          WHERE (m.league LIKE 'Brad%') AND (v.league LIKE 'Brad%')
-            AND (m.player LIKE 'Chris%') AND (r.name IS NOT NULL)
-        GROUP BY r.name ORDER BY count(r.name) DESC LIMIT 5;
-        '''
-
-        
