@@ -137,17 +137,8 @@ class Spotter:
             players_update = self.get_updates(players_db, self.get_user_elements, key='username')
             self.database.store_players(players_update)    
 
-    ##def update_db_songs(self):
-    ##    print('\t...updating Spotify URL information')
-    ##    urls_db = self.database.get_song_urls()
-    ##    tracks_db = self.database.get_tracks()
-
-    ##    if len(urls_db):
-    ##        tracks_update = self.append_updates(tracks_db, urls_db['track_url'], key='url', updates_only=True)
-    ##        self.database.store_tracks(tracks_update) 
-
     def update_db_tracks(self):
-        print('\t...updating Spotify track information')
+        print('\t\t...track information')
         ##tracks_db = self.database.get_tracks()
 
         # get tracks information
@@ -161,7 +152,7 @@ class Spotter:
             self.database.store_tracks(tracks_update)
 
     def update_db_artists(self):
-        print('\t...updating Spotify artist information')
+        print('\t\t...artist information')
         ##tracks_db = self.database.get_tracks()
         ##artist_uris = set(tracks_db['artist_uri'].sum())
         
@@ -174,7 +165,7 @@ class Spotter:
             self.database.store_artists(artists_update)
 
     def update_db_albums(self):
-        print('\t...updating Spotify album information')
+        print('\t\t...album information')
         ##tracks_db = self.database.get_tracks()
         ##album_uris = tracks_db['album_uri']
 
@@ -187,7 +178,7 @@ class Spotter:
             self.database.store_albums(albums_update)  
 
     def update_db_genres(self):
-        print('\t...updating Spotify genre information')
+        print('\t\t...genre information')
         ##artists_db = self.database.get_artists()
         ##albums_db = self.database.get_albums()
         ##genres_db = self.database.get_genres()

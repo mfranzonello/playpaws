@@ -1,4 +1,4 @@
-from results import Songs, Votes, Rounds, Leagues, Players
+from results import Songs, Votes, Rounds, Leagues ##, Players
 from comparisons import Members, Rankings, Pulse
 
 class Analyzer:
@@ -8,7 +8,7 @@ class Analyzer:
         self.weights = database.get_weights(self.version)
 
     def analyze_all(self):
-        players = Players()
+        ##players = Players()
         league_titles = self.get_league_titles()
 
         analyses = self.database.get_analyses()

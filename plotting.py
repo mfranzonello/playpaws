@@ -273,8 +273,9 @@ class Plotter:
         plt.show()
 
     def plot_title(self, fig, title):
-        fig.suptitle(self.texter.clean_text(title))
+        fig.suptitle(self.texter.clean_text(title), fontweight='bold')
         plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {self.texter.clean_text(title)}')
+
         # set figure size
         #fig.set_size_inches(*self.figure_size)
 
@@ -358,7 +359,7 @@ class Plotter:
         self.plot_member_likers(ax, members_df, me, x_me, y_me, split_distance, direction='liked', color=self.liked_color)
 
     def plot_member_names(self, ax, me, x_me, y_me, theta_me):
-        x_1, y_1 = self.translate(x_me, y_me, theta_me, 0, shift_distance=-self.name_offset)
+        x_1, y_1 = self.translate(x_me, y_me, theta_me, 0, shift_distance=-self.name_offset) ## <- name offset should be based on node size
 
         h_align = 'right' if (theta_me > -pi/2) & (theta_me < pi/2) else 'left'
         v_align = 'top' if (theta_me > 0) else 'bottom'
@@ -409,7 +410,7 @@ class Plotter:
             # plot DNF line
             ax.plot([x_min - 0.5, x_max + 0.5], [lowest_rank + 1] * 2, '--', color='0.5')
 
-        ax.set_xlim(x_min - 0.5, x_max + 0.5)
+        ax.set_xlim(x_min - scaling[0]/2, x_max + scaling[0]/2)
         ax.set_xticks(xs)
         ax.set_xticklabels(round_titles, rotation=45)
 
@@ -434,13 +435,13 @@ class Plotter:
         for x, y, d in zip(xs, ys, ds):
             if y > 0:
                 # plot finishers
-                image, imgs = self.plot_image(ax, x, y, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
+                image, _ = self.plot_image(ax, x, y, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
                 if not image:
                     ax.text(x, y, display_name)
 
             if d > lowest_rank + 1:
                 # plot DNFs
-                image, imgs = self.plot_image(ax, x, d, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
+                image, _ = self.plot_image(ax, x, d, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
                 if not image:
                     ax.text(x, d, display_name)
 
@@ -520,40 +521,63 @@ class Plotter:
         return image, imgs
             
     def plot_features(self, ax, features_df):
-        features_solo = ['duration', 'tempo']
-        features_like = ['danceability', 'energy', 'liveness', 'valence',
-                         'speechiness', 'acousticness', 'instrumentalness']
-        features_mapping = {'danceability': '💃',
-                            'energy': '⚡',
-                            'liveness': '🏟',
-                            'valence': '💖',
-                            'speechiness': '💬',
-                            'acousticness': '🎸',
-                            'instrumentalness': '🎹',
-                            }
-        features_like_colors = self.get_scatter_colors([self.dfc_red, self.dfc_blue, self.dfc_purple, self.dfc_yellow,
-                                                        self.dfc_dark_blue, self.dfc_orange, self.dfc_aqua],
-                                                       divisor=self.color_wheel)
+        features_solo = {'duration': '⏲',
+                         'tempo': '🥁',
+                         }
+        features_like = {'danceability': '💃',
+                         'energy': '⚡',
+                         'liveness': '🏟',
+                         'valence': '💖',
+                         'speechiness': '💬',
+                         'acousticness': '🎸',
+                         'instrumentalness': '🎹',
+                         }
+        available_colors = [self.dfc_red, self.dfc_blue, self.dfc_purple, self.dfc_yellow,
+                            self.dfc_dark_blue, self.dfc_orange, self.dfc_aqua][:len(features_like)]
+
+        features_colors = self.get_scatter_colors(available_colors,
+                                                  divisor=self.color_wheel)
 
         n_rounds = len(features_df)
         
         # ['loudness', 'key', 'mode']
-        features_all = features_solo + features_like
+        features_all = list(features_solo.keys()) + list(features_like.keys())
         mapper = {f'avg_{f}': f'{f}' for f in features_all}
         
         features_df = features_df.set_index('round').rename(columns=mapper)[features_all]
-        features_df[features_solo] = features_df[features_solo].abs().div(features_df[features_solo].max())
+        features_df[list(features_solo.keys())] = features_df[list(features_solo.keys())].abs().div(features_df[list(features_solo.keys())].max())
         
-        features_df.plot(use_index=True, y=features_like, color=features_like_colors,
+        features_df.plot(use_index=True, y=list(features_like.keys()), color=features_colors[:len(features_like)],
                          kind='bar', legend=False, rot=45, ax=ax)
+
+        padding = 5
+        font_size = 'medium'
 
         for c in range(len(features_like)):
             #c = ax.containers.index(container)
-            ax.bar_label(ax.containers[c], color=features_like_colors[c], labels=[features_mapping[features_like[c]]]*n_rounds,
-                         font=self.emoji_font, horizontalalignment='center')
+            ax.bar_label(ax.containers[c], color=features_colors[c % len(features_colors)], labels=[list(features_like.values())[c]]*n_rounds,
+                         font=self.emoji_font, horizontalalignment='center', padding=padding, size=font_size)
 
-        features_df.plot(y='tempo', secondary_y='tempo',
-                         kind='line', legend=False, ax=ax)
+        for solo, f in zip(features_solo, range(len(features_solo))):
+            color = features_colors[(len(features_like) + f - 1) % len(features_colors)]
+            features_df.plot(y=solo, secondary_y=solo, color=color,
+                             kind='line', legend=False, ax=ax)
+            
+            for i in range(n_rounds-1):
+                ax.text(x=i + 0.5, y=self.convert_axes(ax, (features_df[solo][i] + features_df[solo][i+1])/2), s=features_solo[solo], # + padding
+                        size=font_size, color=color, font=self.emoji_font, horizontalalignment='center')
+
+    def convert_axes(self, ax, z, y=True):
+        if y:
+            z1_0, z1_1 = ax.get_ylim()
+            z2_0, z2_1 = ax.right_ax.get_ylim()
+        else:
+            z1_0, z1_1 = ax.get_xlim()
+            z2_0, z2_1 = ax.right_ax.get_xlim()
+
+        z_ = (z - z2_0) / (z2_1 - z2_0) * (z1_1 - z1_0) + z1_0
+
+        return z_
 
     def plot_genres(self, ax, genres_df):
         mask = self.pictures.get_mask_array()
