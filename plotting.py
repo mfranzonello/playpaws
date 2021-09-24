@@ -1,6 +1,7 @@
 from math import sin, cos, atan2, pi, isnan
 from re import compile, UNICODE
 from urllib.request import urlopen
+from os import getlogin
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from pandas import set_option, DataFrame, isnull
@@ -140,7 +141,7 @@ class Pictures:
             image = Image.open(fp)
         except UnidentifiedImageError:
             print('can\'t open image')
-            image = Image.open('C:/Users/Michael/OneDrive/Projects/Play Paws/paw.png')
+            image = Image.open(f'C:/Users/{getlogin()}/OneDrive/Projects/Play Paws/paw.png')
         mask = asarray(image)
         return mask
 
@@ -230,7 +231,8 @@ class Plotter:
                         self.database.get_dirtiness,
                         self.database.get_discovery_scores,
                         self.database.get_audio_features,
-                        self.database.get_genres_pie]
+                        self.database.get_genres_pie,
+                        self.database.get_genres_and_tags]
 
             db_lists = [[db_call(league_title) for league_title in league_titles] for db_call in db_calls]
             (self.members_list,
@@ -239,7 +241,8 @@ class Plotter:
              self.dirty_list,
              self.discoveries_list,
              self.features_list,
-             self.genres_list) = db_lists
+             self.genres_list,
+             self.tags_list) = db_lists
              
             self.pictures = Pictures(self.database)
 
@@ -261,6 +264,7 @@ class Plotter:
             self.plot_rankings(axs[1][0], self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
             self.plot_features(axs[0][1], self.features_list[n])
             self.plot_genres(axs[0][2], self.genres_list[n])
+            self.plot_tags(axs[1][2], self.tags_list[n])
             # self.plot_top_songs(axs[0][1])
 
         #mpld3.show()
@@ -332,7 +336,7 @@ class Plotter:
         ax.axis('off')
 
     def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
-        plot_size = size=(s_p/2)**0.5/pi/20
+        plot_size = size=(s_p/2)**0.5/pi/10
         image, imgs_1 = self.plot_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False, zorder=1)
         if image:
             _, imgs_2 = self.plot_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05, zorder=0)
@@ -553,14 +557,17 @@ class Plotter:
 
     def plot_genres(self, ax, genres_df):
         mask = self.pictures.get_mask_array()
-        wordcloud = WordCloud(background_color='white', mask=mask).generate(' '.join(genres_df['genre'])) #max_font_size=50, max_words=100, 
+        text = ' '.join(genres_df['genre'])
+        wordcloud = WordCloud(background_color='white', mask=mask).generate(text) #max_font_size=50, max_words=100, 
         ax.imshow(wordcloud, interpolation="bilinear")
         ax.axis('off')
 
     def plot_tags(self, ax, tags_df):
-        pass
-        #genres_df.groupby('genre').sum().plot(y='representation', kind='pie', legend=False, labeldistance=None,
-        #                                      ax=ax)
+        mask = self.pictures.get_mask_array()
+        text = ' '.join(tags_df.sum().sum())
+        wordcloud = WordCloud(background_color='white', mask=mask).generate(text) #max_font_size=50, max_words=100, 
+        ax.imshow(wordcloud, interpolation="bilinear")
+        ax.axis('off')
         
     def get_center(self, members_df):
         x_center = members_df['x'].mean()

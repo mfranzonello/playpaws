@@ -495,6 +495,15 @@ class Database:
         df = self.get_spotify('Genres')
         return df
 
+    def get_players_update_sp(self):
+        sql = (f'SELECT username FROM {self.table_name("Players")} '
+               f'WHERE (src IS NULL) OR (uri IS NULL) OR (followers IS NULL);')
+
+        players_df = read_sql(sql, self.connection)
+
+        return players_df
+
+
     def get_tracks_update_sp(self):
         sql = (f'SELECT DISTINCT track_url FROM {self.table_name("Songs")} AS url '
                f'WHERE track_url NOT IN '
@@ -525,7 +534,7 @@ class Database:
 
         return albums_df
 
-    def get_genres_update(self):
+    def get_genres_update_sp(self):
         sql = (f'SELECT u.genre FROM (SELECT DISTINCT '
                f'jsonb_array_elements(genres)->>0 AS genre '
                f'FROM {self.table_name("Artists")} '
@@ -693,16 +702,13 @@ class Database:
         return discoveries_df
 
     def get_genres_and_tags(self, league_title):
-        sql = (f'SELECT s.round, json_agg(DISTINCT g.name) AS genres, t.top_tags '
-               f'FROM {self.talbe_name("Songs")} AS s '
-               f'LEFT JOIN {self.talbe_name("Tracks")} AS t '
+        sql = (f'SELECT a.genres, t.top_tags AS tags '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t '
                f'ON s.track_url = t.url '
-               f'LEFT JOIN {self.talbe_name("Artists")} AS a '
+               f'LEFT JOIN {self.table_name("Artists")} AS a '
                f'ON t.artist_uri ? a.uri '
-               f'LEFT JOIN {self.talbe_name("Genres")} AS g '
-               f'ON a.genres ? g.name '
-               f'WHERE (s.league = {self.needs_quotes(league_title)}) AND (g.name IS NOT NULL) '
-               f'GROUP BY s.round;'
+               f'WHERE s.league = {self.needs_quotes(league_title)};'
                )
 
         genres_df = read_sql(sql, self.connection)
@@ -732,9 +738,9 @@ class Database:
 
     def get_all_artists(self, league_title):
         sql = (f'SELECT s.league, s.song_id, json_agg(DISTINCT a.name) as arist '
-               f'FROM {self.talbe_name("Songs")} AS s '
-               f'LEFT JOIN {self.talbe_name("Tracks")}AS t ON s.track_url = t.url '
-               f'LEFT JOIN {self.talbe_name("Artists")} AS a ON t.artist_uri ? a.uri '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")}AS t ON s.track_url = t.url '
+               f'LEFT JOIN {self.table_name("Artists")} AS a ON t.artist_uri ? a.uri '
                f'WHERE s.league = {self.needs_quotes(league_title)} '
                f'GROUP BY s.song_id, s.league;'
                )
@@ -746,11 +752,11 @@ class Database:
     def get_all_info(self):
         sql = (f'SELECT q.league, x.song_id, q.round, x.artist, q.title, q.submitter FROM '
                f'(SELECT s.league, s.song_id, json_agg(DISTINCT a.name) as artist '
-               f'FROM {self.talbe_name("Songs")} AS s '
-               f'LEFT JOIN {self.talbe_name("Tracks")} AS t ON s.track_url = t.url '
-               f'LEFT JOIN {self.talbe_name("Artists")} AS a ON t.artist_uri ? a.uri '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
+               f'LEFT JOIN {self.table_name("Artists")} AS a ON t.artist_uri ? a.uri '
                f'GROUP BY s.song_id, s.league) x '
-               f'LEFT JOIN {self.talbe_name("Songs")} AS q '
+               f'LEFT JOIN {self.table_name("Songs")} AS q '
                f'ON (x.song_id = q.song_id) AND (x.league = q.league);'
                )
 

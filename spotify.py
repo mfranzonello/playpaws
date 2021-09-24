@@ -103,7 +103,7 @@ class Spotter:
         self.database = database
 
         self.update_db_players()
-        self.update_db_songs()
+        ##self.update_db_songs()
         self.update_db_tracks()
         self.update_db_artists()
         self.update_db_albums()
@@ -130,65 +130,79 @@ class Spotter:
 
     def update_db_players(self):
         print('\t...updating Spotify user information')
-        players_db = self.database.get_players()
+        #players_db = self.database.get_players()
+        players_db = self.database.get_players_update_sp()
 
-        players_update = self.get_updates(players_db, self.get_user_elements, key='username')
-        self.database.store_players(players_update)    
+        if len(players_db):
+            players_update = self.get_updates(players_db, self.get_user_elements, key='username')
+            self.database.store_players(players_update)    
 
-    def update_db_songs(self):
-        print('\t...updating Spotify URL information')
-        urls_db = self.database.get_song_urls()
-        tracks_db = self.database.get_tracks()
+    ##def update_db_songs(self):
+    ##    print('\t...updating Spotify URL information')
+    ##    urls_db = self.database.get_song_urls()
+    ##    tracks_db = self.database.get_tracks()
 
-        if len(urls_db):
-            tracks_update = self.append_updates(tracks_db, urls_db['track_url'], key='url', updates_only=True)
-            self.database.store_tracks(tracks_update) 
+    ##    if len(urls_db):
+    ##        tracks_update = self.append_updates(tracks_db, urls_db['track_url'], key='url', updates_only=True)
+    ##        self.database.store_tracks(tracks_update) 
 
     def update_db_tracks(self):
         print('\t...updating Spotify track information')
-        tracks_db = self.database.get_tracks()
+        ##tracks_db = self.database.get_tracks()
 
         # get tracks information
-        tracks_update_0 = self.get_updates(tracks_db.drop(columns=self.audio_features), self.get_track_elements, key='url')
+        ##tracks_update_0 = self.get_updates(tracks_db.drop(columns=self.audio_features), self.get_track_elements, key='url')
 
         # get audio features information
-        tracks_update = self.get_updates(tracks_update_0, self.get_audio_features, key='url')
-        self.database.store_tracks(tracks_update)
+        tracks_db = self.database.get_tracks_update_sp()
+        
+        if len(tracks_db):
+            tracks_update = self.get_updates(tracks_db, self.get_audio_features, key='url') #tracks_update_0
+            self.database.store_tracks(tracks_update)
 
     def update_db_artists(self):
         print('\t...updating Spotify artist information')
-        tracks_db = self.database.get_tracks()
-        artist_uris = set(tracks_db['artist_uri'].sum())
+        ##tracks_db = self.database.get_tracks()
+        ##artist_uris = set(tracks_db['artist_uri'].sum())
         
-        artists_db = self.database.get_artists()
-        artists_db = self.append_updates(artists_db, artist_uris)
+        ##artists_db = self.database.get_artists()
+        ##artists_db = self.append_updates(artists_db, artist_uris)
+        artists_db = self.database.get_artists_update_sp()
         
-        artists_update = self.get_updates(artists_db, self.get_artist_elements)
-        self.database.store_artists(artists_update)
+        if len(artists_db):
+            artists_update = self.get_updates(artists_db, self.get_artist_elements)
+            self.database.store_artists(artists_update)
 
     def update_db_albums(self):
         print('\t...updating Spotify album information')
-        tracks_db = self.database.get_tracks()
-        album_uris = tracks_db['album_uri']
+        ##tracks_db = self.database.get_tracks()
+        ##album_uris = tracks_db['album_uri']
 
-        albums_db = self.database.get_albums()
-        albums_db = self.append_updates(albums_db, album_uris)
+        ##albums_db = self.database.get_albums()
+        ##albums_db = self.append_updates(albums_db, album_uris)
+        albums_db = self.database.get_albums_update_sp()
 
-        albums_update = self.get_updates(albums_db, self.get_album_elements)
-        self.database.store_albums(albums_update)  
+        if len(albums_db):
+            albums_update = self.get_updates(albums_db, self.get_album_elements)
+            self.database.store_albums(albums_update)  
 
     def update_db_genres(self):
         print('\t...updating Spotify genre information')
-        artists_db = self.database.get_artists()
-        albums_db = self.database.get_albums()
-        genres_db = self.database.get_genres()
+        ##artists_db = self.database.get_artists()
+        ##albums_db = self.database.get_albums()
+        ##genres_db = self.database.get_genres()
         
-        if len(albums_db):
-            genre_names = set(artists_db['genres'].sum() + albums_db['genres'].sum())
-            genres_db = self.append_updates(genres_db, genre_names, key='name', updates_only=True)
+        ##if len(albums_db):
+        ##    genre_names = set(artists_db['genres'].sum() + albums_db['genres'].sum())
+        ##    genres_db = self.append_updates(genres_db, genre_names, key='name', updates_only=True)
 
+        ##    genres_update = genres_db
+        ##    self.database.store_genres(genres_update)
+        genres_db = self.database.get_genres_update_sp()
+
+        if len(genres_db):
             genres_update = genres_db
-            self.database.store_genres(genres_update)
+            self.store_albums(genres_update)
 
 
 class FMer:
@@ -254,11 +268,12 @@ class FMer:
 
         # strip featured artists and remix call outs from track title
         ## add binary for Remix status?
-        tracks_update_db['title'] = tracks_update_db.apply(lambda x: self.clean_title(x['unclean']), axis=1)
+        if len(tracks_update_db):
+            tracks_update_db['title'] = tracks_update_db.apply(lambda x: self.clean_title(x['unclean']), axis=1)
 
-        # get LastFM elements
-        df_elements = [self.get_track_info(artist, title) for artist, title in tracks_update_db[['artist', 'title']].values]
+            # get LastFM elements
+            df_elements = [self.get_track_info(artist, title) for artist, title in tracks_update_db[['artist', 'title']].values]
 
-        df_to_update = DataFrame(df_elements, index=tracks_update_db.index)
-        tracks_update_db.loc[:, df_to_update.columns] = df_to_update
-        self.database.store_tracks(tracks_update_db)
+            df_to_update = DataFrame(df_elements, index=tracks_update_db.index)
+            tracks_update_db.loc[:, df_to_update.columns] = df_to_update
+            self.database.store_tracks(tracks_update_db)
