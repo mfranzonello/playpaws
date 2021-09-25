@@ -24,7 +24,6 @@ class Spotter:
         self.database = database
 
         self.sp = None
-        self.connect_to_spotify()
 
     def connect_to_spotify(self):
         print('Connecting to Spotify API...')
@@ -102,8 +101,9 @@ class Spotter:
     def update_database(self, database):
         self.database = database
 
+        self.connect_to_spotify()
+
         self.update_db_players()
-        ##self.update_db_songs()
         self.update_db_tracks()
         self.update_db_artists()
         self.update_db_albums()
@@ -129,8 +129,7 @@ class Spotter:
         return df_update
 
     def update_db_players(self):
-        print('\t...updating Spotify user information')
-        #players_db = self.database.get_players()
+        print('\t...updating user information')
         players_db = self.database.get_players_update_sp()
 
         if len(players_db):
@@ -138,12 +137,7 @@ class Spotter:
             self.database.store_players(players_update)    
 
     def update_db_tracks(self):
-        print('\t\t...track information')
-        ##tracks_db = self.database.get_tracks()
-
-        # get tracks information
-        ##tracks_update_0 = self.get_updates(tracks_db.drop(columns=self.audio_features), self.get_track_elements, key='url')
-
+        print('\t...updating track information')
         # get audio features information
         tracks_db = self.database.get_tracks_update_sp()
         
@@ -152,12 +146,7 @@ class Spotter:
             self.database.store_tracks(tracks_update)
 
     def update_db_artists(self):
-        print('\t\t...artist information')
-        ##tracks_db = self.database.get_tracks()
-        ##artist_uris = set(tracks_db['artist_uri'].sum())
-        
-        ##artists_db = self.database.get_artists()
-        ##artists_db = self.append_updates(artists_db, artist_uris)
+        print('\t...updating artist information')
         artists_db = self.database.get_artists_update_sp()
         
         if len(artists_db):
@@ -165,12 +154,7 @@ class Spotter:
             self.database.store_artists(artists_update)
 
     def update_db_albums(self):
-        print('\t\t...album information')
-        ##tracks_db = self.database.get_tracks()
-        ##album_uris = tracks_db['album_uri']
-
-        ##albums_db = self.database.get_albums()
-        ##albums_db = self.append_updates(albums_db, album_uris)
+        print('\t...updating album information')
         albums_db = self.database.get_albums_update_sp()
 
         if len(albums_db):
@@ -178,17 +162,7 @@ class Spotter:
             self.database.store_albums(albums_update)  
 
     def update_db_genres(self):
-        print('\t\t...genre information')
-        ##artists_db = self.database.get_artists()
-        ##albums_db = self.database.get_albums()
-        ##genres_db = self.database.get_genres()
-        
-        ##if len(albums_db):
-        ##    genre_names = set(artists_db['genres'].sum() + albums_db['genres'].sum())
-        ##    genres_db = self.append_updates(genres_db, genre_names, key='name', updates_only=True)
-
-        ##    genres_update = genres_db
-        ##    self.database.store_genres(genres_update)
+        print('\t...updating genre information')
         genres_db = self.database.get_genres_update_sp()
 
         if len(genres_db):
@@ -201,7 +175,6 @@ class FMer:
         self.credentials = credentials
 
         self.fm = None
-        self.connect_to_lastfm()
 
     def connect_to_lastfm(self):
         print('Connecting to LastFM API...')
@@ -243,18 +216,18 @@ class FMer:
                     'top_tags': [tag.item.get_name() for tag in top_tags[:min(max_tags, len(top_tags))]],
                     }
         
-        #tags = [tag.item.get_name() for tag in track.get_top_tags()] <- really just want first results
-        ##src = track.get_cover_image() <- better to get from Spotify
-
         return elements
 
     def update_database(self, database):
         self.database = database
 
+        self.connect_to_lastfm()
+
+
         self.update_db_tracks()
 
     def update_db_tracks(self):
-        print('\t\t...track information')
+        print('\t...updating track information')
         tracks_update_db = self.database.get_tracks_update_fm()
 
         # strip featured artists and remix call outs from track title

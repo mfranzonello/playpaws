@@ -2,7 +2,7 @@ from results import Songs, Votes, Rounds, Leagues ##, Players
 from comparisons import Members, Rankings, Pulse
 
 class Analyzer:
-    version = 1.0
+    version = 1.1
     def __init__(self, database):
         self.database = database
         self.weights = database.get_weights(self.version)
@@ -34,6 +34,7 @@ class Analyzer:
                     analysis = self.analyze_league(league_title, summary=True)
 
                     if analysis:
+                        songs = analysis['songs']
                         members = analysis['members']
                         rankings = analysis['rankings']
                         board = rankings.get_board()
@@ -41,6 +42,7 @@ class Analyzer:
                     
                         statuses = self.get_statuses(rounds.df)
                         
+                        self.database.store_results(songs.df, league_title)
                         self.database.store_members(members.df, league_title)
                         self.database.store_rankings(rankings.df, league_title)
                         self.database.store_boards(board, league_title)
@@ -115,12 +117,16 @@ class Analyzer:
         db_songs = self.database.get_songs(league_title)
         db_votes = self.database.get_votes(league_title)
 
+        db_discoveries = self.database.get_discoveries(league_title)
+
         rounds.add_rounds_db(db_rounds)
         round_titles = rounds.get_titles()
 
         for round_title in round_titles:
             if self.database.check_data(league_title, round_title=round_title):
                 songs.add_round_db(db_songs.query(f'round == "{round_title}"'))
+                songs.add_discoveries(db_discoveries.query(f'round == "{round_title}"'))
+
                 round_song_ids = songs.get_songs_ids(round_title)
                 votes.add_round_db(db_votes.query(f'song_id in {round_song_ids}'))
             

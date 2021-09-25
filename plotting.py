@@ -3,6 +3,7 @@ from re import compile, UNICODE
 from urllib.request import urlopen
 from os import getlogin
 from collections import Counter
+from datetime import timedelta
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from pandas import set_option, DataFrame, isnull
@@ -243,7 +244,9 @@ class Plotter:
                         self.database.get_discovery_scores,
                         self.database.get_audio_features,
                         self.database.get_genres_pie,
-                        self.database.get_genres_and_tags]
+                        self.database.get_genres_and_tags,
+                        self.database.get_song_results,
+                        ]
 
             db_lists = [[db_call(league_title) for league_title in league_titles] for db_call in db_calls]
             (self.members_list,
@@ -253,7 +256,8 @@ class Plotter:
              self.discoveries_list,
              self.features_list,
              self.genres_list,
-             self.tags_list) = db_lists
+             self.tags_list,
+             self.results_list) = db_lists
              
             self.pictures = Pictures(self.database)
 
@@ -274,9 +278,8 @@ class Plotter:
             self.plot_boards(axs[1][1], self.boards_list[n])
             self.plot_rankings(axs[1][0], self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
             self.plot_features(axs[0][1], self.features_list[n])
-            #self.plot_genres(axs[0][2], self.genres_list[n])
             self.plot_tags(axs[0][2], self.tags_list[n])
-            # self.plot_top_songs(axs[0][1])
+            ##self.plot_top_songs(axs[1][2], self.results_list[n])
 
         #mpld3.show()
 
@@ -347,6 +350,14 @@ class Plotter:
                     members_df['y'].max() + self.name_offset + self.font_size)
         ax.axis('off')
 
+    def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
+        plot_size = size=(s_p/2)**0.5/pi/10
+        image, _ = self.plot_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False, zorder=1)
+        if image:
+            _, _ = self.plot_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05, zorder=0)
+        else:
+            ax.plot(x_p, y_p, s=s_p, c=c_s)
+
     def get_node_colors(self, members_df):
         max_dfc = members_df['dfc'].max()
         min_dfc = members_df['dfc'].min()
@@ -356,14 +367,6 @@ class Plotter:
                                fail_color=self.get_dfc_colors('grey')) for dfc in members_df['dfc'].values]
         
         return colors
-
-    def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
-        plot_size = size=(s_p/2)**0.5/pi/10
-        image, imgs_1 = self.plot_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False, zorder=1)
-        if image:
-            _, imgs_2 = self.plot_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05, zorder=0)
-        else:
-            ax.plot(x_p, y_p, s=s_p, c=c_s)
 
     def plot_member_relationships(self, ax, me, members_df, split):
         # get location
@@ -412,7 +415,6 @@ class Plotter:
         scaling = [a / b * aspect[1] for a, b in zip(self.subplot_aspect, aspect)]
 
         xs = [x * scaling[0] for x in range(1, n_rounds + 1)]
-        ## self.xs = xs <- store? or just return
 
         has_dnf = board.where(board < 0, 0).sum().sum() < 0
         
@@ -511,7 +513,7 @@ class Plotter:
             for score in scores]
         colors_scatter = self.get_scatter_colors(colors, divisor=self.color_wheel)
 
-        image, imgs = self.plot_image(ax, -1, y, player_name=player, size=marker_size)
+        image, _ = self.plot_image(ax, -1, y, player_name=player, size=marker_size)
         if image:
             image_size = image.size
             for x, c, score in zip(xs, colors, scores):
@@ -553,7 +555,7 @@ class Plotter:
                          'acousticness': '🎸',
                          'instrumentalness': '🎹',
                          }
-        available_colors = self.get_dfc_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'yellow', 'pink')#[:len(features_like)]
+        available_colors = self.get_dfc_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'yellow', 'pink')
 
         features_colors = self.get_scatter_colors(available_colors, divisor=self.color_wheel)
 
@@ -601,18 +603,25 @@ class Plotter:
     def plot_tags(self, ax, tags_df):
         mask = self.pictures.get_mask_array()
         text = Counter(tags_df.sum().sum())
-        #text = {}' '.join(genres_df.sum().sum())
-        wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)#.generate(text) #max_font_size=50, max_words=100, 
+        wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)
         ax.imshow(wordcloud, interpolation="bilinear")
         ax.axis('off')
 
-    #def plot_tags(self, ax, tags_df):
-    #    mask = self.pictures.get_mask_array()
-    #    text = ' '.join(tags_df.sum().sum())
-    #    wordcloud = WordCloud(background_color='white', mask=mask).generate(text) #max_font_size=50, max_words=100, 
-    #    ax.imshow(wordcloud, interpolation="bilinear")
-    #    ax.axis('off')
-        
+    def plot_top_songs(self, ax, results_df, years=10):
+        results_df['text'] = results_df.apply(lambda x: ' + '.join(x['artist']) + ' - "' + x['title'] + '"', axis=1) #.sort_values(['points'], axis=1)
+    
+        max_date = results_df['release_date'].max()
+        min_date = max_date.replace(year=max_date.year - 10)
+
+        n_songs = len(results_df)
+        for i in range(n_songs):
+
+            ax.text(x=max(min_date, results_df['release_date'][i]),
+                    y=i, s=results_df['text'][i]) #, font=self.font)
+
+        ax.set_xlim(min_date, max_date)
+        ax.set_ylim(0, n_songs)
+
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
         y_center = members_df['y'].mean()

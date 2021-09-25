@@ -27,6 +27,7 @@ class Database:
               
               # analytics
               'Members': {'keys': ['league', 'player'], 'values': ['x', 'y', 'wins', 'dfc', 'likes', 'liked']},
+              'Results': {'keys': ['league', 'song_id'], 'values': ['people', 'closed', 'discovery', 'points']},
               'Rankings': {'keys': ['league', 'round', 'player'], 'values': ['points', 'score']},
               'Boards': {'keys': ['league', 'round', 'player'], 'values': ['place']},
               'Analyses': {'keys': ['league'], 'values': ['date', 'open', 'closed', 'version']},
@@ -420,6 +421,15 @@ class Database:
         df['league'] = league_title
         self.upsert_table('Members', df)
 
+    def get_results(self, league_title):
+        songs_df = self.get_table('Results', league=league_title).drop(columns='league')
+        return songs_df
+
+    def store_results(self, songs_df, league_title):
+        df = songs_df.reindex(columns=self.store_columns('Results'))
+        df['league'] = league_title
+        self.upsert_table('Results', df)
+
     def get_members(self, league_title):
         members_df = self.get_table('Members', league=league_title).drop(columns='league')
         return members_df
@@ -441,8 +451,12 @@ class Database:
         return player_names
 
     def get_weights(self, version):
-        table_name = 'Weights'
-        weights = read_sql(f'SELECT * FROM {self.table_name(table_name)} WHERE version = {version}', self.connection, index_col='parameter')['value']
+        sql = (f'SELECT DISTINCT ON(s.parameter) s.version, s.parameter, s.value '
+               f'FROM (SELECT * FROM {self.table_name("Weights")} '
+               f'WHERE version >= FLOOR({version}) ORDER BY version DESC) AS s;'
+               )
+
+        weights = read_sql(sql, self.connection, index_col='parameter')['value']
         weights = weights.apply(self.clean_up_weight)
         return weights
 
@@ -676,11 +690,13 @@ class Database:
 
         return features_df
 
-    def get_discoveries(self, league_title):
-        sql = (f'SELECT s.song_id, 1-t.popularity::real/100 AS discovery '
+    def get_discoveries(self, league_title, base=1000):
+        sql = (f'SELECT s.round, s.song_id, '
+               f'AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) AS discovery '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
-               f'WHERE s.league = {self.needs_quotes(league_title)};'
+               f'WHERE s.league = {self.needs_quotes(league_title)} '
+               f'GROUP BY s.round, s.song_id;'
                )
 
         discoveries_df = read_sql(sql, self.connection)
@@ -735,6 +751,22 @@ class Database:
         genres_df = read_sql(sql, self.connection).drop(columns=['league'])
 
         return genres_df
+
+    def get_song_results(self, league_title):
+        sql = (f'SELECT t.title, json_agg(a.name) AS artist, b.release_date, r.points '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
+               f'LEFT JOIN {self.table_name("Artists")} AS a ON t.artist_uri ? a.uri '
+               f'LEFT JOIN {self.table_name("Albums")} as b ON t.album_uri = b.uri '
+               f'LEFT JOIN {self.table_name("Results")} as r '
+               f'ON (s.league = r.league) AND (s.round = r.round) AND (s.song_id = r.song_id) '
+               f'WHERE s.league = {self.needs_quotes(league_title)} '
+               f'GROUP BY t.title, b.release_date, r.points;'
+               )
+
+        results_df = read_sql(sql, self.connection)
+
+        return results_df
 
     def get_all_artists(self, league_title):
         sql = (f'SELECT s.league, s.song_id, json_agg(DISTINCT a.name) as arist '

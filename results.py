@@ -12,8 +12,8 @@ class Results:
             self.df[col] = self.df[col].apply(lambda x: int(x) if str(x).isnumeric() else x)
 
 class Songs(Results):
-    columns = ['song_id', 'round', 'artist','title','submitter', 'track_url',
-                                  'votes', 'people', 'closed', 'points']
+    columns = ['song_id', 'round', 'artist', 'title','submitter', 'track_url',
+               'votes', 'people', 'closed', 'discovery', 'points']
     int_columns = ['song_id', 'votes']
 
     def __init__(self):
@@ -61,6 +61,9 @@ class Songs(Results):
 
         return self.patternizer
 
+    def add_discoveries(self, discoveries_df):
+        self.df['discovery'] = self.df.drop(columns='discovery').merge(discoveries_df, how='left', on='song_id')['discovery']
+
     def calculate_points(self, votes, rounds,
                          weights={'votes': 1, 'people': 0.25, 'closed': 0.5, 'must_vote': True}):        
         # calculate points based on votes and participation
@@ -80,7 +83,7 @@ class Songs(Results):
 
         points_columns = ['votes', 'people', 'closed']
         weight_columns = [weights[f'{col}_points'] for col in points_columns]
-        self.df['points'] = self.df[points_columns].mul(weight_columns).sum(1).mul(counted)
+        self.df['points'] = self.df[points_columns].mul(weight_columns).sum(1).mul(counted).add(self.df['discovery'].mul(self.df['votes'].gt(0)))
 
 class Votes(Results):
     columns = ['song_id', 'player', 'vote']

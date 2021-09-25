@@ -126,9 +126,7 @@ class Updater:
             self.database.store_round(league_title, round_title, 'new')
 
     def update_spotify(self):
-        print('\t...updating from Spotify')
         self.spotter.update_database(self.database)
 
     def update_lastfm(self):
-        print('\t...updating from LastFM')
         self.fmer.update_database(self.database)
