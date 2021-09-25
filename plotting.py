@@ -2,6 +2,7 @@ from math import sin, cos, atan2, pi, isnan
 from re import compile, UNICODE
 from urllib.request import urlopen
 from os import getlogin
+from collections import Counter
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from pandas import set_option, DataFrame, isnull
@@ -148,16 +149,18 @@ class Pictures:
 class Plotter:
     color_wheel = 255
     
-    dfc_grey = (172, 172, 172)
-    dfc_blue = (44, 165, 235)
-    dfc_green = (86, 225, 132)
-    dfc_red = (189, 43, 43)
-    dfc_yellow = (255, 242, 119)
-    dfc_purple = (192, 157, 224)
-    dfc_peach = (224, 157, 204)
-    dfc_dark_blue = (31, 78, 148)
-    dfc_orange = (245, 170, 66)
-    dfc_aqua = (85, 230, 203)
+    dfc_colors = {'grey': (172, 172, 172),
+                  'blue': (44, 165, 235),
+                  'green': (86, 225, 132),
+                  'red': (189, 43, 43),
+                  'yellow': (255, 242, 119),
+                  'purple': (192, 157, 224),
+                  'peach': (224, 157, 204),
+                  'dark_blue': (31, 78, 148),
+                  'orange': (245, 170, 66),
+                  'aqua': (85, 230, 203),
+                  'pink': (225, 138, 227),
+                  }
 
     marker_sizing = 50
 
@@ -201,6 +204,14 @@ class Plotter:
         x_shifted = x + shift_distance*cos(theta + rotate*pi/2)
         y_shifted = y + shift_distance*sin(theta + rotate*pi/2)
         return x_shifted, y_shifted
+
+    def get_dfc_colors(self, *color_names):
+        colors = [self.dfc_colors[name] for name in color_names]
+
+        if len(color_names) == 1:
+            colors = colors[0]
+
+        return colors
 
     def grade_colors(self, colors:list, precision:int=2):
         # create color gradient
@@ -263,8 +274,8 @@ class Plotter:
             self.plot_boards(axs[1][1], self.boards_list[n])
             self.plot_rankings(axs[1][0], self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
             self.plot_features(axs[0][1], self.features_list[n])
-            self.plot_genres(axs[0][2], self.genres_list[n])
-            self.plot_tags(axs[1][2], self.tags_list[n])
+            #self.plot_genres(axs[0][2], self.genres_list[n])
+            self.plot_tags(axs[0][2], self.tags_list[n])
             # self.plot_top_songs(axs[0][1])
 
         #mpld3.show()
@@ -318,7 +329,7 @@ class Plotter:
         ax.scatter(x_center, y_center, marker='1', zorder=3)
 
         sizes = self.get_scatter_sizes(members_df)
-        colors = self.get_colors(members_df)
+        colors = self.get_node_colors(members_df)
         colors_scatter = self.get_scatter_colors(colors, divisor=self.color_wheel)
         
         for x_p, y_p, p_name, s_p, c_p, c_s in zip(x, y, player_names, sizes, colors, colors_scatter):
@@ -335,6 +346,16 @@ class Plotter:
         ax.set_ylim(members_df['y'].min() - self.name_offset - self.font_size,
                     members_df['y'].max() + self.name_offset + self.font_size)
         ax.axis('off')
+
+    def get_node_colors(self, members_df):
+        max_dfc = members_df['dfc'].max()
+        min_dfc = members_df['dfc'].min()
+
+        rgb_df = self.grade_colors(self.get_dfc_colors('green', 'blue'))
+        colors = [self.get_rgb(rgb_df, 1-(dfc - min_dfc)/(max_dfc - min_dfc),
+                               fail_color=self.get_dfc_colors('grey')) for dfc in members_df['dfc'].values]
+        
+        return colors
 
     def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
         plot_size = size=(s_p/2)**0.5/pi/10
@@ -454,13 +475,13 @@ class Plotter:
         n_rounds = len(rankings_df.columns)
 
         max_score = rankings_df.max().max()
-        rgb_df = self.grade_colors([self.dfc_red, self.dfc_yellow, self.dfc_green, self.dfc_blue])
+        rgb_df = self.grade_colors(self.get_dfc_colors('red', 'yellow', 'green', 'blue'))
         
         max_dirty = max(0.5, dirty_df.max())
-        rgb_dirty_df = self.grade_colors([self.dfc_purple, self.dfc_peach])
+        rgb_dirty_df = self.grade_colors(self.get_dfc_colors('purple', 'peach'))
 
         max_discovery = 1
-        rgb_discovery_df = self.grade_colors([self.dfc_grey, self.dfc_dark_blue])
+        rgb_discovery_df = self.grade_colors(self.get_dfc_colors('grey', 'dark_blue'))
 
         xs = range(n_rounds)
         for player in player_names:
@@ -486,7 +507,7 @@ class Plotter:
         ys = [y] * len(xs)
         
         scores = rankings_df.loc[player]
-        colors = [self.get_rgb(rgb_df, score/max_score, fail_color=self.dfc_grey) \
+        colors = [self.get_rgb(rgb_df, score/max_score, fail_color=self.get_dfc_colors('grey')) \
             for score in scores]
         colors_scatter = self.get_scatter_colors(colors, divisor=self.color_wheel)
 
@@ -521,7 +542,7 @@ class Plotter:
         return image, imgs
             
     def plot_features(self, ax, features_df):
-        features_solo = {'duration': '⏲',
+        features_solo = {#'duration': '⏲',
                          'tempo': '🥁',
                          }
         features_like = {'danceability': '💃',
@@ -532,11 +553,9 @@ class Plotter:
                          'acousticness': '🎸',
                          'instrumentalness': '🎹',
                          }
-        available_colors = [self.dfc_red, self.dfc_blue, self.dfc_purple, self.dfc_yellow,
-                            self.dfc_dark_blue, self.dfc_orange, self.dfc_aqua][:len(features_like)]
+        available_colors = self.get_dfc_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'yellow', 'pink')#[:len(features_like)]
 
-        features_colors = self.get_scatter_colors(available_colors,
-                                                  divisor=self.color_wheel)
+        features_colors = self.get_scatter_colors(available_colors, divisor=self.color_wheel)
 
         n_rounds = len(features_df)
         
@@ -559,7 +578,7 @@ class Plotter:
                          font=self.emoji_font, horizontalalignment='center', padding=padding, size=font_size)
 
         for solo, f in zip(features_solo, range(len(features_solo))):
-            color = features_colors[(len(features_like) + f - 1) % len(features_colors)]
+            color = features_colors[(len(features_like) + f) % len(features_colors)]
             features_df.plot(y=solo, secondary_y=solo, color=color,
                              kind='line', legend=False, ax=ax)
             
@@ -579,19 +598,20 @@ class Plotter:
 
         return z_
 
-    def plot_genres(self, ax, genres_df):
+    def plot_tags(self, ax, tags_df):
         mask = self.pictures.get_mask_array()
-        text = ' '.join(genres_df['genre'])
-        wordcloud = WordCloud(background_color='white', mask=mask).generate(text) #max_font_size=50, max_words=100, 
+        text = Counter(tags_df.sum().sum())
+        #text = {}' '.join(genres_df.sum().sum())
+        wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)#.generate(text) #max_font_size=50, max_words=100, 
         ax.imshow(wordcloud, interpolation="bilinear")
         ax.axis('off')
 
-    def plot_tags(self, ax, tags_df):
-        mask = self.pictures.get_mask_array()
-        text = ' '.join(tags_df.sum().sum())
-        wordcloud = WordCloud(background_color='white', mask=mask).generate(text) #max_font_size=50, max_words=100, 
-        ax.imshow(wordcloud, interpolation="bilinear")
-        ax.axis('off')
+    #def plot_tags(self, ax, tags_df):
+    #    mask = self.pictures.get_mask_array()
+    #    text = ' '.join(tags_df.sum().sum())
+    #    wordcloud = WordCloud(background_color='white', mask=mask).generate(text) #max_font_size=50, max_words=100, 
+    #    ax.imshow(wordcloud, interpolation="bilinear")
+    #    ax.axis('off')
         
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
@@ -625,16 +645,6 @@ class Plotter:
     def get_scatter_sizes(self, members_df):
         sizes = (members_df['wins'] + 1) * self.marker_sizing
         return sizes
-
-    def get_colors(self, members_df):
-        max_dfc = members_df['dfc'].max()
-        min_dfc = members_df['dfc'].min()
-
-        rgb_df = self.grade_colors([self.dfc_green, self.dfc_blue])
-        colors = [self.get_rgb(rgb_df, 1-(dfc - min_dfc)/(max_dfc - min_dfc),
-                               fail_color=self.dfc_grey) for dfc in members_df['dfc'].values]
-        
-        return colors
 
     def get_scatter_colors(self, colors_rgb, divisor=1):
         colors = [self.normalize_color(rgb, divisor) for rgb in colors_rgb]

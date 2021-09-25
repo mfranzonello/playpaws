@@ -8,30 +8,25 @@ import requests
 import browser_cookie3 as browsercookie
 from bs4 import BeautifulSoup
 
-class Getter:
-    def __init__(self, main_url):
-        self.cj = browsercookie.chrome(domain_name=main_url.replace('https://', ''))
-        self.main_url = main_url
+class Scraper:
+    def __init__(self, stripper):
+        self.stripper = stripper
+        self.main_url = stripper.main_url
+
+        self.cj = browsercookie.chrome(domain_name=self.main_url.replace('https://', ''))
         
     def get_html_text(self, url):
+        print(f'\t...requesting {url}')
+
+        if url[0] == '/':
+            url = f'{self.main_url}{url}'
+
         response = requests.get(url, cookies=self.cj, timeout=10)
         if response.ok:
             html_text = response.text
         else:
             html_text = None
-
-        return html_text
-    
-class Scraper:
-    def __init__(self, getter, stripper):
-        self.getter = getter
-        self.stripper = stripper
         
-    def get_html_text(self, url):
-        if url[0] == '/':
-            url = f'{self.getter.main_url}{url}'
-
-        html_text = self.getter.get_html_text(url)
         return html_text
 
     def check_url(self, url, league_title, round_title=None):
@@ -138,7 +133,7 @@ class Stripper:
                               },
                    }
                                  
-    def __init__(self, main_url=''):
+    def __init__(self, main_url):
         self.result_types = {'home': Stripper.home_types,
                              'league': Stripper.league_types,
                              'round': Stripper.round_types,
@@ -246,7 +241,7 @@ class Stripper:
 
     def extract_results(self, html_text, page_type) -> tuple:
         # extract results from HTML tags
-        print(f'\t...extracting results')
+        print(f'\t\t...extracting results')
         results = self.get_results(html_text, page_type)
         
         if page_type == 'home':

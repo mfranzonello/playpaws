@@ -1,4 +1,4 @@
-from stripper import Stripper, Scraper, Getter
+from stripper import Stripper, Scraper
 from spotify import Spotter, FMer
 from results import Songs, Votes, Rounds, Leagues, Players
 
@@ -12,10 +12,8 @@ class Updater:
         self.spotter = Spotter(credentials['spotify'])
         self.fmer = FMer(credentials['lastfm'])
 
-        self.getter = Getter(main_url=self.main_url)
-
-        self.stripper = Stripper(main_url = self.main_url)
-        self.scraper = Scraper(self.getter, self.stripper)
+        self.stripper = Stripper(self.main_url)
+        self.scraper = Scraper(self.stripper)
 
     def update_database(self):
         print('Updating database')
