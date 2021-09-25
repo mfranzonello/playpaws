@@ -1,6 +1,5 @@
 import codecs
 from os import listdir
-from difflib import SequenceMatcher
 import re
 from dateutil.parser import parse
 

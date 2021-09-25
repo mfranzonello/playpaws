@@ -137,14 +137,15 @@ class Pictures:
 
         return image
 
-    def get_mask_array(self):
-        fp = urlopen(self.mask_url)
+    def get_mask_array(self, src):
+        fp = urlopen(src)
         try:
             image = Image.open(fp)
+            mask = asarray(image)
         except UnidentifiedImageError:
-            print('can\'t open image')
-            image = Image.open(f'C:/Users/{getlogin()}/OneDrive/Projects/Play Paws/paw.png')
-        mask = asarray(image)
+            print(f'can\'t open image at {src}')
+            mask = None
+
         return mask
 
 class Plotter:
@@ -245,6 +246,7 @@ class Plotter:
                         self.database.get_audio_features,
                         self.database.get_genres_pie,
                         self.database.get_genres_and_tags,
+                        self.database.get_mask,
                         self.database.get_song_results,
                         ]
 
@@ -257,6 +259,7 @@ class Plotter:
              self.features_list,
              self.genres_list,
              self.tags_list,
+             self.masks_list,
              self.results_list) = db_lists
              
             self.pictures = Pictures(self.database)
@@ -278,8 +281,8 @@ class Plotter:
             self.plot_boards(axs[1][1], self.boards_list[n])
             self.plot_rankings(axs[1][0], self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
             self.plot_features(axs[0][1], self.features_list[n])
-            self.plot_tags(axs[0][2], self.tags_list[n])
-            ##self.plot_top_songs(axs[1][2], self.results_list[n])
+            self.plot_tags(axs[0][2], self.tags_list[n], self.masks_list[n])
+            self.plot_top_songs(axs[1][2], self.results_list[n])
 
         #mpld3.show()
 
@@ -600,8 +603,8 @@ class Plotter:
 
         return z_
 
-    def plot_tags(self, ax, tags_df):
-        mask = self.pictures.get_mask_array()
+    def plot_tags(self, ax, tags_df, mask_src):
+        mask = self.pictures.get_mask_array(mask_src)
         text = Counter(tags_df.sum().sum())
         wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)
         ax.imshow(wordcloud, interpolation="bilinear")

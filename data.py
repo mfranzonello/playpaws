@@ -1,8 +1,9 @@
 from datetime import date
 import json
+from difflib import SequenceMatcher
 
 from sqlalchemy import create_engine
-from pandas import read_sql, DataFrame, isnull, concat
+from pandas import read_sql, DataFrame, isnull
 from pandas.api.types import is_numeric_dtype
 
 class Database:
@@ -34,6 +35,7 @@ class Database:
               
               # settings
               'Weights': {'keys': ['parameter', 'version'], 'values': ['value']},
+              'Images': {'keys': ['keyword'], 'values': ['src']}, 
               }
    
     def __init__(self, credentials, server, structure):
@@ -472,6 +474,26 @@ class Database:
                 clean_value = value
         return clean_value
 
+    def get_mask(self, league_title, default='<default>'):
+        masks_df = self.get_table('Images')
+        masks_df['ratio'] = masks_df['keyword'].apply(lambda x: self.get_mask_ratio(league_title, x, default))
+        max_ratio = masks_df['ratio'].max()
+        if max_ratio == 0:
+            mask = masks_df[masks_df['keyword'] == default]['src']
+        else:
+            mask = masks_df[masks_df['ratio'] == max_ratio]['src']
+
+        mask_src = mask.iloc[0].replace('/embed?', '/download?')
+
+        return mask_src
+
+    def get_mask_ratio(self, league_title, keyword, default):
+        if (keyword == default) or (keyword.lower() not in league_title.lower()):
+            ratio = 0
+        else:
+            ratio = SequenceMatcher(None, league_title, keyword).quick_ratio()
+        return ratio
+
     # Spotify functions
     def store_spotify(self, df, table_name):
         df = df.reindex(columns=self.store_columns(table_name))
@@ -758,10 +780,12 @@ class Database:
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
                f'LEFT JOIN {self.table_name("Artists")} AS a ON t.artist_uri ? a.uri '
                f'LEFT JOIN {self.table_name("Albums")} as b ON t.album_uri = b.uri '
-               f'LEFT JOIN {self.table_name("Results")} as r '
-               f'ON (s.league = r.league) AND (s.round = r.round) AND (s.song_id = r.song_id) '
+               f'LEFT JOIN {self.table_name("Leagues")} as l ON s.league = l.league '
+               f'LEFT JOIN {self.table_name("Rounds")} as d ON (s.league = d.league) AND (s.round = d.round) '
+               f'LEFT JOIN {self.table_name("Results")} as r ON (s.league = r.league) AND (s.song_id = r.song_id) '
                f'WHERE s.league = {self.needs_quotes(league_title)} '
-               f'GROUP BY t.title, b.release_date, r.points;'
+               f'GROUP BY t.title, b.release_date, r.points, l.date, d.date '
+               f'ORDER BY l.date ASC, d.date ASC, r.points DESC;'
                )
 
         results_df = read_sql(sql, self.connection)
