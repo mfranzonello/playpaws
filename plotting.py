@@ -3,13 +3,14 @@ from re import compile, UNICODE
 from urllib.request import urlopen
 from os import getlogin
 from collections import Counter
-from datetime import timedelta
+from datetime import date
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from pandas import set_option, DataFrame, isnull, to_datetime
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
+from matplotlib.dates import date2num
+from wordcloud import WordCloud, ImageColorGenerator
 from numpy import asarray
 ##import mpld3
 
@@ -40,6 +41,8 @@ class Texter:
              'Tahoma': 'tahoma.ttf'}
 
     emoji_fonts = {'Segoe UI Emoji': 'seguiemj.ttf'}
+
+    bold_fonts = {'Segoe UI Semibold': 'seguisb.ttf'}
 
     def __init__(self):
         pass
@@ -148,10 +151,21 @@ class Pictures:
 
         return mask
 
-    ##def get_text_image(self, text, color, weight, size):
-    ##    image = 
-    ##    draw = ImageDraw.Draw()
+    def get_text_image(self, text, font, color, font_size):
+        image_font = ImageFont.truetype(font, int(font_size))
 
+        ascent, descent = image_font.getmetrics()
+
+        W = image_font.getmask(text).getbbox()[2]
+        H = image_font.getmask(text).getbbox()[3] + descent
+
+        image = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+
+        draw.text((0, -descent), text, fill=color + tuple([255]), font=image_font)
+        
+        return image
+    
 class Plotter:
     color_wheel = 255
     
@@ -192,6 +206,8 @@ class Plotter:
         self.emoji_fonts = list(self.texter.emoji_fonts.keys())
 
         self.image_font = list(self.texter.fonts.values())[0]
+        self.bold_font = list(self.texter.bold_fonts.values())[0]
+
         self.emoji_font = self.emoji_fonts[0]
 
         rcParams['font.family'] = 'sans-serif'
@@ -628,23 +644,37 @@ class Plotter:
     
         max_date = results_df['release_date'].max()
         dates = to_datetime(results_df['release_date'])
-        outlier_date = dates.where(dates < dates.mean() - 2 * dates.std()).min()
+        outlier_date = dates.where(dates < dates.mean() - 1.5 * dates.std()).min()
         min_date = max_date.replace(year=outlier_date.year) #max(max_date.year - 10, results_df['release_date'].min().year))
 
-        rgb_df = self.grade_colors(self.get_scatter_colors(self.get_dfc_colors('purple', 'red', 'orange', 'yellow', 'green', 'blue', 'dark_blue'), self.color_wheel)) 
+        rgb_df = self.grade_colors(self.get_dfc_colors('purple', 'red', 'orange', 'yellow',
+                                                        'green', 'blue', 'dark_blue'))
+        rgb_df_2 = self.grade_colors(self.get_scatter_colors(self.get_dfc_colors('purple', 'red', 'orange', 'yellow',
+                                                                                 'green', 'blue', 'dark_blue'), self.color_wheel)) 
 
         fontsize = 100 / n_rounds
+
+        #ax.secondary_xaxis('top')
+        #ax.right_ax.set_xlim([0, max_date.year-min_date.year])
                                  
         for i in results_df.index:
             x = max(min_date, results_df['release_date'][i])
             y = results_df['y'][i]
             s = results_df['text'][i]
             size = fontsize * 2 * (1 - results_df['y_song'][i])
+            #text_font = self.bold_font if results_df['closed'][i] else self.image_font
             fontweight = 'bold' if results_df['closed'][i] else None
             percent = float(results_df['points'][i] / results_df[results_df['round']==results_df['round'][i]]['points'].max())
-            color = self.get_rgb(rgb_df, percent, astype=float)
+            #font_color = self.get_rgb(rgb_df, percent, astype=int)
+            color = self.get_rgb(rgb_df_2, percent, astype=float)
 
-            ax.text(x=x, y=y, s=s, fontweight=fontweight, size=size, color=color, verticalalignment='top', in_layout=True)
+            ##image = self.pictures.get_text_image(s, text_font, font_color, size)
+            ##extent = [date2num(x), date2num(x) + 10, #date2num(date(x.year - 10, x.month, x.day)), #image.size[0]
+            ##          y, y + 0.5]# image.size[1]]
+            ##print(f'extent: {extent}')
+            ##ax.imshow(image, extent=extent)
+
+            ax.text(x=x, y=y, s=s, fontweight=fontweight, size=size, color=color, verticalalignment='top')
 
         ax.set_xlim(max_date, min_date)
         ax.set_ylim(n_rounds, 0)
