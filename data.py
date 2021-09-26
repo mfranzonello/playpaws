@@ -753,42 +753,32 @@ class Database:
 
         return genres_df
 
-    def get_genres_pie(self, league_title):
-        sql = (f'SELECT s.league, s.round, g.name AS genre, '
-               f'count(s.song_id) AS occurances, '
-               f'sum(1/jsonb_array_length(a.genres)::real) AS proportion, '
-               f'sum(t.duration) AS duration, '
-               f'sum(1/jsonb_array_length(a.genres)::real * t.duration) AS representation '
-               f'FROM {self.table_name("Songs")} AS s '
+    def get_song_results(self, league_title):
+        sql = (f'SELECT s.round, s.song_id, '
+               f't.title, ttt.artist, b.release_date, r.closed, r.points '
+               f'FROM {self.table_name("Results")} AS r '
+               f'LEFT JOIN {self.table_name("Songs")} AS s '
+               f'ON (s.league = r.league) AND (s.song_id = r.song_id) '
                f'LEFT JOIN {self.table_name("Tracks")} AS t '
                f'ON s.track_url = t.url '
-               f'LEFT JOIN {self.table_name("Artists")} AS a '
-               f'ON t.artist_uri ? a.uri '
-               f'LEFT JOIN {self.table_name("Genres")} AS g '
-               f'ON a.genres ? g.name '
-               f'WHERE (s.league = {self.needs_quotes(league_title)}) AND (g.name IS NOT NULL) '
-               f'GROUP BY s.league, s.round, genre;'
-               )
-
-        genres_df = read_sql(sql, self.connection).drop(columns=['league'])
-
-        return genres_df
-
-    def get_song_results(self, league_title):
-        sql = (f'SELECT s.round, s.song_id, t.title, json_agg(a.name) AS artist, b.release_date, r.closed, r.points '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
-               f'LEFT JOIN {self.table_name("Artists")} AS a ON t.artist_uri ? a.uri '
-               f'LEFT JOIN {self.table_name("Albums")} as b ON t.album_uri = b.uri '
-               f'LEFT JOIN {self.table_name("Leagues")} as l ON s.league = l.league '
-               f'LEFT JOIN {self.table_name("Rounds")} as d ON (s.league = d.league) AND (s.round = d.round) '
-               f'LEFT JOIN {self.table_name("Results")} as r ON (s.league = r.league) AND (s.song_id = r.song_id) '
+               f'LEFT JOIN {self.table_name("Albums")} AS b '
+               f'ON t.album_uri = b.uri '
+               f'LEFT JOIN '
+               f'(SELECT tt.url, json_agg(a.name) AS artist FROM '
+               f'(SELECT jsonb_array_elements(artist_uri) AS a_uri, url '
+               f'FROM {self.table_name("Tracks")}) AS tt '
+               f'LEFT JOIN {self.table_name("Artits")} AS a '
+               f'ON tt.a_uri ? a.uri '
+               f'GROUP BY tt.url) AS ttt ON t.url = ttt.url '
+               f'LEFT JOIN {self.table_name("Leagues")} AS l '
+               f'ON s.league = l.league '
+               f'LEFT JOIN {self.table_name("Rounds")} AS d '
+               f'ON (s.league = d.league) AND (s.round = d.round) '
                f'WHERE s.league = {self.needs_quotes(league_title)} '
-               f'GROUP BY s.round, s.song_id, t.title, b.release_date, r.points, r.closed, l.date, d.date '
                f'ORDER BY l.date ASC, d.date ASC, r.points DESC;'
                )
 
-        results_df = read_sql(sql, self.connection)
+        results_df = read_sql(sql, self.connection).drop_duplicates()
 
         return results_df
 
