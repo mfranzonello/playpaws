@@ -61,8 +61,8 @@ class Songs(Results):
 
         return self.patternizer
 
-    def add_discoveries(self, discoveries_df):
-        self.df['discovery'] = self.df.drop(columns='discovery').merge(discoveries_df, how='left', on='song_id')['discovery'].fillna(0)
+    ##def add_discoveries(self, discoveries_df):
+    ##    self.df['discovery'] = self.df.drop(columns='discovery').merge(discoveries_df, how='left', on='song_id')['discovery'].fillna(0)
 
     def calculate_points(self, votes, rounds,
                          weights={'votes': 1, 'people': 0.25, 'closed': 0.5,
@@ -85,8 +85,8 @@ class Songs(Results):
 
         points_columns = ['votes', 'people', 'closed']
         weight_columns = [weights[f'{col}_points'] for col in points_columns]
-        discovery_points = self.df['discovery'].mul(self.df['votes'].gt(0)).mul(weights['discovery_points'])
-        self.df['points'] = self.df[points_columns].mul(weight_columns).sum(1).add(discovery_points).mul(counted)
+        ##discovery_points = self.df['discovery'].mul(self.df['votes'].gt(0)).mul(weights['discovery_points'])
+        self.df['points'] = self.df[points_columns].mul(weight_columns).sum(1)##.add(discovery_points).mul(counted)
 
 class Votes(Results):
     columns = ['song_id', 'player', 'vote']

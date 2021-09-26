@@ -124,9 +124,9 @@ class Analyzer:
                 round_song_ids = songs.get_songs_ids(round_title)
                 votes.add_round_db(db_votes.query(f'song_id in {round_song_ids}'))
 
-        # add discovery scores
-        db_discoveries = self.database.get_discoveries(league_title)
-        songs.add_discoveries(db_discoveries)
+        ### add discovery scores
+        ##db_discoveries = self.database.get_discoveries(league_title)
+        ##songs.add_discoveries(db_discoveries)
             
         return songs, votes, rounds
 

@@ -264,7 +264,6 @@ class Plotter:
                         self.database.get_dirtiness,
                         self.database.get_discovery_scores,
                         self.database.get_audio_features,
-                        self.database.get_genres_pie,
                         self.database.get_genres_and_tags,
                         self.database.get_mask,
                         self.database.get_song_results,
@@ -277,7 +276,6 @@ class Plotter:
              self.dirty_list,
              self.discoveries_list,
              self.features_list,
-             self.genres_list,
              self.tags_list,
              self.masks_list,
              self.results_list) = db_lists
@@ -593,7 +591,7 @@ class Plotter:
         features_df[list(features_solo.keys())] = features_df[list(features_solo.keys())].abs().div(features_df[list(features_solo.keys())].max())
         
         features_df.plot(use_index=True, y=list(features_like.keys()), color=features_colors[:len(features_like)],
-                         kind='bar', legend=False, rot=45, ax=ax)
+                         kind='bar', legend=False, ax=ax)
 
         padding = 5
         font_size = 'medium'
@@ -611,6 +609,15 @@ class Plotter:
             for i in range(n_rounds-1):
                 ax.text(x=i + 0.5, y=self.convert_axes(ax, (features_df[solo][i] + features_df[solo][i+1])/2), s=features_solo[solo], # + padding
                         size=font_size, color=color, font=self.emoji_font, horizontalalignment='center')
+
+        ##for position in ['top', 'left', 'right']:
+        ##    ax.spines[position].set_visible(False)
+        
+        ##ax.set_xticks([])
+        ##ax.set_xticklabels([])
+        ##ax.xaxis.set_ticks_position('none')
+        ##ax.yaxis.set_ticks_position('none') #'bottom')
+        ##ax.minorticks_off()
 
     def convert_axes(self, ax, z, y=True):
         if y:
@@ -644,7 +651,7 @@ class Plotter:
     
         max_date = results_df['release_date'].max()
         dates = to_datetime(results_df['release_date'])
-        outlier_date = dates.where(dates < dates.mean() - 1.5 * dates.std()).min()
+        outlier_date = dates.where(dates > dates.mean() - dates.std()).min()
         min_date = max_date.replace(year=outlier_date.year) #max(max_date.year - 10, results_df['release_date'].min().year))
 
         rgb_df = self.grade_colors(self.get_dfc_colors('purple', 'red', 'orange', 'yellow',

@@ -22,7 +22,6 @@ def main(update_db=True, analyze_data=True, plot_data=True):
         if update_db:
             updater = Updater(database, structure, credentials)
             updater.update_database()
-            ##updater.turn_off()
             updater.update_spotify()
             updater.update_lastfm()
 
@@ -37,4 +36,4 @@ def main(update_db=True, analyze_data=True, plot_data=True):
             plotter.add_anaylses()
             plotter.plot_results()
 
-main(update_db=False, analyze_data=False, plot_data=True)
+main(update_db=False, analyze_data=True, plot_data=True)

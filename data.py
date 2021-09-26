@@ -767,7 +767,7 @@ class Database:
                f'(SELECT tt.url, json_agg(a.name) AS artist FROM '
                f'(SELECT jsonb_array_elements(artist_uri) AS a_uri, url '
                f'FROM {self.table_name("Tracks")}) AS tt '
-               f'LEFT JOIN {self.table_name("Artits")} AS a '
+               f'LEFT JOIN {self.table_name("Artists")} AS a '
                f'ON tt.a_uri ? a.uri '
                f'GROUP BY tt.url) AS ttt ON t.url = ttt.url '
                f'LEFT JOIN {self.table_name("Leagues")} AS l '
@@ -778,7 +778,7 @@ class Database:
                f'ORDER BY l.date ASC, d.date ASC, r.points DESC;'
                )
 
-        results_df = read_sql(sql, self.connection).drop_duplicates()
+        results_df = read_sql(sql, self.connection).drop_duplicates(subset='song_id')
 
         return results_df
 
