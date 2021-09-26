@@ -6,7 +6,7 @@ from collections import Counter
 from datetime import timedelta
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
-from pandas import set_option, DataFrame, isnull
+from pandas import set_option, DataFrame, isnull, to_datetime
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from wordcloud import WordCloud, STOPWORDS, ImageColorGenerator
@@ -148,6 +148,10 @@ class Pictures:
 
         return mask
 
+    ##def get_text_image(self, text, color, weight, size):
+    ##    image = 
+    ##    draw = ImageDraw.Draw()
+
 class Plotter:
     color_wheel = 255
     
@@ -222,12 +226,12 @@ class Plotter:
                                .reindex([x/10**precision for x in range(10**precision+1)]).interpolate()
         return rgb_df
 
-    def get_rgb(self, rgb_df:DataFrame, percent:float, fail_color=(0, 0, 0)):
+    def get_rgb(self, rgb_df:DataFrame, percent:float, fail_color=(0, 0, 0), astype=int):
         # get color based on interpolation of a list of colors
         if isnan(percent):
             rgb = fail_color
         else:
-            rgb = tuple(rgb_df.iloc[rgb_df.index.get_loc(percent, 'nearest')].astype(int))
+            rgb = tuple(rgb_df.iloc[rgb_df.index.get_loc(percent, 'nearest')].astype(astype))
 
         return rgb
 
@@ -547,6 +551,7 @@ class Plotter:
         return image, imgs
             
     def plot_features(self, ax, features_df):
+        print('\t...features')
         features_solo = {#'duration': '⏲',
                          'tempo': '🥁',
                          }
@@ -604,6 +609,7 @@ class Plotter:
         return z_
 
     def plot_tags(self, ax, tags_df, mask_src):
+        print('\t...genres')
         mask = self.pictures.get_mask_array(mask_src)
         text = Counter(tags_df.sum().sum())
         wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)
@@ -611,19 +617,37 @@ class Plotter:
         ax.axis('off')
 
     def plot_top_songs(self, ax, results_df, years=10):
-        results_df['text'] = results_df.apply(lambda x: ' + '.join(x['artist']) + ' - "' + x['title'] + '"', axis=1) #.sort_values(['points'], axis=1)
+        print('\t...songs')
+        rounds = list(results_df['round'].unique())
+        n_rounds = len(rounds)
+        results_df['text'] = results_df.apply(lambda x: ' + '.join(x['artist']) + ' - "' + x['title'] + '"', axis=1)
+        results_df['y_round'] = results_df['round'].map({d: rounds.index(d) for d in results_df['round'].unique()})
+        results_df['y_song'] = (1-1/(2**results_df['song_id'].map({d: list(results_df[results_df['round']==r]['song_id'].unique()).index(d) \
+            for r in rounds for d in results_df[results_df['round']==r]['song_id'].unique()})))
+        results_df['y'] = results_df[['y_round', 'y_song']].sum(1)
     
         max_date = results_df['release_date'].max()
-        min_date = max_date.replace(year=max_date.year - 10)
+        dates = to_datetime(results_df['release_date'])
+        outlier_date = dates.where(dates < dates.mean() - 2 * dates.std()).min()
+        min_date = max_date.replace(year=outlier_date.year) #max(max_date.year - 10, results_df['release_date'].min().year))
 
-        n_songs = len(results_df)
-        for i in range(n_songs):
+        rgb_df = self.grade_colors(self.get_scatter_colors(self.get_dfc_colors('purple', 'red', 'orange', 'yellow', 'green', 'blue', 'dark_blue'), self.color_wheel)) 
 
-            ax.text(x=max(min_date, results_df['release_date'][i]),
-                    y=i, s=results_df['text'][i]) #, font=self.font)
+        fontsize = 100 / n_rounds
+                                 
+        for i in results_df.index:
+            x = max(min_date, results_df['release_date'][i])
+            y = results_df['y'][i]
+            s = results_df['text'][i]
+            size = fontsize * 2 * (1 - results_df['y_song'][i])
+            fontweight = 'bold' if results_df['closed'][i] else None
+            percent = float(results_df['points'][i] / results_df[results_df['round']==results_df['round'][i]]['points'].max())
+            color = self.get_rgb(rgb_df, percent, astype=float)
 
-        ax.set_xlim(min_date, max_date)
-        ax.set_ylim(0, n_songs)
+            ax.text(x=x, y=y, s=s, fontweight=fontweight, size=size, color=color, verticalalignment='top', in_layout=True)
+
+        ax.set_xlim(max_date, min_date)
+        ax.set_ylim(n_rounds, 0)
 
     def get_center(self, members_df):
         x_center = members_df['x'].mean()

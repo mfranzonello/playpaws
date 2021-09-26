@@ -775,7 +775,7 @@ class Database:
         return genres_df
 
     def get_song_results(self, league_title):
-        sql = (f'SELECT t.title, json_agg(a.name) AS artist, b.release_date, r.points '
+        sql = (f'SELECT s.round, s.song_id, t.title, json_agg(a.name) AS artist, b.release_date, r.closed, r.points '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
                f'LEFT JOIN {self.table_name("Artists")} AS a ON t.artist_uri ? a.uri '
@@ -784,7 +784,7 @@ class Database:
                f'LEFT JOIN {self.table_name("Rounds")} as d ON (s.league = d.league) AND (s.round = d.round) '
                f'LEFT JOIN {self.table_name("Results")} as r ON (s.league = r.league) AND (s.song_id = r.song_id) '
                f'WHERE s.league = {self.needs_quotes(league_title)} '
-               f'GROUP BY t.title, b.release_date, r.points, l.date, d.date '
+               f'GROUP BY s.round, s.song_id, t.title, b.release_date, r.points, r.closed, l.date, d.date '
                f'ORDER BY l.date ASC, d.date ASC, r.points DESC;'
                )
 
