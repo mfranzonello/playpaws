@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from pandas import set_option, DataFrame, isnull, to_datetime
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from matplotlib.dates import date2num
+from matplotlib.dates import date2num, num2date
 from wordcloud import WordCloud, ImageColorGenerator
 from numpy import asarray
 ##import mpld3
@@ -151,7 +151,7 @@ class Pictures:
 
         return mask
 
-    def get_text_image(self, text_df, aspect, base=100):
+    def get_text_image(self, text_df, aspect, base):
         H = int((text_df['y_round'].max() + 1) * base)
         W = int(aspect[0] * H / aspect[1])
 
@@ -167,6 +167,7 @@ class Pictures:
 
         X = (date2num(max_x) - date2num(text_df['x'][max_x_i]))
         x_ratio = (W - text_df['length'][max_x_i]) / X
+        D = x_ratio * X
         
         image = Image.new('RGBA', (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
@@ -191,7 +192,7 @@ class Pictures:
 
         ##draw.text((0, -descent), text, fill=color + tuple([255]), font=image_font)
 
-        return image, X
+        return image, D
     
 class Plotter:
     color_wheel = 255
@@ -697,11 +698,18 @@ class Plotter:
         results_df['font_color'] = results_df.apply(lambda x: self.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max()),
                                                     axis=1)
         base = 100
-        image, X = self.pictures.get_text_image(results_df, self.subplot_aspects['top_songs'], base=base)
+        image, D = self.pictures.get_text_image(results_df, self.subplot_aspects['top_songs'], base)
         ax.imshow(image)
+        
+        ax.yaxis.tick_right()
         ax.set_yticks([(n + 0.5) * base for n in range(n_rounds)])
-        ax.set_ylabels(rounds, rot=90)
-        #ax.set_xlim()
+        ax.set_yticklabels([self.texter.clean_text(r) for r in rounds])#, rotation=45)
+        
+        #date_span = image.size[0] / D * (date2num(max_date) - date2num(min_date))
+        #ax.set_xlim(max_date, num2date(date2num(max_date) - date_span))
+
+        #x_ticks = [date(max_date.year - y, max_date.month, max_date.day) for y in range(max_date.year - min_date.year)]
+        #ax.set_xticks(x_ticks)
 
         #ax.secondary_xaxis('top')
         #ax.right_ax.set_xlim([0, max_date.year-min_date.year])
