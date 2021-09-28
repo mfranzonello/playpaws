@@ -151,20 +151,47 @@ class Pictures:
 
         return mask
 
-    def get_text_image(self, text, font, color, font_size):
-        image_font = ImageFont.truetype(font, int(font_size))
+    def get_text_image(self, text_df, aspect, base=100):
+        H = int((text_df['y_round'].max() + 1) * base)
+        W = int(aspect[0] * H / aspect[1])
 
-        ascent, descent = image_font.getmetrics()
+        ppi = 72
 
-        W = image_font.getmask(text).getbbox()[2]
-        H = image_font.getmask(text).getbbox()[3] + descent
+        max_x = text_df['x'].max()
 
+        text_df['image_font'] = text_df.apply(lambda x: ImageFont.truetype(x['font_name'], int(x['font_size'] * ppi)), axis=1)
+        text_df['length'] = text_df.apply(lambda x: x['image_font'].getmask(x['text']).getbbox()[2], axis=1)
+        
+        text_df['total_length'] = text_df['length'].add(date2num(max_x) - date2num(text_df['x']))
+        max_x_i = text_df[text_df['total_length'] == text_df['total_length'].max()].index[0]
+
+        X = (date2num(max_x) - date2num(text_df['x'][max_x_i]))
+        x_ratio = (W - text_df['length'][max_x_i]) / X
+        
         image = Image.new('RGBA', (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
 
-        draw.text((0, -descent), text, fill=color + tuple([255]), font=image_font)
-        
-        return image
+        for i in text_df.index:
+            x_text = x_ratio * (date2num(max_x) - date2num(text_df['x'][i]))
+            y_text = text_df[['y_round', 'y_song']].sum(1)[i] * base
+
+            draw.text((x_text, y_text), text_df['text'][i],
+                      fill=text_df['font_color'][i], font=text_df['image_font'][i])
+
+        image.save(f'c:/users/{getlogin()}/desktop/test.png')
+        print(text_df[['text', 'length', 'total_length']])
+         
+        ##ascent, descent = image_font.getmetrics()
+
+        ##W = image_font.getmask(text).getbbox()[2]
+        ##H = image_font.getmask(text).getbbox()[3] + descent
+
+        ##image = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        ##draw = ImageDraw.Draw(image)
+
+        ##draw.text((0, -descent), text, fill=color + tuple([255]), font=image_font)
+
+        return image, X
     
 class Plotter:
     color_wheel = 255
@@ -196,7 +223,10 @@ class Plotter:
     #figure_size = (16, 10)
     figure_title = 'MusicLeague'
 
-    subplot_aspect = ((1 + 5**0.5) / 2, 1)
+    subplot_aspects = {'golden': ((1 + 5**0.5) / 2, 1),
+                       'top_songs': (2, 1),
+                       }
+
     ranking_size = 0.75
 
     def __init__(self, database):
@@ -433,7 +463,7 @@ class Plotter:
         n_rounds = len(board.columns)
         n_players = len(board.index)
         aspect = (n_rounds - 1, n_players - 1)
-        scaling = [a / b * aspect[1] for a, b in zip(self.subplot_aspect, aspect)]
+        scaling = [a / b * aspect[1] for a, b in zip(self.subplot_aspects['golden'], aspect)]
 
         xs = [x * scaling[0] for x in range(1, n_rounds + 1)]
 
@@ -643,7 +673,11 @@ class Plotter:
         print('\t...songs')
         rounds = list(results_df['round'].unique())
         n_rounds = len(rounds)
-        results_df['text'] = results_df.apply(lambda x: ' + '.join(x['artist']) + ' - "' + x['title'] + '"', axis=1)
+
+        li = [1/(n+2) for n in range(n_rounds)]
+        li2 = [l / sum(li) for l in li]
+
+        results_df['text'] = results_df.apply(lambda x: ' + '.join(x['artist']) + ' "' + x['title'] + '"', axis=1)
         results_df['y_round'] = results_df['round'].map({d: rounds.index(d) for d in results_df['round'].unique()})
         results_df['y_song'] = (1-1/(2**results_df['song_id'].map({d: list(results_df[results_df['round']==r]['song_id'].unique()).index(d) \
             for r in rounds for d in results_df[results_df['round']==r]['song_id'].unique()})))
@@ -652,39 +686,47 @@ class Plotter:
         max_date = results_df['release_date'].max()
         dates = to_datetime(results_df['release_date'])
         outlier_date = dates.where(dates > dates.mean() - dates.std()).min()
-        min_date = max_date.replace(year=outlier_date.year) #max(max_date.year - 10, results_df['release_date'].min().year))
+        min_date = max_date.replace(year=outlier_date.year)
 
         rgb_df = self.grade_colors(self.get_dfc_colors('purple', 'red', 'orange', 'yellow',
                                                         'green', 'blue', 'dark_blue'))
-        rgb_df_2 = self.grade_colors(self.get_scatter_colors(self.get_dfc_colors('purple', 'red', 'orange', 'yellow',
-                                                                                 'green', 'blue', 'dark_blue'), self.color_wheel)) 
 
-        fontsize = 100 / n_rounds
+        results_df['x'] = results_df.apply(lambda x: max(min_date, x['release_date']), axis=1)
+        results_df['font_size'] = (1 - results_df['y_song']) / 2
+        results_df['font_name'] = results_df.apply(lambda x: self.bold_font if x['closed'] else self.image_font, axis=1)
+        results_df['font_color'] = results_df.apply(lambda x: self.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max()),
+                                                    axis=1)
+        base = 100
+        image, X = self.pictures.get_text_image(results_df, self.subplot_aspects['top_songs'], base=base)
+        ax.imshow(image)
+        ax.set_yticks([(n + 0.5) * base for n in range(n_rounds)])
+        ax.set_ylabels(rounds, rot=90)
+        #ax.set_xlim()
 
         #ax.secondary_xaxis('top')
         #ax.right_ax.set_xlim([0, max_date.year-min_date.year])
                                  
-        for i in results_df.index:
-            x = max(min_date, results_df['release_date'][i])
-            y = results_df['y'][i]
-            s = results_df['text'][i]
-            size = fontsize * 2 * (1 - results_df['y_song'][i])
-            #text_font = self.bold_font if results_df['closed'][i] else self.image_font
-            fontweight = 'bold' if results_df['closed'][i] else None
-            percent = float(results_df['points'][i] / results_df[results_df['round']==results_df['round'][i]]['points'].max())
-            #font_color = self.get_rgb(rgb_df, percent, astype=int)
-            color = self.get_rgb(rgb_df_2, percent, astype=float)
+        ##for i in results_df.index:
+        ##    x = max(min_date, results_df['release_date'][i])
+        ##    y = results_df['y'][i]
+        ##    s = results_df['text'][i]
+        ##    size = fontsize * 2 * (1 - results_df['y_song'][i])
+        ##    #text_font = self.bold_font if results_df['closed'][i] else self.image_font
+        ##    fontweight = 'bold' if results_df['closed'][i] else None
+        ##    percent = float(results_df['points'][i] / results_df[results_df['round']==results_df['round'][i]]['points'].max())
+        ##    #font_color = self.get_rgb(rgb_df, percent, astype=int)
+        ##    color = self.get_rgb(rgb_df_2, percent, astype=float)
 
-            ##image = self.pictures.get_text_image(s, text_font, font_color, size)
-            ##extent = [date2num(x), date2num(x) + 10, #date2num(date(x.year - 10, x.month, x.day)), #image.size[0]
-            ##          y, y + 0.5]# image.size[1]]
-            ##print(f'extent: {extent}')
-            ##ax.imshow(image, extent=extent)
+        ##    ##image = self.pictures.get_text_image(s, text_font, font_color, size)
+        ##    ##extent = [date2num(x), date2num(x) + 10, #date2num(date(x.year - 10, x.month, x.day)), #image.size[0]
+        ##    ##          y, y + 0.5]# image.size[1]]
+        ##    ##print(f'extent: {extent}')
+        ##    ##ax.imshow(image, extent=extent)
 
-            ax.text(x=x, y=y, s=s, fontweight=fontweight, size=size, color=color, verticalalignment='top')
+        ##    ax.text(x=x, y=y, s=s, fontweight=fontweight, size=size, color=color, verticalalignment='top')
 
-        ax.set_xlim(max_date, min_date)
-        ax.set_ylim(n_rounds, 0)
+        ##ax.set_xlim(max_date, min_date)
+        ##ax.set_ylim(n_rounds, 0)
 
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
