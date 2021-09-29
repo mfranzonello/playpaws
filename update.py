@@ -30,6 +30,7 @@ class Updater:
 
         # store home page information
         for league_title, league_url in zip(league_titles, league_urls):
+            print(f'Investigating {league_title}...')
             
             # get information from league page
             results = self.update_league(league_title, league_url)
@@ -49,7 +50,7 @@ class Updater:
 
         _, round_titles, \
             player_names, player_urls, player_imgs, \
-            round_urls, round_dates, round_creators = results # _ = league_title
+            round_urls, round_dates, round_creators, round_playlists = results # _ = league_title
 
         if len(round_titles):
 
@@ -58,7 +59,7 @@ class Updater:
 
             league_creator = self.database.get_league_creator(league_title)
             rounds_df = rounds.sub_rounds(round_titles, league_creator=league_creator,
-                                          url=round_urls, date=round_dates, creator=round_creators)
+                                          url=round_urls, date=round_dates, creator=round_creators, playlist_url=round_playlists)
             self.database.store_rounds(rounds_df, league_title)
 
         if(len(player_names)):
@@ -92,7 +93,7 @@ class Updater:
                 _, _, artists, titles, submitters, \
                     song_ids, player_names, vote_counts, vote_totals, track_urls = results # _, _ = league_title, round_title
                 
-                next_song_ids = self.database.get_song_ids(league_title, round_title, artists, titles) # -> consider replacing existing song_ids?
+                next_song_ids = self.database.get_song_ids(league_title, round_title, track_urls) # -> consider replacing existing song_ids?
 
                 # construct details with updates for new and open
                 songs_df = songs.sub_round(round_title, artists, titles, track_urls, submitters, next_song_ids)

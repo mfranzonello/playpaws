@@ -100,7 +100,10 @@ class Votes(Results):
 
     def sub_round(self, song_ids, player_names, vote_counts, vote_totals, next_song_ids):
         votes_df = DataFrame(columns=Votes.columns)
-        votes_df['song_id'] = [next_song_ids[i-1] for i in song_ids]
+        if song_ids:
+            votes_df['song_id'] = [next_song_ids[i-1] for i in song_ids]
+        else:
+            votes_df['song_id'] = next_song_ids
         
         if len(player_names):
             votes_df['player'] = player_names

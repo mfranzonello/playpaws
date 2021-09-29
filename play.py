@@ -36,4 +36,4 @@ def main(update_db=True, analyze_data=True, plot_data=True):
             plotter.add_anaylses()
             plotter.plot_results()
 
-main(update_db=False, analyze_data=True, plot_data=True)
+main(update_db=True, analyze_data=True, plot_data=True)

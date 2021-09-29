@@ -665,7 +665,8 @@ class Plotter:
     def plot_tags(self, ax, tags_df, mask_src):
         print('\t...genres')
         mask = self.pictures.get_mask_array(mask_src)
-        text = Counter(tags_df.sum().sum())
+
+        text = Counter(tags_df.dropna().sum().sum())
         wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)
         ax.imshow(wordcloud, interpolation="bilinear")
         ax.axis('off')

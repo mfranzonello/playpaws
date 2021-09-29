@@ -10,11 +10,11 @@ class Database:
     tables = {# MusicLeague data
               'Leagues': {'keys': ['league'], 'values': ['creator', 'date', 'url']},
               'Players': {'keys': ['player'], 'values': ['username', 'src', 'uri', 'followers']},
-              'Rounds': {'keys': ['league', 'round'], 'values': ['creator', 'date', 'status', 'url']},
+              'Rounds': {'keys': ['league', 'round'], 'values': ['creator', 'date', 'status', 'url', 'playlist_url']},
               'Songs': {'keys': ['league', 'song_id'], 'values': ['round', 'artist', 'title', 'submitter', 'track_url']},    
               'Votes': {'keys': ['league', 'player', 'song_id'], 'values': ['vote']},
 
-              ##'Playlists': {'keys': ['url'], 'values': []},
+              'Playlists': {'keys': ['url'], 'values': ['title', 'src']},
 
               # Spotify data
               'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'title', 'artist_uri', 'album_uri', 'explicit', 'popularity',
@@ -22,8 +22,8 @@ class Database:
                                                      'danceability', 'energy', 'liveness', 'valence',
                                                      'speechiness', 'acousticness', 'instrumentalness',
                                                      'scrobbles', 'listeners', 'top_tags']},
-              'Artists': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'followers']},
-              'Albums': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'release_date']},
+              'Artists': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'followers', 'src']},
+              'Albums': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'release_date', 'src']},
               'Genres': {'keys': ['name'], 'values': ['category']},
               
               # analytics
@@ -176,7 +176,7 @@ class Database:
 
     def find_existing(self, df_store, df_existing, keys):
         # split dataframe between old and new rows
-        links = ['(' + ' & '.join(f'({key} == ' + self.needs_quotes(key_value) + ')' \
+        links = ['(' + ' & '.join(f'({key} ' + ('!=' if isnull(key_value) else '==') + ' ' + (f'{key}' if isnull(key_value) else self.needs_quotes(key_value)) + ')' \
             for key, key_value in zip(keys, df_existing[keys].loc[i])) + ')' \
             for i in df_existing.index]
         
@@ -541,7 +541,7 @@ class Database:
 
 
     def get_tracks_update_sp(self):
-        sql = (f'SELECT DISTINCT track_url FROM {self.table_name("Songs")} AS url '
+        sql = (f'SELECT DISTINCT track_url AS url FROM {self.table_name("Songs")} '
                f'WHERE track_url NOT IN '
                f'(SELECT url FROM {self.table_name("Tracks")})'
                )
@@ -704,8 +704,9 @@ class Database:
             sql = (f'SELECT s.round, {jsons} '
                    f'FROM {self.table_name("Songs")} AS s '
                    f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
+                   f'LEFT JOIN "mfranzonello/playpaws"."rounds" AS r ON s.round = r.round '
                    f'WHERE s.league = {self.needs_quotes(league_title)} '
-                   f'GROUP BY s.round;'
+                   f'GROUP BY s.round, r.date ORDER BY r.date;'
                    )
 
         features_df = read_sql(sql, self.connection)

@@ -61,9 +61,12 @@ class Stripper:
     league_types = {'league': {'tag': 'span',
                                'attrs': {'class': 'league-title'},
                                },
+                    'round_open': {'tag': 'span',
+                                   'attrs': {'class': 'round-title'},
+                                   },
                     'round': {'tag': 'a',
                               'attrs': {'class': 'round-title'},
-                              'href': 'l/',
+                              'href': True,
                               'multiple': {'title': {},
                                            'url': {'href': True},
                                            },
@@ -72,7 +75,7 @@ class Stripper:
                                         'attrs': {'class': 'action-link', 
                                                   'title': 'Round Results',
                                                   },
-                                        'href': 'l/',
+                                        'href': True,
                                         },
                     'round_dates': {'tag': 'span',
                                     'attrs': {'data-timestamp': True},
@@ -83,6 +86,11 @@ class Stripper:
                                        'remove': {'type': 'in',
                                                   'rems': [f'{b} by ' for b in ['Chosen', 'Submitted']]},
                                        },
+                    'playlists': {'tag': 'a',
+                                  'attrs': {'class': 'action-link',
+                                            'title': 'Listen to Playlist'},
+                                  'href': True,
+                                  },
                     'player': {'tag': 'a',
                                'href': 'user/',
                                'multiple': {'name': {'title': True},
@@ -124,6 +132,10 @@ class Stripper:
                              'attrs': {'class': 'vote-count'},
                              'value': True,
                              },
+                   'points': {'tag': 'span',
+                              'attrs': {'class': 'point-count'},
+                              'value': True,
+                              },
                    'people': {'tag': 'span',
                               'attrs': {'class': 'voter-count'},
                               'remove': {'type': 'start',
@@ -267,13 +279,24 @@ class Stripper:
 
     def extract_league(self, results):
         league_title = results['league'][0]
+        
+        rounds_open = results['round_open']
+        rounds_front, rounds_back = rounds_open[:(len(rounds_open)+1)//2], rounds_open[(len(rounds_open)+1)//2:]
+        round_titles_all = rounds_front + [round['title'] for round in results['round']] + rounds_back
 
-        round_titles_all = [round['title'] for round in results['round']]
         viewable_urls = results['viewable_rounds']
         # only count URLs for rounds with results
-        round_urls_all = [round['url'] if (round['url'] in viewable_urls) else None for round in results['round']]
+        round_urls_all = viewable_urls #[round['url'] if (round['url'] in viewable_urls) else None for round in results['round']]
+        t2u = len(round_titles_all) - len(round_urls_all)
+        round_urls_all = [None]*((t2u+1)//2) + round_urls_all + [None]*(t2u//2)
+        
         round_dates_all = results['round_dates']
         round_creators_all = [creator if len(creator) else None for creator in results['round_creators'] if creator is not None] #[creator for creator in results['round_creators'] if creator is not None]
+        
+        round_playlists_all = results['playlists']
+
+        ##input(f'{round_titles_all}, {viewable_urls}, {round_urls_all}, {round_dates_all}, {round_creators_all}, {round_playlists_all}')
+
 
         round_dates_all = round_dates_all[(len(round_dates_all)-len(round_titles_all)+1)//2:\
             (len(round_dates_all)-len(round_titles_all)+1)//2+len(round_titles_all)]
@@ -286,6 +309,10 @@ class Stripper:
         round_urls = [round_urls_all[round_titles_all.index(s)] for s in round_title_set]
         round_dates = [round_dates_all[round_titles_all.index(s)] for s in round_title_set]
         round_creators = [round_creators_all[round_titles_all.index(s)] for s in round_title_set]
+
+        t2p = len(round_titles_all) - len(round_playlists_all)
+        round_playlists_all = [None]*((t2p+1)//2) + round_playlists_all + [None]*(t2p//2)
+        round_playlists = [round_playlists_all[round_titles_all.index(s)] for s in round_title_set]
         
         player_names = [player['name'] for player in results['player']]
         player_urls = [player['url'] for player in results['player']]
@@ -293,7 +320,7 @@ class Stripper:
 
         return league_title, round_titles, \
             player_names, player_urls, player_imgs, \
-            round_urls, round_dates, round_creators
+            round_urls, round_dates, round_creators, round_playlists
 
     def extract_round(self, results):
         league_title = results['league'][0]
@@ -305,7 +332,8 @@ class Stripper:
         track_urls = [track['url'] for track in tracks]
         submitters = results['submitter'][0::2]
 
-        vote_totals = results['people']
+        voter_totals = results['people']
+        point_totals = results['points']
         player_names = []
         vote_counts = []
         song_ids = []
@@ -328,4 +356,4 @@ class Stripper:
 
             num += count*2
 
-        return league_title, round_title, artists, titles, submitters, song_ids, player_names, vote_counts, vote_totals, track_urls
+        return league_title, round_title, artists, titles, submitters, song_ids, player_names, vote_counts, point_totals, track_urls #voter_totals

@@ -49,6 +49,7 @@ class Spotter:
                     'genres': results['genres'],
                     'popularity': results['popularity'],
                     'followers': results['followers']['total'],
+                    'src': results['images'][0]['url'],
                     }
         return elements
 
@@ -60,6 +61,7 @@ class Spotter:
                     'genres': results['genres'],
                     'popularity': results['popularity'],
                     'release_date': self.get_date(results['release_date'], results['release_date_precision']),
+                    'src': results['images'][0]['url'],
                     }
         return elements
 
@@ -120,7 +122,7 @@ class Spotter:
         return df_appended
 
     def get_updates(self, df, func, key='uri'):
-        df_update = df[df.isnull().any(1)].copy() # what can be used besides copy?
+        df_update = df.copy()#[df.isnull().any(1)].copy() # what can be used besides copy?
 
         df_elements = [func(uri) for uri in df_update[key]]
         df_to_update = DataFrame(df_elements, index=df_update.index)
@@ -142,7 +144,9 @@ class Spotter:
         tracks_db = self.database.get_tracks_update_sp()
         
         if len(tracks_db):
-            tracks_update = self.get_updates(tracks_db, self.get_audio_features, key='url') #tracks_update_0
+            tracks_update_1 = self.get_updates(tracks_db, self.get_track_elements, key='url')
+            tracks_update_2 = self.get_updates(tracks_db, self.get_audio_features, key='url') #tracks_update_0
+            tracks_update = tracks_update_1.merge(tracks_update_2, on='url')
             self.database.store_tracks(tracks_update)
 
     def update_db_artists(self):
@@ -167,7 +171,7 @@ class Spotter:
 
         if len(genres_db):
             genres_update = genres_db
-            self.store_albums(genres_update)
+            self.database.store_genres(genres_update)
 
 
 class FMer:
