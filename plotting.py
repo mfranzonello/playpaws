@@ -12,7 +12,7 @@ from matplotlib import rcParams
 from matplotlib.dates import date2num, num2date
 from wordcloud import WordCloud, ImageColorGenerator
 from numpy import asarray
-import streamlit
+import streamlit as st
 
 from streaming import streamer
 
@@ -69,6 +69,7 @@ class Pictures:
         self.crop_player_images()
         self.mask_url = 'https://1drv.ms/u/s!AmvtWraFDWXijohogLktabekPCkCFw'
         
+    @st.cache(suppress_st_warning=True)
     def download_images(self):
         images = {}
 
@@ -181,7 +182,7 @@ class Pictures:
                       fill=text_df['font_color'][i], font=text_df['image_font'][i])
 
         ##image.save(f'c:/users/{getlogin()}/desktop/test.png')
-        streamer.print(text_df[['text', 'length', 'total_length']])
+        print(text_df[['text', 'length', 'total_length']])
          
         ##ascent, descent = image_font.getmetrics()
 
@@ -387,7 +388,7 @@ class Plotter:
                     members_df['y'].max() + self.name_offset + self.font_size)
         ax.axis('off')
 
-        streamlit.pyplot(ax.figure)
+        st.write(ax.figure)
 
     def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
         plot_size = size=(s_p/2)**0.5/pi/10
@@ -484,7 +485,7 @@ class Plotter:
         ax.set_yticks(yticks)
         ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
 
-        streamlit.pyplot(ax.figure)
+        st.pyplot(ax.figure)
 
     def plot_board_player(self, ax, xs, player, board, lowest_rank):
         ys = board.where(board > 0).loc[player]
@@ -546,7 +547,7 @@ class Plotter:
         ax.tick_params(axis='both', which='both',
                        bottom='off', top='off', left='off', right='off') # get rid of ticks?
 
-        streamlit.pyplot(ax.figure)
+        st.pyplot(ax.figure)
 
     def plot_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size):
         ys = [y] * len(xs)
@@ -641,7 +642,7 @@ class Plotter:
         ##ax.yaxis.set_ticks_position('none') #'bottom')
         ##ax.minorticks_off()
 
-        streamlit.pyplot(ax.figure)
+        st.write(ax.figure)
 
     def convert_axes(self, ax, z, y=True):
         if y:
@@ -664,7 +665,7 @@ class Plotter:
         ax.imshow(wordcloud, interpolation="bilinear")
         ax.axis('off')
 
-        streamlit.pyplot(ax.figure)
+        st.write(ax.figure)
 
     def plot_top_songs(self, ax, results_df, years=10):
         streamer.print('\t...songs')
@@ -732,7 +733,7 @@ class Plotter:
         ##ax.set_xlim(max_date, min_date)
         ##ax.set_ylim(n_rounds, 0)
 
-        streamlit.pyplot(ax.figure)
+        st.write(ax.figure)
 
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
