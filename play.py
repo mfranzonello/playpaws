@@ -34,7 +34,7 @@ def main(update_db=True, analyze_data=True, plot_data=True):
         # plot results for all leagues
         if plot_data:
             plotter = Plotter(database)
-            plotter.add_anaylses()
+            plotter.add_analyses()
             plotter.plot_results()
 
 main(update_db=False, analyze_data=False, plot_data=True)

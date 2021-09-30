@@ -331,54 +331,31 @@ class Plotter:
         league_title = streamlit.selectbox('Pick a league to view',
                                            (title for title in self.league_titles))
 
-        streamer.print('Getting results from database...')
-        db_calls = [self.database.get_members,
-                        self.database.get_rankings,
-                        self.database.get_boards,
-                        self.database.get_dirtiness,
-                        self.database.get_discovery_scores,
-                        self.database.get_audio_features,
-                        self.database.get_genres_and_tags,
-                        self.database.get_mask,
-                        self.database.get_song_results,
-                        ]
-
-        db_dfs = [db_call(league_title) for db_call in db_calls]
-        (members_df,
-         rankings_df,
-         boards_df,
-         dirty_df,
-         discoveries_df,
-         features_df,
-         tags_df,
-         masks_df,
-         results_df) = db_dfs
-
         streamer.print(f'Preparing plot for {league_title}...')
 
         fig = plt.figure()
         ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_members(ax, self.members_list[n])
+        self.plot_members(ax, self.database.get_members(league_title))
 
         fig = plt.figure()
         ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_boards(ax, self.boards_list[n])
+        self.plot_boards(ax, self.database.get_boards(league_title))
 
         fig = plt.figure()
         ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_rankings(ax, self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
+        self.plot_rankings(ax, self.database.get_rankings(league_title), self.database.get_dirtiness(league_title), self.database.get_discovery_scores(league_title))
 
         fig = plt.figure()
         ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_features(ax, self.features_list[n])
+        self.plot_features(ax, self.database.get_audio_features(league_title))
 
         fig = plt.figure()
         ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_tags(ax, self.tags_list[n], self.masks_list[n])
+        self.plot_tags(ax, self.database.get_genres_and_tags(league_title), self.database.get_mask(league_title))
 
         fig = plt.figure()
         ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_top_songs(ax, self.results_list[n])
+        self.plot_top_songs(ax, self.database.get_song_results(league_title))
 
         streamer.clear_printer()
 
