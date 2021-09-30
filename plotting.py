@@ -69,7 +69,8 @@ class Pictures:
         self.crop_player_images()
         self.mask_url = 'https://1drv.ms/u/s!AmvtWraFDWXijohogLktabekPCkCFw'
         
-    @st.cache(suppress_st_warning=True)
+    @st.cache(suppress_st_warning=True,
+              hash_funcs={Image: lambda _: None})
     def download_images(self):
         images = {}
 
