@@ -293,40 +293,6 @@ class Plotter:
         else:
             self.league_titles = []
 
-
-    def add_anaylses2(self):
-        streamer.print('Getting analyses...')
-        analyses_df = self.database.get_analyses()
-
-        if len(analyses_df):
-            league_titles = analyses_df['league']
-
-            self.league_titles = league_titles
-
-            db_calls = [self.database.get_members,
-                        self.database.get_rankings,
-                        self.database.get_boards,
-                        self.database.get_dirtiness,
-                        self.database.get_discovery_scores,
-                        self.database.get_audio_features,
-                        self.database.get_genres_and_tags,
-                        self.database.get_mask,
-                        self.database.get_song_results,
-                        ]
-
-            db_lists = [[db_call(league_title) for league_title in league_titles] for db_call in db_calls]
-            (self.members_list,
-             self.rankings_list,
-             self.boards_list,
-             self.dirty_list,
-             self.discoveries_list,
-             self.features_list,
-             self.tags_list,
-             self.masks_list,
-             self.results_list) = db_lists
-             
-            self.pictures = Pictures(self.database)
-
     def plot_results(self):
         league_title = streamlit.sidebar.selectbox('Pick a league to view', self.league_titles)
 
@@ -359,71 +325,10 @@ class Plotter:
         streamer.clear_printer()
 
 
-    def plot_results2(self):
-        nrows = 2
-        ncols = 3
-        n_leagues = len(self.members_list)
-        
-        #fig = plt.figure()
-
-        for n in range(n_leagues):
-            #fig, axs = plt.subplots(nrows, ncols)
-
-            # set league title
-            league_title = self.league_titles[n]
-            ##self.plot_title(fig, league_title)
-        
-            streamer.print(f'Preparing plot for {league_title}...')
-            fig = plt.figure()
-            ax = fig.add_axes([1, 1, 1, 1])
-            self.plot_members(ax, self.members_list[n])
-            #fig.delaxes(ax)
-
-            fig = plt.figure()
-            ax = fig.add_axes([1, 1, 1, 1])
-            self.plot_boards(ax, self.boards_list[n])
-            #fig.delaxes(ax)
-
-            fig = plt.figure()
-            ax = fig.add_axes([1, 1, 1, 1])
-            self.plot_rankings(ax, self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
-            #fig.delaxes(ax)
-
-            fig = plt.figure()
-            ax = fig.add_axes([1, 1, 1, 1])
-            self.plot_features(ax, self.features_list[n])
-            #fig.delaxes(ax)
-
-            fig = plt.figure()
-            ax = fig.add_axes([1, 1, 1, 1])
-            self.plot_tags(ax, self.tags_list[n], self.masks_list[n])
-            #fig.delaxes(ax)
-
-            fig = plt.figure()
-            ax = fig.add_axes([1, 1, 1, 1])
-            self.plot_top_songs(ax, self.results_list[n])
-            #fig.delaxes(ax)
-
-            ##self.plot_members(axs[0][0], self.members_list[n])
-            ##self.plot_boards(axs[1][1], self.boards_list[n])
-            ##self.plot_rankings(axs[1][0], self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
-            ##self.plot_features(axs[0][1], self.features_list[n])
-            ##self.plot_tags(axs[0][2], self.tags_list[n], self.masks_list[n])
-            ##self.plot_top_songs(axs[1][2], self.results_list[n])
-
-            ##streamlit.pyplot(fig) ## change to print axs only
-
-        streamer.clear_printer()
-        #streamer.print('Generating plot...')
-        
-        #plt.show()
-
     def plot_title(self, fig, title):
         fig.suptitle(self.texter.clean_text(title), fontweight='bold')
         plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {self.texter.clean_text(title)}')
 
-        # set figure size
-        #fig.set_size_inches(*self.figure_size)
 
     def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5,
                    image_size=(0, 0), padding=0, text=None,
