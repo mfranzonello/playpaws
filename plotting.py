@@ -283,12 +283,24 @@ class Plotter:
 
         return rgb
 
-    def add_anaylses(self):
+    def add_analyses(self):
+        streamer.print('Getting analyses...')
+        analyses_df = self.database.get_analyses()
+
+        if len(analyses_df):
+            self.league_titles = analyses_df['league']
+            self.pictures = Pictures(self.database)
+        else:
+            self.league_titles = []
+
+
+    def add_anaylses2(self):
         streamer.print('Getting analyses...')
         analyses_df = self.database.get_analyses()
 
         if len(analyses_df):
             league_titles = analyses_df['league']
+
             self.league_titles = league_titles
 
             db_calls = [self.database.get_members,
@@ -316,6 +328,62 @@ class Plotter:
             self.pictures = Pictures(self.database)
 
     def plot_results(self):
+        league_title = streamlit.selectbox('Pick a league to view',
+                                           (title for title in self.league_titles))
+
+        streamer.print('Getting results from database...')
+        db_calls = [self.database.get_members,
+                        self.database.get_rankings,
+                        self.database.get_boards,
+                        self.database.get_dirtiness,
+                        self.database.get_discovery_scores,
+                        self.database.get_audio_features,
+                        self.database.get_genres_and_tags,
+                        self.database.get_mask,
+                        self.database.get_song_results,
+                        ]
+
+        db_dfs = [db_call(league_title) for db_call in db_calls]
+        (members_df,
+         rankings_df,
+         boards_df,
+         dirty_df,
+         discoveries_df,
+         features_df,
+         tags_df,
+         masks_df,
+         results_df) = db_dfs
+
+        streamer.print(f'Preparing plot for {league_title}...')
+
+        fig = plt.figure()
+        ax = fig.add_axes([1, 1, 1, 1])
+        self.plot_members(ax, self.members_list[n])
+
+        fig = plt.figure()
+        ax = fig.add_axes([1, 1, 1, 1])
+        self.plot_boards(ax, self.boards_list[n])
+
+        fig = plt.figure()
+        ax = fig.add_axes([1, 1, 1, 1])
+        self.plot_rankings(ax, self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
+
+        fig = plt.figure()
+        ax = fig.add_axes([1, 1, 1, 1])
+        self.plot_features(ax, self.features_list[n])
+
+        fig = plt.figure()
+        ax = fig.add_axes([1, 1, 1, 1])
+        self.plot_tags(ax, self.tags_list[n], self.masks_list[n])
+
+        fig = plt.figure()
+        ax = fig.add_axes([1, 1, 1, 1])
+        self.plot_top_songs(ax, self.results_list[n])
+
+        streamer.clear_printer()
+
+
+    def plot_results2(self):
         nrows = 2
         ncols = 3
         n_leagues = len(self.members_list)
