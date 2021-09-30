@@ -43,7 +43,7 @@ class Database:
    
     def __init__(self, server, structure): #credentials
         #credentials_db = BITIO_DBNAME #credentials[server['db_name']]
-        self.db = f'"{getenv("BITIO_USERNAME")}/{getenv("BITIO_DBNAME}")"'
+        self.db = f'"{getenv("BITIO_USERNAME")}/{getenv("BITIO_DBNAME")}"'
         #self.db = f'"{credentials_db["username"]}/{credentials_db["db_name"]}"'
         engine_string = f'postgresql://{getenv("BITIO_USERNAME")}{getenv("BITIO_ADD_ON")}:{getenv("BITIO_PASSWORD")}@{getenv("BITIO_HOST")}'
         #engine_string = f'postgresql://{credentials_db["username"]}{credentials_db["add_on"]}:{credentials_db["password"]}@{credentials_db["host"]}'
