@@ -57,7 +57,7 @@ class Database:
         self.values = {table_name: self.tables[table_name]['values'] for table_name in self.tables}
         self.columns = {table_name: self.tables[table_name]['keys'] + self.tables[table_name]['values'] for table_name in self.tables}
  
-        connection = self.connect(engine_string)
+        self.connection = self.connect(engine_string)
         ##self.engine = create_engine(engine_string)
         ##self.connection = self.engine.connect()
         streamer.print(f'\t...success!')
