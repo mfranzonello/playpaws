@@ -7,8 +7,8 @@ from update import Updater
 from plotting import Printer, Plotter
 from streaming import streamer
 
-#@st.cache(suppress_st_warning=True)
-def connect_to_database():
+@st.cache(suppress_st_warning=True)
+def connect_to_database(setter):
     database = Database(setter.server, setter.structure)
     return database
 
@@ -18,7 +18,8 @@ def main(update_db=True, analyze_data=True, plot_data=True):
     printer = Printer('display.max_columns', 'display.max_rows')
 
     # prepare database
-    database = connect_to_database()
+    
+    database = connect_to_database(setter)
     #database = Database(setter.server, setter.structure) #credentials
     
     # update data in database from web
