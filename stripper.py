@@ -7,6 +7,8 @@ import requests
 import browser_cookie3 as browsercookie
 from bs4 import BeautifulSoup
 
+from streaming import streamer
+
 class Scraper:
     def __init__(self, stripper):
         self.stripper = stripper
@@ -15,7 +17,7 @@ class Scraper:
         self.cj = browsercookie.chrome(domain_name=self.main_url.replace('https://', ''))
         
     def get_html_text(self, url):
-        print(f'\t...requesting {url}')
+        streamer.print(f'\t...requesting {url}')
 
         if url[0] == '/':
             url = f'{self.main_url}{url}'
@@ -252,7 +254,7 @@ class Stripper:
 
     def extract_results(self, html_text, page_type) -> tuple:
         # extract results from HTML tags
-        print(f'\t\t...extracting results')
+        streamer.print(f'\t\t...extracting results')
         results = self.get_results(html_text, page_type)
         
         if page_type == 'home':

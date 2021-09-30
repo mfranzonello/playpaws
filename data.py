@@ -6,6 +6,8 @@ from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame, isnull
 from pandas.api.types import is_numeric_dtype
 
+from streaming import streamer
+
 class Database:
     tables = {# MusicLeague data
               'Leagues': {'keys': ['league'], 'values': ['creator', 'date', 'url']},
@@ -49,10 +51,10 @@ class Database:
         self.values = {table_name: self.tables[table_name]['values'] for table_name in self.tables}
         self.columns = {table_name: self.tables[table_name]['keys'] + self.tables[table_name]['values'] for table_name in self.tables}
  
-        print(f'Connecting to database {self.db}...')
+        streamer.print(f'Connecting to database {self.db}...')
         self.engine = create_engine(engine_string)
         self.connection = self.engine.connect()
-        print(f'\t...success!')
+        streamer.print(f'\t...success!')
 
     def table_name(self, table_name:str) -> str:
         full_table_name = f'{self.db}."{table_name.lower()}"'
@@ -411,9 +413,9 @@ class Database:
         # remove placeholder votes when a round closes
         sql = (f'DELETE FROM {self.table_name("Votes")} AS v '
                f'WHERE (v.player IS NULL) AND (v.song_id IN '
-               f'(SELECT s.song_id FROM {self.table_name("Songs")} AS s'
-               f'WHERE (s.league == {self.needs_quotes(league_title)}) '
-               f'AND (s.round == {self.needs_quotes(round_title)})));'
+               f'(SELECT s.song_id FROM {self.table_name("Songs")} AS s '
+               f'WHERE (s.league = {self.needs_quotes(league_title)}) '
+               f'AND (s.round = {self.needs_quotes(round_title)})));'
                )
 
         self.execute_sql(sql)

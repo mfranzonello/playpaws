@@ -6,6 +6,8 @@ from spotipy.oauth2 import SpotifyClientCredentials
 from pylast import LastFMNetwork
 from pandas import DataFrame
 
+from streaming import streamer
+
 class Spotter:
     audio_features = ['danceability',
                       'energy',
@@ -26,8 +28,9 @@ class Spotter:
         self.sp = None
 
     def connect_to_spotify(self):
-        print('Connecting to Spotify API...')
-        self.sp = Spotify(client_credentials_manager=SpotifyClientCredentials(**self.credentials))
+        streamer.print('Connecting to Spotify API...')
+        self.sp = Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=self.credentials['client_id'],
+                                                                              client_secret=self.credentials['client_secret']))
 
     def get_track_elements(self, uri):
         results = self.sp.track(uri)
@@ -131,7 +134,7 @@ class Spotter:
         return df_update
 
     def update_db_players(self):
-        print('\t...updating user information')
+        streamer.print('\t...updating user information')
         players_db = self.database.get_players_update_sp()
 
         if len(players_db):
@@ -139,18 +142,18 @@ class Spotter:
             self.database.store_players(players_update)    
 
     def update_db_tracks(self):
-        print('\t...updating track information')
+        streamer.print('\t...updating track information')
         # get audio features information
         tracks_db = self.database.get_tracks_update_sp()
         
         if len(tracks_db):
             tracks_update_1 = self.get_updates(tracks_db, self.get_track_elements, key='url')
-            tracks_update_2 = self.get_updates(tracks_db, self.get_audio_features, key='url') #tracks_update_0
+            tracks_update_2 = self.get_updates(tracks_db, self.get_audio_features, key='url')
             tracks_update = tracks_update_1.merge(tracks_update_2, on='url')
             self.database.store_tracks(tracks_update)
 
     def update_db_artists(self):
-        print('\t...updating artist information')
+        streamer.print('\t...updating artist information')
         artists_db = self.database.get_artists_update_sp()
         
         if len(artists_db):
@@ -158,7 +161,7 @@ class Spotter:
             self.database.store_artists(artists_update)
 
     def update_db_albums(self):
-        print('\t...updating album information')
+        streamer.print('\t...updating album information')
         albums_db = self.database.get_albums_update_sp()
 
         if len(albums_db):
@@ -166,12 +169,33 @@ class Spotter:
             self.database.store_albums(albums_update)  
 
     def update_db_genres(self):
-        print('\t...updating genre information')
+        streamer.print('\t...updating genre information')
         genres_db = self.database.get_genres_update_sp()
 
         if len(genres_db):
             genres_update = genres_db
             self.database.store_genres(genres_update)
+
+
+    def get_playlist_uris(self, playlist_url):
+        results = self.sp.playlist(playlist_url)
+        uris = [r['track']['uri'] for r in results['tracks']['items']]
+        return uris
+
+    def create_playlist(self, name, image):
+        user_playlist_create(user, name, public=True, collaborative=False, description='')
+
+    def update_playlist(self, playlist_url, sublist_url):
+        streamer.print('\t...updating playlists')
+        
+        existing_uris = self.get_playlist_uris(playlist_url)
+        new_uris = self.get_playlist_uris(sublist_url)
+        update_uris = [uri for uri in new_uris if uri not in existing_uris]
+
+        self.sp.playlist_add_items(playlist_url, new_uris)
+
+        #playlist_cover_image(playlist_id)
+        #playlist_upload_cover_image(playlist_id, image_b64)
 
 
 class FMer:
@@ -181,7 +205,7 @@ class FMer:
         self.fm = None
 
     def connect_to_lastfm(self):
-        print('Connecting to LastFM API...')
+        streamer.print('Connecting to LastFM API...')
         self.fm = LastFMNetwork(**self.credentials)
 
         
@@ -211,7 +235,7 @@ class FMer:
     def get_track_info(self, artist, title):
         track = self.fm.get_track(artist, title)
 
-        print(f'{artist} - {title}')
+        streamer.print(f'{artist} - {title}')
 
         max_tags = 5
         top_tags = track.get_top_tags()
@@ -231,7 +255,7 @@ class FMer:
         self.update_db_tracks()
 
     def update_db_tracks(self):
-        print('\t...updating track information')
+        streamer.print('\t...updating track information')
         tracks_update_db = self.database.get_tracks_update_fm()
 
         # strip featured artists and remix call outs from track title

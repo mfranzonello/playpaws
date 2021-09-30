@@ -12,7 +12,9 @@ from matplotlib import rcParams
 from matplotlib.dates import date2num, num2date
 from wordcloud import WordCloud, ImageColorGenerator
 from numpy import asarray
-##import mpld3
+import streamlit
+
+from streaming import streamer
 
 class Printer:
     def __init__(self, *options):
@@ -71,10 +73,10 @@ class Pictures:
     def download_images(self):
         images = {}
 
-        print('Downloading profile images...')
+        streamer.print('Downloading profile images...')
         for i in self.players_df.index:
             player_name = self.players_df['player'][i]
-            print(f'\t...{player_name}')
+            streamer.print(f'\t...{player_name}')
 
             # download image
             src = self.players_df['src'][i]
@@ -87,7 +89,7 @@ class Pictures:
                 image = Image.open(fp)
             except UnidentifiedImageError:
                 # image is unloadable
-                print(f'unable to read image for {player_name}')
+                streamer.print(f'unable to read image for {player_name}')
                 image = None
 
             # store in images dictionary
@@ -146,7 +148,7 @@ class Pictures:
             image = Image.open(fp)
             mask = asarray(image)
         except UnidentifiedImageError:
-            print(f'can\'t open image at {src}')
+            streamer.print(f'can\'t open image at {src}')
             mask = None
 
         return mask
@@ -180,7 +182,7 @@ class Pictures:
                       fill=text_df['font_color'][i], font=text_df['image_font'][i])
 
         image.save(f'c:/users/{getlogin()}/desktop/test.png')
-        print(text_df[['text', 'length', 'total_length']])
+        streamer.print(text_df[['text', 'length', 'total_length']])
          
         ##ascent, descent = image_font.getmetrics()
 
@@ -317,26 +319,60 @@ class Plotter:
         nrows = 2
         ncols = 3
         n_leagues = len(self.members_list)
+        
+        #fig = plt.figure()
 
         for n in range(n_leagues):
-            fig, axs = plt.subplots(nrows, ncols)
+            #fig, axs = plt.subplots(nrows, ncols)
 
             # set league title
             league_title = self.league_titles[n]
-            self.plot_title(fig, league_title)
+            ##self.plot_title(fig, league_title)
         
-            print(f'Preparing plot for {league_title}...')
-            self.plot_members(axs[0][0], self.members_list[n])
-            self.plot_boards(axs[1][1], self.boards_list[n])
-            self.plot_rankings(axs[1][0], self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
-            self.plot_features(axs[0][1], self.features_list[n])
-            self.plot_tags(axs[0][2], self.tags_list[n], self.masks_list[n])
-            self.plot_top_songs(axs[1][2], self.results_list[n])
+            streamer.print(f'Preparing plot for {league_title}...')
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_members(ax, self.members_list[n])
+            #fig.delaxes(ax)
 
-        #mpld3.show()
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_boards(ax, self.boards_list[n])
+            #fig.delaxes(ax)
 
-        print('Generating plot...')
-        plt.show()
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_rankings(ax, self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
+            #fig.delaxes(ax)
+
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_features(ax, self.features_list[n])
+            #fig.delaxes(ax)
+
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_tags(ax, self.tags_list[n], self.masks_list[n])
+            #fig.delaxes(ax)
+
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_top_songs(ax, self.results_list[n])
+            #fig.delaxes(ax)
+
+            ##self.plot_members(axs[0][0], self.members_list[n])
+            ##self.plot_boards(axs[1][1], self.boards_list[n])
+            ##self.plot_rankings(axs[1][0], self.rankings_list[n], self.dirty_list[n], self.discoveries_list[n])
+            ##self.plot_features(axs[0][1], self.features_list[n])
+            ##self.plot_tags(axs[0][2], self.tags_list[n], self.masks_list[n])
+            ##self.plot_top_songs(axs[1][2], self.results_list[n])
+
+            ##streamlit.pyplot(fig) ## change to print axs only
+
+        streamer.clear_printer()
+        #streamer.print('Generating plot...')
+        
+        #plt.show()
 
     def plot_title(self, fig, title):
         fig.suptitle(self.texter.clean_text(title), fontweight='bold')
@@ -374,7 +410,7 @@ class Plotter:
 
     def plot_members(self, ax, members_df):
         # plot nodes for players
-        print('\t...relationships')
+        streamer.print('\t...relationships')
         x = members_df['x']
         y = members_df['y']
         player_names = members_df['player']
@@ -401,6 +437,8 @@ class Plotter:
         ax.set_ylim(members_df['y'].min() - self.name_offset - self.font_size,
                     members_df['y'].max() + self.name_offset + self.font_size)
         ax.axis('off')
+
+        streamlit.pyplot(ax.figure)
 
     def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
         plot_size = size=(s_p/2)**0.5/pi/10
@@ -460,7 +498,7 @@ class Plotter:
                  edgecolor='none', length_includes_head=True, zorder=2)
 
     def plot_boards(self, ax, board):
-        print('\t...rankings')
+        streamer.print('\t...rankings')
         n_rounds = len(board.columns)
         n_players = len(board.index)
         aspect = (n_rounds - 1, n_players - 1)
@@ -497,6 +535,8 @@ class Plotter:
         ax.set_yticks(yticks)
         ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
 
+        streamlit.pyplot(ax.figure)
+
     def plot_board_player(self, ax, xs, player, board, lowest_rank):
         ys = board.where(board > 0).loc[player]
         ds = [lowest_rank - d + 1 for d in board.where(board < 0).loc[player]]
@@ -521,7 +561,7 @@ class Plotter:
                     ax.text(x, d, display_name)
 
     def plot_rankings(self, ax, rankings, dirty_df, discovery_df):
-        print('\t...scores')
+        streamer.print('\t...scores')
         rankings_df = rankings.reset_index().pivot(index='player', columns='round', values='score').div(100)\
             .reindex(columns=rankings.index.get_level_values(0).drop_duplicates()).sort_index(ascending=False)
 
@@ -556,6 +596,8 @@ class Plotter:
         ax.axis('equal')
         ax.tick_params(axis='both', which='both',
                        bottom='off', top='off', left='off', right='off') # get rid of ticks?
+
+        streamlit.pyplot(ax.figure)
 
     def plot_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size):
         ys = [y] * len(xs)
@@ -596,7 +638,7 @@ class Plotter:
         return image, imgs
             
     def plot_features(self, ax, features_df):
-        print('\t...features')
+        streamer.print('\t...features')
         features_solo = {#'duration': '⏲',
                          'tempo': '🥁',
                          }
@@ -650,6 +692,8 @@ class Plotter:
         ##ax.yaxis.set_ticks_position('none') #'bottom')
         ##ax.minorticks_off()
 
+        streamlit.pyplot(ax.figure)
+
     def convert_axes(self, ax, z, y=True):
         if y:
             z1_0, z1_1 = ax.get_ylim()
@@ -663,7 +707,7 @@ class Plotter:
         return z_
 
     def plot_tags(self, ax, tags_df, mask_src):
-        print('\t...genres')
+        streamer.print('\t...genres')
         mask = self.pictures.get_mask_array(mask_src)
 
         text = Counter(tags_df.dropna().sum().sum())
@@ -671,8 +715,10 @@ class Plotter:
         ax.imshow(wordcloud, interpolation="bilinear")
         ax.axis('off')
 
+        streamlit.pyplot(ax.figure)
+
     def plot_top_songs(self, ax, results_df, years=10):
-        print('\t...songs')
+        streamer.print('\t...songs')
         rounds = list(results_df['round'].unique())
         n_rounds = len(rounds)
 
@@ -736,6 +782,8 @@ class Plotter:
 
         ##ax.set_xlim(max_date, min_date)
         ##ax.set_ylim(n_rounds, 0)
+
+        streamlit.pyplot(ax.figure)
 
     def get_center(self, members_df):
         x_center = members_df['x'].mean()

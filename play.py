@@ -4,11 +4,12 @@ from analyze import Analyzer
 from update import Updater
 from plotting import Printer, Plotter
 from secret import credentials
+from streaming import streamer
 
 def main(update_db=True, analyze_data=True, plot_data=True):
     setter = Setter()
     if not setter.connected:
-        print('No network connection!')
+        streamer.print('No network connection!')
 
     else:
         server, structure = setter.get_settings()
@@ -36,4 +37,4 @@ def main(update_db=True, analyze_data=True, plot_data=True):
             plotter.add_anaylses()
             plotter.plot_results()
 
-main(update_db=True, analyze_data=True, plot_data=True)
+main(update_db=False, analyze_data=False, plot_data=True)
