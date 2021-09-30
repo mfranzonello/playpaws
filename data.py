@@ -60,6 +60,9 @@ class Database:
         self.engine = create_engine(engine_string)
         self.connection = self.engine.connect()
         streamer.print(f'\t...success!')
+        
+    def __hash__(self):
+        return hash(self.engine_string, self.main_url)
 
     def table_name(self, table_name:str) -> str:
         full_table_name = f'{self.db}."{table_name.lower()}"'
