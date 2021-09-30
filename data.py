@@ -6,6 +6,7 @@ from os import getenv, getcwd
 from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame, isnull
 from pandas.api.types import is_numeric_dtype
+import streamlit as st
 
 from streaming import streamer
 
@@ -56,10 +57,18 @@ class Database:
         self.values = {table_name: self.tables[table_name]['values'] for table_name in self.tables}
         self.columns = {table_name: self.tables[table_name]['keys'] + self.tables[table_name]['values'] for table_name in self.tables}
  
-        streamer.print(f'Connecting to database {self.db}...')
-        self.engine = create_engine(engine_string)
-        self.connection = self.engine.connect()
+        connection = self.connect(engine_string)
+        ##self.engine = create_engine(engine_string)
+        ##self.connection = self.engine.connect()
         streamer.print(f'\t...success!')
+        
+    @st.cache(allow_output_mutation=True)
+    def connect(self, engine_string):
+        streamer.print(f'Connecting to database {self.db}...')
+        
+        engine = create_engine(engine_string)
+        connection = engine.connect()
+        return connection
         
     def __hash__(self):
         return hash(self.engine_string, self.main_url)
