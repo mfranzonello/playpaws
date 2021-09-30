@@ -7,7 +7,7 @@ from update import Updater
 from plotting import Printer, Plotter
 from streaming import streamer
 
-@st.cache(suppress_st_warning=True)
+#@st.cache(suppress_st_warning=True)
 def connect_to_database():
     database = Database(setter.server, setter.structure)
     return database
