@@ -1,5 +1,6 @@
 from datetime import datetime
 import re
+from os import getenv
 
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials
@@ -29,8 +30,8 @@ class Spotter:
 
     def connect_to_spotify(self):
         streamer.print('Connecting to Spotify API...')
-        self.sp = Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=SPOTIFY_CLIENT_ID,#self.credentials['client_id'],
-                                                                              client_secret=SPOTIFY_CLIENT_SECRET))#self.credentials['client_secret']))
+        self.sp = Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=getenv('SPOTIFY_CLIENT_ID'),#self.credentials['client_id'],
+                                                                              client_secret=genev('SPOTIFY_CLIENT_SECRET')))#self.credentials['client_secret']))
 
     def get_track_elements(self, uri):
         results = self.sp.track(uri)
@@ -206,7 +207,7 @@ class FMer:
 
     def connect_to_lastfm(self):
         streamer.print('Connecting to LastFM API...')
-        self.fm = LastFMNetwork(api_key=LASTFM_API_KEY, api_secret=LASTFM_API_SECRET)#**self.credentials)
+        self.fm = LastFMNetwork(api_key=LASTFM_API_KEY, api_secret=getenv('LASTFM_API_SECRET'))#**self.credentials)
 
         
     def clean_title(self, title):
