@@ -296,7 +296,7 @@ class Plotter:
             self.league_titles = []
 
     def plot_results(self):
-        league_title = streamlit.sidebar.selectbox('Pick a league to view', self.league_titles)
+        league_title = st.sidebar.selectbox('Pick a league to view', self.league_titles)
 
         streamer.print(f'Preparing plot for {league_title}...')
 
