@@ -1,11 +1,8 @@
-import streamlit as st
-
 from structure import Setter
 from data import Database
 from analyze import Analyzer
 from update import Updater
 from plotting import Printer, Plotter
-#from secret import credentials
 from streaming import streamer
 
 def main(update_db=True, analyze_data=True, plot_data=True):
@@ -14,7 +11,6 @@ def main(update_db=True, analyze_data=True, plot_data=True):
     printer = Printer('display.max_columns', 'display.max_rows')
 
     # prepare database
-    @st.cache(supress_st_warning=True)
     database = Database(setter.server, setter.structure) #credentials
     
     # update data in database from web
