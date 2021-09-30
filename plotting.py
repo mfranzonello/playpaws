@@ -180,7 +180,7 @@ class Pictures:
             draw.text((x_text, y_text), text_df['text'][i],
                       fill=text_df['font_color'][i], font=text_df['image_font'][i])
 
-        image.save(f'c:/users/{getlogin()}/desktop/test.png')
+        ##image.save(f'c:/users/{getlogin()}/desktop/test.png')
         streamer.print(text_df[['text', 'length', 'total_length']])
          
         ##ascent, descent = image_font.getmetrics()
@@ -284,6 +284,7 @@ class Plotter:
         return rgb
 
     def add_anaylses(self):
+        streamer.print('Getting analyses...')
         analyses_df = self.database.get_analyses()
 
         if len(analyses_df):
