@@ -328,8 +328,7 @@ class Plotter:
             self.pictures = Pictures(self.database)
 
     def plot_results(self):
-        league_title = streamlit.selectbox('Pick a league to view',
-                                           (title for title in self.league_titles))
+        league_title = streamlit.sidebar.selectbox('Pick a league to view', self.league_titles)
 
         streamer.print(f'Preparing plot for {league_title}...')
 
