@@ -21,16 +21,16 @@ class Spotter:
                       'valence',
                       'tempo']
 
-    def __init__(self, credentials, database=None):
-        self.credentials = credentials
+    def __init__(self, database=None): #credentials
+        #self.credentials = credentials
         self.database = database
 
         self.sp = None
 
     def connect_to_spotify(self):
         streamer.print('Connecting to Spotify API...')
-        self.sp = Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=self.credentials['client_id'],
-                                                                              client_secret=self.credentials['client_secret']))
+        self.sp = Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=SPOTIFY_CLIENT_ID,#self.credentials['client_id'],
+                                                                              client_secret=SPOTIFY_CLIENT_SECRET))#self.credentials['client_secret']))
 
     def get_track_elements(self, uri):
         results = self.sp.track(uri)
@@ -199,14 +199,14 @@ class Spotter:
 
 
 class FMer:
-    def __init__(self, credentials):
-        self.credentials = credentials
+    def __init__(self): #, credentials):
+        #self.credentials = credentials
 
         self.fm = None
 
     def connect_to_lastfm(self):
         streamer.print('Connecting to LastFM API...')
-        self.fm = LastFMNetwork(**self.credentials)
+        self.fm = LastFMNetwork(api_key=LASTFM_API_KEY, api_secret=LASTFM_API_SECRET)#**self.credentials)
 
         
     def clean_title(self, title):

@@ -139,3 +139,4 @@ dmypy.json
 /.vs/playpaws/v17
 /.vs/playpaws
 /module1.py
+/secret.env
