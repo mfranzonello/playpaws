@@ -78,7 +78,7 @@ class Pictures:
         streamer.print('Downloading profile images...')
         for i in self.players_df.index:
             player_name = self.players_df['player'][i]
-            streamer.print(f'\t...{player_name}')
+            streamer.print(f'\t...{player_name}', base=False)
 
             # download image
             src = self.players_df['src'][i]
@@ -91,7 +91,7 @@ class Pictures:
                 image = Image.open(fp)
             except UnidentifiedImageError:
                 # image is unloadable
-                streamer.print(f'unable to read image for {player_name}')
+                streamer.print(f'...unable to read image for {player_name}', base=False)
                 image = None
 
             # store in images dictionary
