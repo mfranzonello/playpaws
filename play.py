@@ -38,9 +38,7 @@ def plot_data(database):
     plotter.add_analyses()
     plotter.plot_results()
 
-def main(update_db=True, analyze_data=True, plot_data=True):
-    setter = Setter()
-
+def main():
     printer = Printer('display.max_columns', 'display.max_rows')
 
     # prepare database
