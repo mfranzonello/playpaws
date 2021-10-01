@@ -194,7 +194,7 @@ class Pictures:
                       fill=text_df['font_color'][i], font=text_df['image_font'][i])
 
         ##image.save(f'c:/users/{getlogin()}/desktop/test.png')
-        print(text_df[['text', 'length', 'total_length']])
+        ##print(text_df[['text', 'length', 'total_length']])
          
         ##ascent, descent = image_font.getmetrics()
 
@@ -735,6 +735,7 @@ class Plotter:
         streamer.pyplot(ax.figure)
 
     def plot_top_songs(self, league_title, results_df, years=10):
+        print(st.session_state)
         if f'top_songs_ax:{league_title}' in st.session_state:
             ax = st.session_state[f'top_songs_ax:{league_title}']
             streamer.status(1/6)
