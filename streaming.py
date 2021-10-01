@@ -3,11 +3,12 @@ import streamlit as st
 class Streamer:
     def __init__(self):
         self.sidebar = st.sidebar
-        #self.sidebar.write('Loading PlawPays MusicLeague analyzer...')
+        self.text_print = self.sidebar.empty()
+        #write('Loading PlawPays MusicLeague analyzer...')
         
         self.container = st.container()
         
-        self.text_print = st.empty()
+        #self.text_print = st.empty()
         self.status_bar = st.empty()
         
     def pyplot(self, figure):
