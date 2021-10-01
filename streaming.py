@@ -2,19 +2,16 @@ import streamlit as st
 
 class Streamer:
     def __init__(self):
-        self.sidebar = st.sidebar
+        self.sidebar = st.sidebar()
         self.sidebar.write('Loading PlawPays MusicLeague analyzer...')
         
-        self.members_plot = st.empty()
-        self.boards_plot = st.empty()
-        self.rankings_plot = st.empty()
-        self.features_plot = st.empty()
-        self.tags_plot = st.empty()
-        self.top_songs_plot = st.empty()
+        self.container = st.container()
         
         self.text_print = st.empty()
         self.status_bar = st.empty()
         
+    def pyplot(self, figure):
+        self.containter.pyplot(figure)
 
     def print(self, text):
         # print to Streamlit

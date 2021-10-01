@@ -389,7 +389,7 @@ class Plotter:
                     members_df['y'].max() + self.name_offset + self.font_size)
         ax.axis('off')
 
-        streamer.members_plot.pyplot(ax.figure)
+        streamer.pyplot(ax.figure)
 
     def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
         plot_size = size=(s_p/2)**0.5/pi/10
@@ -486,7 +486,7 @@ class Plotter:
         ax.set_yticks(yticks)
         ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
 
-        streamer.boards_plot.pyplot(ax.figure)
+        streamer.pyplot(ax.figure)
 
     def plot_board_player(self, ax, xs, player, board, lowest_rank):
         ys = board.where(board > 0).loc[player]
@@ -548,7 +548,7 @@ class Plotter:
         ax.tick_params(axis='both', which='both',
                        bottom='off', top='off', left='off', right='off') # get rid of ticks?
 
-        st.rankings_plot.pyplot(ax.figure)
+        st.pyplot(ax.figure)
 
     def plot_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size):
         ys = [y] * len(xs)
@@ -643,7 +643,7 @@ class Plotter:
         ##ax.yaxis.set_ticks_position('none') #'bottom')
         ##ax.minorticks_off()
 
-        streamer.features_plot.pyplot(ax.figure)
+        streamer.pyplot(ax.figure)
 
     def convert_axes(self, ax, z, y=True):
         if y:
@@ -666,7 +666,7 @@ class Plotter:
         ax.imshow(wordcloud, interpolation="bilinear")
         ax.axis('off')
 
-        streamer.tags_plot.pyplot(ax.figure)
+        streamer.pyplot(ax.figure)
 
     def plot_top_songs(self, ax, results_df, years=10):
         streamer.print('\t...songs')
@@ -734,7 +734,7 @@ class Plotter:
         ##ax.set_xlim(max_date, min_date)
         ##ax.set_ylim(n_rounds, 0)
 
-        streamer.top_songs_plot.pyplot(ax.figure)
+        streamer.pyplot(ax.figure)
 
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
