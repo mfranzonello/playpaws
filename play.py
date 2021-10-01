@@ -8,10 +8,10 @@ def update_data(database):
     # scrape data from MusicLeague, Spotify and LastFM
     status_pre = 1
 
-    updater = Updater(database)
-    updater.update_database()
-    updater.update_spotify()
-    updater.update_lastfm()
+    ##updater = Updater(database)
+    ##updater.update_database()
+    ##updater.update_spotify()
+    ##updater.update_lastfm()
 
     status_post = 1
 
