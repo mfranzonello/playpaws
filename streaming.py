@@ -3,8 +3,9 @@ import streamlit as st
 class Streamer:
     def __init__(self):
         self.sidebar = st.sidebar
+        
+        self.selectbox = self.sidebar.empty() #selectbox()
         self.text_print = self.sidebar.empty()
-        #write('Loading PlawPays MusicLeague analyzer...')
         
         self.container = st.container()
         
