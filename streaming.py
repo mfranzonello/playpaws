@@ -11,7 +11,8 @@ class Streamer:
         self.status_bar = st.empty()
         
     def pyplot(self, figure):
-        self.container.pyplot(figure)
+        #self.container.pyplot(figure)
+        st.pyplot(figure)
 
     def print(self, text):
         # print to Streamlit
