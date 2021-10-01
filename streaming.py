@@ -5,7 +5,7 @@ class Streamer:
         self.sidebar = st.sidebar
         
         self.selectbox = self.sidebar.empty() #selectbox()
-        self.status_bar = self.sidebar.empty()
+        self.status_bar = self.sidebar.progress(0)
         self.base_status = 0.0
         
         self.text_print = self.sidebar.empty()
@@ -20,7 +20,7 @@ class Streamer:
     def print(self, text, base=True):
         base_text = self.base_text
         if base:
-            self.sidebar.status_bar = st.empty()
+            self.base_text = text
             new_text = text
         else:
             new_text = self.base_text + ' ' + text
