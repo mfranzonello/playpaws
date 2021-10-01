@@ -2,7 +2,8 @@ import streamlit as st
 
 class Streamer:
     def __init__(self):
-        self.sidebar = st.sidebar.write('Loading PlawPays MusicLeague analyzer...')
+        self.sidebar = st.sidebar
+        self.sidebar.write('Loading PlawPays MusicLeague analyzer...')
         
         self.members_plot = st.empty()
         self.boards_plot = st.empty()
