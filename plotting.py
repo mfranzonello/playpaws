@@ -336,10 +336,6 @@ class Plotter:
 
             streamer.clear_printer()
 
-    def plot_title(self, fig, title):
-        #fig.suptitle(self.texter.clean_text(title), fontweight='bold')
-        #plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {self.texter.clean_text(title)}')
-
     def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5,
                    image_size=(0, 0), padding=0, text=None,
                    aspect=(1, 1), flipped=False, zorder=0):
