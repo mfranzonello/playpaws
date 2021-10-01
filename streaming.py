@@ -40,6 +40,7 @@ class Streamer:
             new_pct = pct
         else:
             new_pct = min(1.0, self.base_status + pct)
+            self.base_status = new_pct
             
         self.status_bar.progress(new_pct)
 
