@@ -34,7 +34,7 @@ class Streamer:
     def clear_printer(self):
         self.text_print.empty()
 
-    def update_status(self, pct, base=False):
+    def status(self, pct, base=False):
         if base:
             self.base_status = pct
             new_pct = pct
