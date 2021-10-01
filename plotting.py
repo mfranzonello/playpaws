@@ -302,7 +302,7 @@ class Plotter:
             self.league_titles = []
 
     def plot_results(self):
-        league_title = streamer.sidebar.selectbox('Pick a league to view', ['<select>'] + self.league_titles.to_list())
+        league_title = streamer.selectbox.selectbox('Pick a league to view', ['<select>'] + self.league_titles.to_list())
 
         if league_title != '<select>':
             streamer.print(f'Preparing plot for {league_title}...')
