@@ -1,4 +1,3 @@
-from structure import Setter
 from data import Database
 from analyze import Analyzer
 from update import Updater
@@ -45,7 +44,7 @@ def main(update_db=True, analyze_data=True, plot_data=True):
     printer = Printer('display.max_columns', 'display.max_rows')
 
     # prepare database
-    database = Database(setter.structure)
+    database = Database('https://musicleague.app')
     
     plot_data(database)
     

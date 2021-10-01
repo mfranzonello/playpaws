@@ -44,11 +44,11 @@ class Database:
               'Images': {'keys': ['keyword'], 'values': ['src']}, 
               }
    
-    def __init__(self, structure):
+    def __init__(self, main_url):
         self.db = f'"{getenv("BITIO_USERNAME")}/{getenv("BITIO_DBNAME")}"'
         engine_string = f'postgresql://{getenv("BITIO_USERNAME")}{getenv("BITIO_ADD_ON")}:{getenv("BITIO_PASSWORD")}@{getenv("BITIO_HOST")}'
         
-        self.main_url = structure['main_url']
+        self.main_url = main_url
 
         self.keys = {table_name: self.tables[table_name]['keys'] for table_name in self.tables}
         self.values = {table_name: self.tables[table_name]['values'] for table_name in self.tables}
