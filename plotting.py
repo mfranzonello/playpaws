@@ -296,36 +296,36 @@ class Plotter:
             self.league_titles = []
 
     def plot_results(self):
-        league_title = streamer.sidebar.selectbox('Pick a league to view', self.league_titles)
+        league_title = streamer.sidebar.selectbox('Pick a league to view', '<select>' + self.league_titles.to_list())
 
-        streamer.print(f'Preparing plot for {league_title}...')
+        if league_title != '<select>':
+            streamer.print(f'Preparing plot for {league_title}...')
 
-        fig = plt.figure()
-        ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_members(ax, self.database.get_members(league_title))
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_members(ax, self.database.get_members(league_title))
 
-        fig = plt.figure()
-        ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_boards(ax, self.database.get_boards(league_title))
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_boards(ax, self.database.get_boards(league_title))
 
-        fig = plt.figure()
-        ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_rankings(ax, self.database.get_rankings(league_title), self.database.get_dirtiness(league_title), self.database.get_discovery_scores(league_title))
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_rankings(ax, self.database.get_rankings(league_title), self.database.get_dirtiness(league_title), self.database.get_discovery_scores(league_title))
 
-        fig = plt.figure()
-        ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_features(ax, self.database.get_audio_features(league_title))
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_features(ax, self.database.get_audio_features(league_title))
 
-        fig = plt.figure()
-        ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_tags(ax, self.database.get_genres_and_tags(league_title), self.database.get_mask(league_title))
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_tags(ax, self.database.get_genres_and_tags(league_title), self.database.get_mask(league_title))
 
-        fig = plt.figure()
-        ax = fig.add_axes([1, 1, 1, 1])
-        self.plot_top_songs(ax, self.database.get_song_results(league_title))
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1])
+            self.plot_top_songs(ax, self.database.get_song_results(league_title))
 
-        streamer.clear_printer()
-
+            streamer.clear_printer()
 
     def plot_title(self, fig, title):
         fig.suptitle(self.texter.clean_text(title), fontweight='bold')
