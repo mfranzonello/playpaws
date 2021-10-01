@@ -47,10 +47,10 @@ def main():
     plot_data(database)
     
     # update data in database from web
-    update_changed = update_data()
+    update_changed = update_data(database)
 
     if update_changed:
-        analysis_changed = analyze_data()
+        analysis_changed = analyze_data(database)
 
         if analysis_changed:
             plot_results()
