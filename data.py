@@ -1,7 +1,7 @@
 from datetime import date
 import json
 from difflib import SequenceMatcher
-from os import getenv, getcwd
+from os import getenv
 
 from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame, isnull
@@ -9,8 +9,6 @@ from pandas.api.types import is_numeric_dtype
 import streamlit as st
 
 from streaming import streamer
-
-print(f"PATH: {getcwd()}")
 
 class Database:
     tables = {# MusicLeague data

@@ -3,7 +3,7 @@ import re
 from os import getenv
 
 from spotipy import Spotify
-from spotipy.oauth2 import SpotifyClientCredentials
+from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
 from pylast import LastFMNetwork
 from pandas import DataFrame
 
@@ -30,8 +30,14 @@ class Spotter:
 
     def connect_to_spotify(self):
         streamer.print('Connecting to Spotify API...')
-        self.sp = Spotify(client_credentials_manager=SpotifyClientCredentials(client_id=getenv('SPOTIFY_CLIENT_ID'),#self.credentials['client_id'],
-                                                                              client_secret=genev('SPOTIFY_CLIENT_SECRET')))#self.credentials['client_secret']))
+        client_credentials_manager = SpotifyClientCredentials(client_id=getenv('SPOTIFY_CLIENT_ID'),
+                                                              client_secret=genev('SPOTIFY_CLIENT_SECRET')))
+        auth_manager = SpotifyOAuth(client_id=getenv('SPOTIFY_CLIENT_ID'),
+                                    client_secret=genev('SPOTIFY_CLIENT_SECRET'),
+                                    redirect_url=getenv('SPOTIFY_REDIRECT_URL'),
+                                    scope='playlist-modify-public ugc-image-upload user-read-private user-read-email')
+
+        self.sp = Spotify(auth_manager=auth_manager):#client_credentials_manager=client_credentials_manager)
 
     def get_track_elements(self, uri):
         results = self.sp.track(uri)
@@ -183,8 +189,13 @@ class Spotter:
         uris = [r['track']['uri'] for r in results['tracks']['items']]
         return uris
 
-    def create_playlist(self, name, image):
-        user_playlist_create(user, name, public=True, collaborative=False, description='')
+    def create_playlist(self, user, name, image):
+        token = util.prompt_for_user_token(user=getenv('SPOTIFY_USER_ID'),
+                                           scope='playlist-modify-public ugc-image-upload user-read-private user-read-email',
+                                           client_id=getenv('SPOTIFY_CLIENT_ID'), client_secret=getenv('SPOTIFY_CLIENT_SECRET'),
+                                           redirect_uri=getenv('SPOTIFY_REDIRECT_URL'),
+                                           cache_path=None, oauth_manager=None, show_dialog=False)
+        sp.user_playlist_create(user, name, public=True, collaborative=False, description='')
 
     def update_playlist(self, playlist_url, sublist_url):
         streamer.print('\t...updating playlists')
