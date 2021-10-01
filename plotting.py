@@ -69,8 +69,9 @@ class Pictures:
         self.crop_player_images()
         self.mask_url = 'https://1drv.ms/u/s!AmvtWraFDWXijohogLktabekPCkCFw'
         
-##    @st.cache(suppress_st_warning=True,
-##              hash_funcs={Image: lambda _: None})
+    def __hash__(self):
+        return hash(player_name for player_name in self.images.keys())
+        
     def download_images(self):
         images = {}
 
@@ -284,6 +285,11 @@ class Plotter:
             rgb = tuple(rgb_df.iloc[rgb_df.index.get_loc(percent, 'nearest')].astype(astype))
 
         return rgb
+    
+    @st.cache(allow_output_mutation=True)
+    def add_pictures(self):
+        pictures = Pictures(self.database)
+        return pictures
 
     def add_analyses(self):
         streamer.print('Getting analyses...')
@@ -291,7 +297,7 @@ class Plotter:
 
         if len(analyses_df):
             self.league_titles = analyses_df['league']
-            self.pictures = Pictures(self.database)
+            self.pictures = self.add_pictures()
         else:
             self.league_titles = []
 
