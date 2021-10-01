@@ -3,7 +3,7 @@ import streamlit as st
 class Streamer:
     def __init__(self):
         self.sidebar = st.sidebar
-        self.sidebar.write('Loading PlawPays MusicLeague analyzer...')
+        #self.sidebar.write('Loading PlawPays MusicLeague analyzer...')
         
         self.container = st.container()
         
