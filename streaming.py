@@ -3,20 +3,30 @@ import streamlit as st
 class Streamer:
     def __init__(self):
         self.sidebar = st.sidebar
-        #self.sidebar.write('Loading PlawPays MusicLeague analyzer...')
         
-        self.container = st.container()
+        self.selectbox = self.sidebar.empty() #selectbox()
+        self.status_bar = self.sidebar.empty()
+        self.base_status = 0.0
         
-        self.text_print = st.empty()
-        self.status_bar = st.empty()
+        self.text_print = self.sidebar.empty()
+        self.base_text = ''
+               
+    def title(self, text):
+        st.title(text)
         
     def pyplot(self, figure):
-        #self.container.pyplot(figure)
         st.pyplot(figure)
 
-    def print(self, text):
+    def print(self, text, base=True):
+        base_text = self.base_text
+        if base:
+            self.sidebar.status_bar = st.empty()
+            new_text = text
+        else:
+            new_text = self.base_text + ' ' + text
+        
         # print to Streamlit
-        self.text_print.text(text)
+        self.text_print.text(new_text)
 
         # print to cmd
         print(text)
@@ -24,8 +34,15 @@ class Streamer:
     def clear_printer(self):
         self.text_print.empty()
 
-    def update_status(self, pct):
-        self.status_bar.progress(pct)
+    def status(self, pct, base=False):
+        if base:
+            self.base_status = pct
+            new_pct = pct
+        else:
+            new_pct = min(1.0, self.base_status + pct)
+            self.base_status = new_pct
+            
+        self.status_bar.progress(new_pct)
 
 streamer = Streamer()
 

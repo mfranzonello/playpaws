@@ -56,7 +56,7 @@ class Database:
 
         streamer.print(f'\t...success!')
         
-    @st.cache(allow_output_mutation=True)
+    #@st.cache(allow_output_mutation=True)
     def connect(self, engine_string):
         streamer.print(f'Connecting to database {self.db}...')
         

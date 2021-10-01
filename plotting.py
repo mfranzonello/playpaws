@@ -69,15 +69,16 @@ class Pictures:
         self.crop_player_images()
         self.mask_url = 'https://1drv.ms/u/s!AmvtWraFDWXijohogLktabekPCkCFw'
         
-##    @st.cache(suppress_st_warning=True,
-##              hash_funcs={Image: lambda _: None})
+    def __hash__(self):
+        return hash(player_name for player_name in self.images.keys())
+        
     def download_images(self):
         images = {}
 
         streamer.print('Downloading profile images...')
         for i in self.players_df.index:
             player_name = self.players_df['player'][i]
-            streamer.print(f'\t...{player_name}')
+            streamer.print(f'\t...{player_name}', base=False)
 
             # download image
             src = self.players_df['src'][i]
@@ -90,7 +91,7 @@ class Pictures:
                 image = Image.open(fp)
             except UnidentifiedImageError:
                 # image is unloadable
-                streamer.print(f'unable to read image for {player_name}')
+                streamer.print(f'...unable to read image for {player_name}', base=False)
                 image = None
 
             # store in images dictionary
@@ -284,6 +285,11 @@ class Plotter:
             rgb = tuple(rgb_df.iloc[rgb_df.index.get_loc(percent, 'nearest')].astype(astype))
 
         return rgb
+    
+    ##@st.cache(hash_funcs=)
+    def add_pictures(self):
+        pictures = Pictures(self.database)
+        return pictures
 
     def add_analyses(self):
         streamer.print('Getting analyses...')
@@ -291,15 +297,18 @@ class Plotter:
 
         if len(analyses_df):
             self.league_titles = analyses_df['league']
-            self.pictures = Pictures(self.database)
+            self.pictures = self.add_pictures()
         else:
             self.league_titles = []
 
     def plot_results(self):
-        league_title = streamer.sidebar.selectbox('Pick a league to view', ['<select>'] + self.league_titles.to_list())
+        league_title = streamer.selectbox.selectbox('Pick a league to view', ['<select>'] + self.league_titles.to_list())
 
         if league_title != '<select>':
             streamer.print(f'Preparing plot for {league_title}...')
+            streamer.status(0, base=True)
+            
+            streamer.title(f'Standings for {league_title}')
 
             fig = plt.figure()
             ax = fig.add_axes([1, 1, 1, 1])
@@ -328,9 +337,8 @@ class Plotter:
             streamer.clear_printer()
 
     def plot_title(self, fig, title):
-        fig.suptitle(self.texter.clean_text(title), fontweight='bold')
-        plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {self.texter.clean_text(title)}')
-
+        #fig.suptitle(self.texter.clean_text(title), fontweight='bold')
+        #plt.get_current_fig_manager().set_window_title(f'{self.figure_title} - {self.texter.clean_text(title)}')
 
     def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5,
                    image_size=(0, 0), padding=0, text=None,
@@ -361,7 +369,8 @@ class Plotter:
 
     def plot_members(self, ax, members_df):
         # plot nodes for players
-        streamer.print('\t...relationships')
+        streamer.status(1/6 * (1/3))
+        streamer.print('\t...relationships', base=False)
         x = members_df['x']
         y = members_df['y']
         player_names = members_df['player']
@@ -373,9 +382,10 @@ class Plotter:
         sizes = self.get_scatter_sizes(members_df)
         colors = self.get_node_colors(members_df)
         colors_scatter = self.get_scatter_colors(colors, divisor=self.color_wheel)
-        
+       
         for x_p, y_p, p_name, s_p, c_p, c_s in zip(x, y, player_names, sizes, colors, colors_scatter):
             self.plot_member_nodes(ax, x_p, y_p, p_name, s_p, c_p, c_s)
+        streamer.status(1/6 * (1/3))
 
         # split if likes is liked
         split = members_df.set_index('player')
@@ -383,6 +393,7 @@ class Plotter:
 
         for i in members_df.index:
             self.plot_member_relationships(ax, player_names[i], members_df, split)
+        streamer.status(1/6 * (1/3))
 
         ax.axis('equal')
         ax.set_ylim(members_df['y'].min() - self.name_offset - self.font_size,
@@ -449,7 +460,8 @@ class Plotter:
                  edgecolor='none', length_includes_head=True, zorder=2)
 
     def plot_boards(self, ax, board):
-        streamer.print('\t...rankings')
+        streamer.status(1/6 * (1/3))
+        streamer.print('\t...rankings', base=False)
         n_rounds = len(board.columns)
         n_players = len(board.index)
         aspect = (n_rounds - 1, n_players - 1)
@@ -464,6 +476,7 @@ class Plotter:
 
         for player in board.index:
             self.plot_board_player(ax, xs, player, board, lowest_rank)
+        streamer.status(1/6 * (1/3))
 
         round_titles = [self.texter.clean_text(c) for c in board.columns]
         
@@ -473,6 +486,7 @@ class Plotter:
         if has_dnf:
             # plot DNF line
             ax.plot([x_min - 0.5, x_max + 0.5], [lowest_rank + 1] * 2, '--', color='0.5')
+        streamer.status(1/6 * (1/3))
 
         ax.set_xlim(x_min - scaling[0]/2, x_max + scaling[0]/2)
         ax.set_xticks(xs)
@@ -512,7 +526,8 @@ class Plotter:
                     ax.text(x, d, display_name)
 
     def plot_rankings(self, ax, rankings, dirty_df, discovery_df):
-        streamer.print('\t...scores')
+        streamer.status(1/6 * (1/3))
+        streamer.print('\t...scores', base=False)
         rankings_df = rankings.reset_index().pivot(index='player', columns='round', values='score').div(100)\
             .reindex(columns=rankings.index.get_level_values(0).drop_duplicates()).sort_index(ascending=False)
 
@@ -529,6 +544,7 @@ class Plotter:
         rgb_discovery_df = self.grade_colors(self.get_dfc_colors('grey', 'dark_blue'))
 
         xs = range(n_rounds)
+        streamer.status(1/6 * (1/3))
         for player in player_names:
             y = player_names.get_loc(player)
             marker_size = 0.9
@@ -543,6 +559,7 @@ class Plotter:
                                    marker_size, image_size, percent=True)
             self.plot_player_score(ax, len(xs)+2, y, discovery_df['popularity'][player], max_discovery, rgb_discovery_df,
                                    marker_size, image_size, percent=True)
+        streamer.status(1/6 * (1/3))
             
         ax.axis('equal')
         ax.tick_params(axis='both', which='both',
@@ -589,7 +606,8 @@ class Plotter:
         return image, imgs
             
     def plot_features(self, ax, features_df):
-        streamer.print('\t...features')
+        streamer.status(1/6 * (1/3))
+        streamer.print('\t...features', base=False)
         features_solo = {#'duration': '⏲',
                          'tempo': '🥁',
                          }
@@ -624,6 +642,9 @@ class Plotter:
             #c = ax.containers.index(container)
             ax.bar_label(ax.containers[c], color=features_colors[c % len(features_colors)], labels=[list(features_like.values())[c]]*n_rounds,
                          font=self.emoji_font, horizontalalignment='center', padding=padding, size=font_size)
+            
+                    
+        streamer.status(1/6 * (1/3))
 
         for solo, f in zip(features_solo, range(len(features_solo))):
             color = features_colors[(len(features_like) + f) % len(features_colors)]
@@ -633,6 +654,9 @@ class Plotter:
             for i in range(n_rounds-1):
                 ax.text(x=i + 0.5, y=self.convert_axes(ax, (features_df[solo][i] + features_df[solo][i+1])/2), s=features_solo[solo], # + padding
                         size=font_size, color=color, font=self.emoji_font, horizontalalignment='center')
+                
+                        
+        streamer.status(1/6 * (1/3))
 
         ##for position in ['top', 'left', 'right']:
         ##    ax.spines[position].set_visible(False)
@@ -658,18 +682,22 @@ class Plotter:
         return z_
 
     def plot_tags(self, ax, tags_df, mask_src):
-        streamer.print('\t...genres')
+        streamer.status(1/6 * (1/2))
+        streamer.print('\t...genres', base=False)
         mask = self.pictures.get_mask_array(mask_src)
 
         text = Counter(tags_df.dropna().sum().sum())
         wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)
         ax.imshow(wordcloud, interpolation="bilinear")
         ax.axis('off')
+        
+        streamer.status(1/6 * (1/2))
 
         streamer.pyplot(ax.figure)
 
     def plot_top_songs(self, ax, results_df, years=10):
-        streamer.print('\t...songs')
+        streamer.status(1/6 * (1/4))
+        streamer.print('\t...songs', base=False)
         rounds = list(results_df['round'].unique())
         n_rounds = len(rounds)
 
@@ -681,6 +709,8 @@ class Plotter:
         results_df['y_song'] = (1-1/(2**results_df['song_id'].map({d: list(results_df[results_df['round']==r]['song_id'].unique()).index(d) \
             for r in rounds for d in results_df[results_df['round']==r]['song_id'].unique()})))
         results_df['y'] = results_df[['y_round', 'y_song']].sum(1)
+        
+        streamer.status(1/6 * (1/4))
     
         max_date = results_df['release_date'].max()
         dates = to_datetime(results_df['release_date'])
@@ -695,9 +725,14 @@ class Plotter:
         results_df['font_name'] = results_df.apply(lambda x: self.bold_font if x['closed'] else self.image_font, axis=1)
         results_df['font_color'] = results_df.apply(lambda x: self.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max()),
                                                     axis=1)
+        
+        streamer.status(1/6 * (1/4))
+        
         base = 100
         image, D = self.pictures.get_text_image(results_df, self.subplot_aspects['top_songs'], base)
         ax.imshow(image)
+        
+        streamer.status(1/6 * (1/4))
         
         ax.yaxis.tick_right()
         ax.set_yticks([(n + 0.5) * base for n in range(n_rounds)])
