@@ -296,7 +296,7 @@ class Plotter:
             self.league_titles = []
 
     def plot_results(self):
-        league_title = st.sidebar.selectbox('Pick a league to view', self.league_titles)
+        league_title = streamer.sidebar.selectbox('Pick a league to view', self.league_titles)
 
         streamer.print(f'Preparing plot for {league_title}...')
 
@@ -389,7 +389,7 @@ class Plotter:
                     members_df['y'].max() + self.name_offset + self.font_size)
         ax.axis('off')
 
-        st.write(ax.figure)
+        streamer.members_plot.write(ax.figure)
 
     def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
         plot_size = size=(s_p/2)**0.5/pi/10
@@ -486,7 +486,7 @@ class Plotter:
         ax.set_yticks(yticks)
         ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
 
-        st.pyplot(ax.figure)
+        streamer.boards_plot.write(ax.figure)
 
     def plot_board_player(self, ax, xs, player, board, lowest_rank):
         ys = board.where(board > 0).loc[player]
@@ -548,7 +548,7 @@ class Plotter:
         ax.tick_params(axis='both', which='both',
                        bottom='off', top='off', left='off', right='off') # get rid of ticks?
 
-        st.pyplot(ax.figure)
+        st.rankings_plot.write(ax.figure)
 
     def plot_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size):
         ys = [y] * len(xs)
@@ -643,7 +643,7 @@ class Plotter:
         ##ax.yaxis.set_ticks_position('none') #'bottom')
         ##ax.minorticks_off()
 
-        st.write(ax.figure)
+        streamer.features_plot.write(ax.figure)
 
     def convert_axes(self, ax, z, y=True):
         if y:
@@ -666,7 +666,7 @@ class Plotter:
         ax.imshow(wordcloud, interpolation="bilinear")
         ax.axis('off')
 
-        st.write(ax.figure)
+        streamer.tags_plot.write(ax.figure)
 
     def plot_top_songs(self, ax, results_df, years=10):
         streamer.print('\t...songs')
@@ -734,7 +734,7 @@ class Plotter:
         ##ax.set_xlim(max_date, min_date)
         ##ax.set_ylim(n_rounds, 0)
 
-        st.write(ax.figure)
+        streamer.top_songs_plot.write(ax.figure)
 
     def get_center(self, members_df):
         x_center = members_df['x'].mean()

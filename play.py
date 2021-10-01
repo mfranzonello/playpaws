@@ -4,9 +4,40 @@ from analyze import Analyzer
 from update import Updater
 from plotting import Printer, Plotter
 from streaming import streamer
+ 
+def update_data():
+    # scrape data from MusicLeague, Spotify and LastFM
+    status_pre = 1
 
-#def connect_to_database(setter):
-#    return database
+    updater = Updater(database, setter.structure)
+    updater.update_database()
+    updater.update_spotify()
+    updater.update_lastfm()
+
+    status_post = 1
+
+    update_changed = status_pre != status_post
+
+    return update_changed
+
+def analyze_data():
+    # analyze MusicLeague data
+    status_pre = 1
+
+    analyzer = Analyzer(database)
+    analyzer.analyze_all()
+    
+    status_post = 1
+
+    analysis_changed = status_pre != status_post
+
+    return analysis_changed
+
+def plot_data():
+    # plot results of analysis
+    plotter = Plotter(database)
+    plotter.add_analyses()
+    plotter.plot_results()
 
 def main(update_db=True, analyze_data=True, plot_data=True):
     setter = Setter()
@@ -16,24 +47,17 @@ def main(update_db=True, analyze_data=True, plot_data=True):
     # prepare database
     database = Database(setter.server, setter.structure)
     
-    #database = connect_to_database(setter)
+    plot_data()
     
     # update data in database from web
-    if update_db:
-        updater = Updater(database, setter.structure) #, credentials)
-        updater.update_database()
-        updater.update_spotify()
-        updater.update_lastfm()
+    update_changed = update_data()
 
-    # analyze data
-    if analyze_data:
-        analyzer = Analyzer(database)
-        analyzer.analyze_all()
-    
-    # plot results for all leagues
-    if plot_data:
-        plotter = Plotter(database)
-        plotter.add_analyses()
-        plotter.plot_results()
+    if update_changed:
+        analysis_changed = analyze_data()
 
-main(update_db=False, analyze_data=False, plot_data=True)
+        if analysis_changed:
+            plot_results()
+
+main()
+
+
