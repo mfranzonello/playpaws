@@ -5,11 +5,11 @@ from update import Updater
 from plotting import Printer, Plotter
 from streaming import streamer
  
-def update_data():
+def update_data(database):
     # scrape data from MusicLeague, Spotify and LastFM
     status_pre = 1
 
-    updater = Updater(database, setter.structure)
+    updater = Updater(database)
     updater.update_database()
     updater.update_spotify()
     updater.update_lastfm()
@@ -20,7 +20,7 @@ def update_data():
 
     return update_changed
 
-def analyze_data():
+def analyze_data(database):
     # analyze MusicLeague data
     status_pre = 1
 
@@ -33,7 +33,7 @@ def analyze_data():
 
     return analysis_changed
 
-def plot_data():
+def plot_data(database):
     # plot results of analysis
     plotter = Plotter(database)
     plotter.add_analyses()
@@ -45,9 +45,9 @@ def main(update_db=True, analyze_data=True, plot_data=True):
     printer = Printer('display.max_columns', 'display.max_rows')
 
     # prepare database
-    database = Database(setter.server, setter.structure)
+    database = Database(setter.structure)
     
-    plot_data()
+    plot_data(database)
     
     # update data in database from web
     update_changed = update_data()

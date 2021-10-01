@@ -3,14 +3,12 @@ from spotify import Spotter, FMer
 from results import Songs, Votes, Rounds, Leagues, Players
 
 class Updater:
-    def __init__(self, database, structure):#, credentials):
+    def __init__(self, database):
         self.database = database
-        self.structure = structure
-        #self.credentials = credentials
-        self.main_url = structure['main_url']
+        self.main_url = database.main_url
 
-        self.spotter = Spotter()#credentials['spotify'])
-        self.fmer = FMer()#credentials['lastfm'])
+        self.spotter = Spotter()
+        self.fmer = FMer()
 
         self.stripper = Stripper(self.main_url)
         self.scraper = Scraper(self.stripper)

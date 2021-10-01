@@ -44,12 +44,9 @@ class Database:
               'Images': {'keys': ['keyword'], 'values': ['src']}, 
               }
    
-    def __init__(self, server, structure): #credentials
-        #credentials_db = BITIO_DBNAME #credentials[server['db_name']]
+    def __init__(self, structure):
         self.db = f'"{getenv("BITIO_USERNAME")}/{getenv("BITIO_DBNAME")}"'
-        #self.db = f'"{credentials_db["username"]}/{credentials_db["db_name"]}"'
         engine_string = f'postgresql://{getenv("BITIO_USERNAME")}{getenv("BITIO_ADD_ON")}:{getenv("BITIO_PASSWORD")}@{getenv("BITIO_HOST")}'
-        #engine_string = f'postgresql://{credentials_db["username"]}{credentials_db["add_on"]}:{credentials_db["password"]}@{credentials_db["host"]}'
         
         self.main_url = structure['main_url']
 
@@ -58,8 +55,7 @@ class Database:
         self.columns = {table_name: self.tables[table_name]['keys'] + self.tables[table_name]['values'] for table_name in self.tables}
  
         self.connection = self.connect(engine_string)
-        ##self.engine = create_engine(engine_string)
-        ##self.connection = self.engine.connect()
+
         streamer.print(f'\t...success!')
         
     @st.cache(allow_output_mutation=True)
