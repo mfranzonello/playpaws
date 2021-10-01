@@ -286,7 +286,7 @@ class Plotter:
 
         return rgb
     
-    @st.cache(hash_funcs={Pictures: id})
+    @st.cache(hash_funcs={Pictures: Pictures.__hash__})
     def add_pictures(self):
         pictures = Pictures(self.database)
         return pictures
