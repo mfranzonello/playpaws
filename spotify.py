@@ -208,7 +208,7 @@ class Spotter:
                 playlist_uri = db_query['uri'].iloc[0]
                 
             else:
-                playlist_uri = self.create_playlist(league_title)
+                playlist_uri = self.create_playlist(f'{league_title} - Complete')
                 playlists_db.loc[len(playlists_db), ['league', 'uri']] = league_title, playlist_uri
 
             self.update_playlist(playlist_uri, sublist_uri=sublist_uri)
@@ -312,6 +312,8 @@ class Spotter:
 
     def update_playlist(self, playlist_uri, sublist_uri=None, track_uris=None):
         existing_uris = self.get_playlist_uris(playlist_uri)
+
+        ##self.sp.playlist_replace_items(playlist_uri, track_uris)
 
         if track_uris:
             new_uris = track_uris

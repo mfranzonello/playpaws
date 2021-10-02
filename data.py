@@ -41,6 +41,10 @@ class Database:
               'Weights': {'keys': ['parameter', 'version'], 'values': ['value']},
               'Images': {'keys': ['keyword'], 'values': ['src']}, 
               }
+
+    def use_one_league(self, table_name):
+        use_one = ('league' in self.get_keys(table_name)) and self.tables[table_name].get('use_one_league', True)
+        return use_one
    
     def __init__(self, main_url):
         self.db = f'"{getenv("BITIO_USERNAME")}/{getenv("BITIO_DBNAME")}"'
@@ -241,11 +245,11 @@ class Database:
             df_store = df.drop(columns=df[value_columns].columns[df[value_columns].isna().all()])
             
             # get current league if not upserting Leagues or table that doesn't have league as a key
-            if (table_name == 'Leagues') or ('league' not in self.keys[table_name]):
-                league = None
-            else:
+            if ('league' in self.get_keys(table_name)) and (len(df_store['league'].unique()) == 1):
                 league = df_store['league'].iloc[0]
-
+            else:
+                league = None
+            
             # get existing ids in database
             df_existing = self.get_table(table_name, columns=keys, league=league)
 
@@ -596,9 +600,13 @@ class Database:
 
         elif theme == 'favorite':
             # player favorite
-            sql = (f'SELECT s.league, s.round, t.url AS uri, v.player, v.vote, d.date '
+            sql = (f'SELECT s.league, s.round, t.uri, v.player, v.vote, d.date '
                    f'FROM {self.table_name("Votes")} as v '
                    f'LEFT JOIN {self.table_name("Songs")} as s ON (v.league = s.league) AND (v.song_id = s.song_id) '
+                   f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_url = t.url '
+                   f'LEFT JOIN {self.table_name("Rounds")} AS d ON (s.league = d.league) AND (s.round = d.round) '
+                   f'UNION SELECT s.league, s.round, t.uri, s.submitter as player, -1 as vote,  d.date '
+                   f'FROM {self.table_name("Songs")} as s '
                    f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_url = t.url '
                    f'LEFT JOIN {self.table_name("Rounds")} AS d ON (s.league = d.league) AND (s.round = d.round);'
                    )
