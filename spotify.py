@@ -1,7 +1,9 @@
 from datetime import datetime
 import re
 from os import getenv
+from base64 import b64encode
 
+import requests
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
 from pylast import LastFMNetwork
@@ -30,14 +32,14 @@ class Spotter:
 
     def connect_to_spotify(self):
         streamer.print('Connecting to Spotify API...')
-        client_credentials_manager = SpotifyClientCredentials(client_id=getenv('SPOTIFY_CLIENT_ID'),
-                                                              client_secret=genev('SPOTIFY_CLIENT_SECRET')))
+        #client_credentials_manager = SpotifyClientCredentials(client_id=getenv('SPOTIFY_CLIENT_ID'),
+        #                                                      client_secret=genev('SPOTIFY_CLIENT_SECRET'))
         auth_manager = SpotifyOAuth(client_id=getenv('SPOTIFY_CLIENT_ID'),
-                                    client_secret=genev('SPOTIFY_CLIENT_SECRET'),
-                                    redirect_url=getenv('SPOTIFY_REDIRECT_URL'),
+                                    client_secret=getenv('SPOTIFY_CLIENT_SECRET'),
+                                    redirect_uri=getenv('SPOTIFY_REDIRECT_URL'),
                                     scope='playlist-modify-public ugc-image-upload user-read-private user-read-email')
 
-        self.sp = Spotify(auth_manager=auth_manager):#client_credentials_manager=client_credentials_manager)
+        self.sp = Spotify(auth_manager=auth_manager)#client_credentials_manager=client_credentials_manager)
 
     def get_track_elements(self, uri):
         results = self.sp.track(uri)
@@ -120,6 +122,8 @@ class Spotter:
         self.update_db_artists()
         self.update_db_albums()
         self.update_db_genres()
+
+        self.update_playlists()
            
     def append_updates(self, df, updates_list, key='uri', updates_only=False):
         to_add = [u for u in updates_list if u not in df[key].values]
@@ -183,23 +187,62 @@ class Spotter:
             genres_update = genres_db
             self.database.store_genres(genres_update)
 
+    def update_playlists(self):
+        streamer.print('\t...updating playlists')
+        rounds_db, playlists_db = self.database.get_playlists()
+
+        for i in rounds_db.index:
+            sublist_uri = rounds_db['url'][i]
+
+            league_title = rounds_db['league'][i]
+            round_title = rounds_db['round'][i]
+
+            if league_title not in playlists_db['league'].values:
+                image_src = self.database.get_cover(league_title)
+
+                if image_src is not None:
+                    image64 = b64encode(requests.get(image_src).content)
+                    print(f'Found image for {league_title}')
+                else:
+                    image64 = None
+                    print(f'Didn''t find image for {league_title}')
+
+                playlist_uri = self.create_playlist(league_title, image64)
+                playlists_db.loc[len(playlists_db), ['league', 'uri', 'src']] = league_title, playlist_uri, image_src
+
+            else:
+                playlist_uri = playlists_db[playlists_db['league'] == league_title]['uri'].iloc[0]
+
+            self.update_playlist(playlist_uri, sublist_uri)
+
+        self.database.store_playlists(playlists_db)
+
 
     def get_playlist_uris(self, playlist_url):
         results = self.sp.playlist(playlist_url)
         uris = [r['track']['uri'] for r in results['tracks']['items']]
+
         return uris
 
-    def create_playlist(self, user, name, image):
-        token = util.prompt_for_user_token(user=getenv('SPOTIFY_USER_ID'),
-                                           scope='playlist-modify-public ugc-image-upload user-read-private user-read-email',
-                                           client_id=getenv('SPOTIFY_CLIENT_ID'), client_secret=getenv('SPOTIFY_CLIENT_SECRET'),
-                                           redirect_uri=getenv('SPOTIFY_REDIRECT_URL'),
-                                           cache_path=None, oauth_manager=None, show_dialog=False)
-        sp.user_playlist_create(user, name, public=True, collaborative=False, description='')
+    def create_playlist(self, name, image64):
+        ##token = util.prompt_for_user_token(user=getenv('SPOTIFY_USER_ID'),
+        ##                                   scope='playlist-modify-public ugc-image-upload user-read-private user-read-email',
+        ##                                   client_id=getenv('SPOTIFY_CLIENT_ID'), client_secret=getenv('SPOTIFY_CLIENT_SECRET'),
+        ##                                   redirect_uri=getenv('SPOTIFY_REDIRECT_URL'),
+        ##                                   cache_path=None, oauth_manager=None, show_dialog=False)
 
-    def update_playlist(self, playlist_url, sublist_url):
-        streamer.print('\t...updating playlists')
-        
+        self.sp.user_playlist_create(getenv('SPOTIFY_USER_ID'), name, public=True, collaborative=False, description='')
+
+        playlists = self.sp.user_playlists(getenv('SPOTIFY_USER_ID'))
+
+        uri, images = [(p['uri'], p['images']) for p in playlists['items'] if p['name'] == name][0]
+
+        if image64 and not len(images):
+            self.sp.playlist_upload_cover_image(uri, image64)
+
+        return uri
+
+    def update_playlist(self, playlist_url, sublist_url):       
         existing_uris = self.get_playlist_uris(playlist_url)
         new_uris = self.get_playlist_uris(sublist_url)
         update_uris = [uri for uri in new_uris if uri not in existing_uris]
@@ -218,7 +261,7 @@ class FMer:
 
     def connect_to_lastfm(self):
         streamer.print('Connecting to LastFM API...')
-        self.fm = LastFMNetwork(api_key=LASTFM_API_KEY, api_secret=getenv('LASTFM_API_SECRET'))#**self.credentials)
+        self.fm = LastFMNetwork(api_key=getenv('LASTFM_API_KEY'), api_secret=getenv('LASTFM_API_SECRET'))
 
         
     def clean_title(self, title):

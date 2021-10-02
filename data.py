@@ -18,7 +18,7 @@ class Database:
               'Songs': {'keys': ['league', 'song_id'], 'values': ['round', 'artist', 'title', 'submitter', 'track_url']},    
               'Votes': {'keys': ['league', 'player', 'song_id'], 'values': ['vote']},
 
-              'Playlists': {'keys': ['url'], 'values': ['title', 'src']},
+              'Playlists': {'keys': ['league'], 'values': ['uri', 'src']},
 
               # Spotify data
               'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'title', 'artist_uri', 'album_uri', 'explicit', 'popularity',
@@ -141,21 +141,25 @@ class Database:
 
     def needs_quotes(self, item) -> str:
         # put quotes around strings to account for special characters
-        char = "'"
-
         if self.quotable(item):
             if self.datable(item):
-                quoted = char + str(item) + char + '::date'
+                quoted = self.replace_for_sql(str(item)) + '::date'
             elif self.jsonable(item):
-                quoted = char + json.dumps(item).replace(char, char*2) + char + '::jsonb'
+                quoted = self.replace_for_sql(json.dumps(item)) + '::jsonb'
             else:
-                quoted = char + str(item).replace(char, char*2) + char
+                quoted = self.replace_for_sql(str(item))
         elif self.nullable(item):
             quoted = 'NULL'
         else:
             quoted = str(item)
 
         return quoted
+
+    def replace_for_sql(self, text):
+        char = "'"
+        pct = '%'
+        for_sql = char + text.replace(char, char*2).replace(pct, pct*2).replace(pct*4, pct*2) + char
+        return for_sql
 
     def update_rows(self, table_name, df, keys):
         # write SQL for existing rows
@@ -487,8 +491,18 @@ class Database:
                 clean_value = value
         return clean_value
 
+    def clean_up_embed(self, src):
+        clean_src = src.replace('/embed?', '/download?')
+        return clean_src
+
     def get_mask(self, league_title, default='<default>'):
-        masks_df = self.get_table('Images')
+        sql = (f'SELECT src, keyword FROM {self.table_name("Images")} '
+               f'WHERE type = {self.needs_quotes("mask")};'
+               )
+
+        mask_df = read_sql(sql, self.connection)
+        #masks_df = self.get_table('Images')
+
         masks_df['ratio'] = masks_df['keyword'].apply(lambda x: self.get_mask_ratio(league_title, x, default))
         max_ratio = masks_df['ratio'].max()
         if max_ratio == 0:
@@ -496,7 +510,7 @@ class Database:
         else:
             mask = masks_df[masks_df['ratio'] == max_ratio]['src']
 
-        mask_src = mask.iloc[0].replace('/embed?', '/download?')
+        mask_src = self.clean_up_embed(mask.iloc[0])
 
         return mask_src
 
@@ -506,6 +520,21 @@ class Database:
         else:
             ratio = SequenceMatcher(None, league_title, keyword).quick_ratio()
         return ratio
+
+    def get_cover(self, league_title):
+        sql = (f'SELECT keyword AS league, src FROM {self.table_name("Images")} '
+               f'WHERE (type = {self.needs_quotes("cover")}) AND (keyword = {self.needs_quotes(league_title)});'
+               )
+
+        covers_df = read_sql(sql, self.connection)
+
+        if len(covers_df):
+            cover = self.clean_up_embed(covers_df['src'].iloc[0])
+
+        else:
+            cover = None
+
+        return cover
 
     # Spotify functions
     def store_spotify(self, df, table_name):
@@ -543,6 +572,21 @@ class Database:
     def get_genres(self):
         df = self.get_spotify('Genres')
         return df
+
+    def get_playlists(self):
+        sql = (f'SELECT league, round, playlist_url AS url FROM {self.table_name("Rounds")} '
+               f'WHERE playlist_url IS NOT NULL '
+               f'ORDER BY date;')
+
+        rounds_df = read_sql(sql, self.connection)
+
+        playlists_df = self.get_table('Playlists')
+     
+        return rounds_df, playlists_df
+
+    def store_playlists(self, playlists_df):
+        df = playlists_df.reindex(columns=self.store_columns('Playlists'))
+        self.upsert_table('Playlists', df)
 
     def get_players_update_sp(self):
         sql = (f'SELECT username FROM {self.table_name("Players")} '
