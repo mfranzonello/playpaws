@@ -18,7 +18,7 @@ class Database:
               'Songs': {'keys': ['league', 'song_id'], 'values': ['round', 'artist', 'title', 'submitter', 'track_url']},    
               'Votes': {'keys': ['league', 'player', 'song_id'], 'values': ['vote']},
 
-              'Playlists': {'keys': ['league'], 'values': ['uri', 'src']},
+              'Playlists': {'keys': ['league', 'theme'], 'values': ['uri', 'src']},
 
               # Spotify data
               'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'title', 'artist_uri', 'album_uri', 'explicit', 'popularity',
@@ -573,19 +573,23 @@ class Database:
         df = self.get_spotify('Genres')
         return df
 
-    def get_playlists(self):
+    def get_playlists(self, theme='complete'):
         sql = (f'SELECT league, round, playlist_url AS url FROM {self.table_name("Rounds")} '
                f'WHERE playlist_url IS NOT NULL '
                f'ORDER BY date;')
 
         rounds_df = read_sql(sql, self.connection)
 
-        playlists_df = self.get_table('Playlists')
+        sql = (f'SELECT league, uri, src FROM {self.table_name("Playlists")} '
+               f'WHERE theme = {self.needs_quotes(theme)};')
+
+        playlists_df = read_sql(sql, self.connection)
      
         return rounds_df, playlists_df
 
-    def store_playlists(self, playlists_df):
+    def store_playlists(self, playlists_df, theme='complete'):
         df = playlists_df.reindex(columns=self.store_columns('Playlists'))
+        df['theme'] = theme
         self.upsert_table('Playlists', df)
 
     def get_players_update_sp(self):

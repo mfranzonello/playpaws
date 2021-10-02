@@ -5,7 +5,7 @@ from base64 import b64encode
 
 import requests
 from spotipy import Spotify
-from spotipy.oauth2 import SpotifyClientCredentials, SpotifyOAuth
+from spotipy.oauth2 import SpotifyOAuth #SpotifyClientCredentials, 
 from pylast import LastFMNetwork
 from pandas import DataFrame
 
@@ -198,65 +198,56 @@ class Spotter:
             round_title = rounds_db['round'][i]
 
             if league_title not in playlists_db['league'].values:
-                image_src = self.database.get_cover(league_title)
-
-                if image_src is not None:
-                    image64 = b64encode(requests.get(image_src).content)
-                    print(f'Found image for {league_title}')
-                else:
-                    image64 = None
-                    print(f'Didn''t find image for {league_title}')
-
-                playlist_uri = self.create_playlist(league_title, image64)
-                playlists_db.loc[len(playlists_db), ['league', 'uri', 'src']] = league_title, playlist_uri, image_src
+                playlist_uri = self.create_playlist(league_title)
+                playlists_db.loc[len(playlists_db), ['league', 'uri']] = league_title, playlist_uri
 
             else:
                 playlist_uri = playlists_db[playlists_db['league'] == league_title]['uri'].iloc[0]
 
             self.update_playlist(playlist_uri, sublist_uri)
 
+        for i in playlists_db.index:
+            league_title = playlists_db['league'][i]
+            src = playlists_db['src'][i]
+            image_src = self.database.get_cover(league_title)
+            if (image_src is not None) and (image_src != src):
+                self.update_playlist_image(image_src)
+                playlist_db['src'][i] = image_src
+
         self.database.store_playlists(playlists_db)
 
 
     def get_playlist_uris(self, playlist_url):
-        results = self.sp.playlist(playlist_url)
-        uris = [r['track']['uri'] for r in results['tracks']['items']]
+        finished = False
+        uris = []
+        while not finished:
+            results = self.sp.playlist_tracks(playlist_url, offset=len(uris))
+            uris += [r['track']['uri'] for r in results['items']]
+            if results['next'] is None:
+                finished = True
 
         return uris
 
-    def create_playlist(self, name, image64):
-        ##token = util.prompt_for_user_token(user=getenv('SPOTIFY_USER_ID'),
-        ##                                   scope='playlist-modify-public ugc-image-upload user-read-private user-read-email',
-        ##                                   client_id=getenv('SPOTIFY_CLIENT_ID'), client_secret=getenv('SPOTIFY_CLIENT_SECRET'),
-        ##                                   redirect_uri=getenv('SPOTIFY_REDIRECT_URL'),
-        ##                                   cache_path=None, oauth_manager=None, show_dialog=False)
-
-        self.sp.user_playlist_create(getenv('SPOTIFY_USER_ID'), name, public=True, collaborative=False, description='')
-
-        playlists = self.sp.user_playlists(getenv('SPOTIFY_USER_ID'))
-
-        uri, images = [(p['uri'], p['images']) for p in playlists['items'] if p['name'] == name][0]
-
-        if image64 and not len(images):
-            self.sp.playlist_upload_cover_image(uri, image64)
-
+    def create_playlist(self, name):
+        playlist = self.sp.user_playlist_create(getenv('SPOTIFY_USER_ID'), name, public=True, collaborative=False, description='')
+        uri = playlist['uri']
+        
         return uri
+
+    def update_playlist_image(self, uri, image_src):
+        image64 = b64encode(requests.get(image_src).content)
+        self.sp.playlist_upload_cover_image(uri, image64)
 
     def update_playlist(self, playlist_url, sublist_url):       
         existing_uris = self.get_playlist_uris(playlist_url)
         new_uris = self.get_playlist_uris(sublist_url)
         update_uris = [uri for uri in new_uris if uri not in existing_uris]
 
-        self.sp.playlist_add_items(playlist_url, new_uris)
-
-        #playlist_cover_image(playlist_id)
-        #playlist_upload_cover_image(playlist_id, image_b64)
-
+        if len(update_uris):
+            self.sp.playlist_add_items(playlist_url, update_uris)
 
 class FMer:
     def __init__(self): #, credentials):
-        #self.credentials = credentials
-
         self.fm = None
 
     def connect_to_lastfm(self):

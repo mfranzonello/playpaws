@@ -1,16 +1,16 @@
 from math import sin, cos, atan2, pi, isnan
 from re import compile, UNICODE
 from urllib.request import urlopen
-from os import getlogin
+#from os import getlogin
 from collections import Counter
-from datetime import date
+#from datetime import date
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from pandas import set_option, DataFrame, isnull, to_datetime
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from matplotlib.dates import date2num, num2date
-from wordcloud import WordCloud, ImageColorGenerator
+from matplotlib.dates import date2num#, num2date
+from wordcloud import WordCloud#, ImageColorGenerator
 from numpy import asarray
 import streamlit as st
 

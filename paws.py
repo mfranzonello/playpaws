@@ -1,6 +1,12 @@
 from data import Database
 from update import Updater
+from analyze import Analyzer
 from plotting import Printer
+
+def analyze_data(database):
+    # analyze MusicLeague data
+    analyzer = Analyzer(database)
+    analyzer.analyze_all()
  
 def update_data(database):
     # scrape data from MusicLeague, Spotify and LastFM
@@ -17,5 +23,8 @@ def main():
     
     # update data in database from web
     update_data(database)
+
+    # analyze data
+    analyze_data(database)
 
 main()
