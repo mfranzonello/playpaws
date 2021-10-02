@@ -61,6 +61,13 @@ class Texter:
             display_name = name
         return display_name.title()
 
+    def get_display_name_full(self, name):
+        if (name == name.lower()) and ('.' in name) and (' ' not in name):
+            display_name = name.replace('.', ' ')
+        else:
+            display_name = name
+        return display_name.title()
+
 class Pictures:
     def __init__(self, database):
         self.database = database

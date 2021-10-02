@@ -10,6 +10,7 @@ from spotipy.oauth2 import SpotifyOAuth #SpotifyClientCredentials,
 from pylast import LastFMNetwork
 from pandas import DataFrame
 
+from plotting import Texter
 from streaming import streamer
 
 class Spotter:
@@ -28,6 +29,7 @@ class Spotter:
     def __init__(self, database=None): #credentials
         #self.credentials = credentials
         self.database = database
+        self.texter = Texter()
 
         self.sp = None
 
@@ -263,7 +265,8 @@ class Spotter:
                     playlist_uri = db_query['uri'].iloc[0]
 
                 else:
-                    playlist_uri = self.create_playlist(f'{league_title} - {player_name}\'s Favorites')
+                    player_name_print = self.texter.get_display_name_full(player_name)
+                    playlist_uri = self.create_playlist(f'{league_title} - {player_name_print}\'s Favorites')
                     playlists_db.loc[len(playlists_db), ['league', 'uri', 'theme']] = league_title, playlist_uri, player_theme
                     
                 track_uris = rounds_db.query('(league == @league_title) & (player == @player_name)')['uri'].to_list()
