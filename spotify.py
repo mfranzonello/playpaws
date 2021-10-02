@@ -189,13 +189,17 @@ class Spotter:
 
     def update_playlists(self):
         streamer.print('\t...updating playlists')
+
+        self.update_complete_playlists()
+        #self.update_best_playlists()
+
+    def update_complete_playlists(self):
         rounds_db, playlists_db = self.database.get_playlists()
 
         for i in rounds_db.index:
             sublist_uri = rounds_db['url'][i]
 
             league_title = rounds_db['league'][i]
-            round_title = rounds_db['round'][i]
 
             if league_title not in playlists_db['league'].values:
                 playlist_uri = self.create_playlist(league_title)
@@ -204,24 +208,55 @@ class Spotter:
             else:
                 playlist_uri = playlists_db[playlists_db['league'] == league_title]['uri'].iloc[0]
 
-            self.update_playlist(playlist_uri, sublist_uri)
+            self.update_playlist(playlist_uri, sublist_uri=sublist_uri)
 
         for i in playlists_db.index:
-            league_title = playlists_db['league'][i]
-            src = playlists_db['src'][i]
-            image_src = self.database.get_cover(league_title)
-            if (image_src is not None) and (image_src != src):
-                self.update_playlist_image(image_src)
-                playlist_db['src'][i] = image_src
-
+            playlists_db['src'][i] = self.check_playlist_image(playlists_db['league'][i],
+                                                               playlists_db['src'][i])
+            
         self.database.store_playlists(playlists_db)
 
+    def update_best_playlists(self):
+        rounds_db, playlists_db = self.database.get_playlists(theme='best')
 
-    def get_playlist_uris(self, playlist_url):
+        league_titles = rounds_db['league'].unique()
+
+        for league_title in league_titles:
+        
+            if league_title not in playlists_db['league'].values:
+                playlist_uri = self.create_playlist(f'{league_title} - Best Of')
+                playlists_db.loc[len(playlists_db), ['league', 'uri']] = league_title, playlist_uri
+
+            else:
+                playlist_uri = playlists_db[playlists_db['league'] == league_title]['uri'].iloc[0]
+
+            track_uris = rounds_db[rounds_db['league'] == league_title]['uri'].to_list()
+
+            self.update_playlist(playlist_uri, track_uris=track_uris)
+
+        for i in playlists_db.index:
+            playlists_db['src'][i] = self.check_playlist_image(playlists_db['league'][i],
+                                                               playlists_db['src'][i])
+
+        self.database.store_playlists(playlists_db, theme='best')
+
+    def check_playlist_image(self, league_title, src):
+        image_src = self.database.get_cover(league_title)
+        if (image_src is not None) and (image_src != src):
+            self.update_playlist_image(image_src)
+            
+            new_src = image_src
+
+        else:
+            new_src = src
+
+        return new_src
+
+    def get_playlist_uris(self, playlist_uri):
         finished = False
         uris = []
         while not finished:
-            results = self.sp.playlist_tracks(playlist_url, offset=len(uris))
+            results = self.sp.playlist_tracks(playlist_uri, offset=len(uris))
             uris += [r['track']['uri'] for r in results['items']]
             if results['next'] is None:
                 finished = True
@@ -238,13 +273,18 @@ class Spotter:
         image64 = b64encode(requests.get(image_src).content)
         self.sp.playlist_upload_cover_image(uri, image64)
 
-    def update_playlist(self, playlist_url, sublist_url):       
-        existing_uris = self.get_playlist_uris(playlist_url)
-        new_uris = self.get_playlist_uris(sublist_url)
+    def update_playlist(self, playlist_uri, sublist_uri=None, track_uris=None):
+        existing_uris = self.get_playlist_uris(playlist_uri)
+
+        if track_uris:
+            new_uris = track_uris
+        elif sublist_uri:
+            new_uris = self.get_playlist_uris(sublist_uri)
+
         update_uris = [uri for uri in new_uris if uri not in existing_uris]
 
         if len(update_uris):
-            self.sp.playlist_add_items(playlist_url, update_uris)
+            self.sp.playlist_add_items(playlist_uri, update_uris)
 
 class FMer:
     def __init__(self): #, credentials):
