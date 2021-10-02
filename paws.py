@@ -11,7 +11,7 @@ def analyze_data(database):
 def update_data(database):
     # scrape data from MusicLeague, Spotify and LastFM
     updater = Updater(database)
-    updater.update_database()
+    #updater.update_database()
     updater.update_spotify()
     updater.update_lastfm()
 

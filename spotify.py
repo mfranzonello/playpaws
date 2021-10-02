@@ -2,6 +2,7 @@ from datetime import datetime
 import re
 from os import getenv
 from base64 import b64encode
+from math import ceil
 
 import requests
 from spotipy import Spotify
@@ -191,59 +192,95 @@ class Spotter:
         streamer.print('\t...updating playlists')
 
         self.update_complete_playlists()
-        #self.update_best_playlists()
+        self.update_best_playlists()
+        self.update_favorite_playlists()
 
     def update_complete_playlists(self):
-        rounds_db, playlists_db = self.database.get_playlists()
+        rounds_db, playlists_db = self.database.get_playlists(theme='complete')
 
         for i in rounds_db.index:
             sublist_uri = rounds_db['url'][i]
 
             league_title = rounds_db['league'][i]
 
-            if league_title not in playlists_db['league'].values:
+            db_query = playlists_db.query('league == @league_title') 
+            if len(db_query):
+                playlist_uri = db_query['uri'].iloc[0]
+                
+            else:
                 playlist_uri = self.create_playlist(league_title)
                 playlists_db.loc[len(playlists_db), ['league', 'uri']] = league_title, playlist_uri
-
-            else:
-                playlist_uri = playlists_db[playlists_db['league'] == league_title]['uri'].iloc[0]
 
             self.update_playlist(playlist_uri, sublist_uri=sublist_uri)
 
         for i in playlists_db.index:
             playlists_db['src'][i] = self.check_playlist_image(playlists_db['league'][i],
-                                                               playlists_db['src'][i])
+                                                               playlists_db['src'][i],
+                                                               playlist_uri)
             
-        self.database.store_playlists(playlists_db)
+        self.database.store_playlists(playlists_db, theme='complete')
 
-    def update_best_playlists(self):
+    def update_best_playlists(self, quantile=0.25):
         rounds_db, playlists_db = self.database.get_playlists(theme='best')
 
-        league_titles = rounds_db['league'].unique()
+        # trim to best songs
+        rounds_db = rounds_db.set_index(['league', 'round'])[\
+            rounds_db.set_index(['league', 'round'])['points'] >= rounds_db.groupby(['league', 'round'])[['points']].quantile(1-quantile).reindex_like(\
+            rounds_db.set_index(['league', 'round']))['points']].dropna().reset_index().sort_values(['date', 'points'], ascending=[True, False])
 
-        for league_title in league_titles:
+        for league_title in rounds_db['league'].unique():
         
-            if league_title not in playlists_db['league'].values:
+            db_query = playlists_db.query('league == @league_title')
+            if len(db_query):
+                playlist_uri = db_query['uri'].iloc[0]
+                
+            else:
                 playlist_uri = self.create_playlist(f'{league_title} - Best Of')
                 playlists_db.loc[len(playlists_db), ['league', 'uri']] = league_title, playlist_uri
 
-            else:
-                playlist_uri = playlists_db[playlists_db['league'] == league_title]['uri'].iloc[0]
-
-            track_uris = rounds_db[rounds_db['league'] == league_title]['uri'].to_list()
+            track_uris = rounds_db.query('league == @league_title')['uri'].to_list()
 
             self.update_playlist(playlist_uri, track_uris=track_uris)
 
         for i in playlists_db.index:
             playlists_db['src'][i] = self.check_playlist_image(playlists_db['league'][i],
-                                                               playlists_db['src'][i])
+                                                               playlists_db['src'][i],
+                                                               playlist_uri)
 
         self.database.store_playlists(playlists_db, theme='best')
 
-    def check_playlist_image(self, league_title, src):
+    def update_favorite_playlists(self):
+        rounds_db, playlists_db = self.database.get_playlists(theme='favorite')
+
+        rounds_db = rounds_db.sort_values(['date', 'vote'], ascending=[True, False])
+
+        for league_title in rounds_db['league'].unique():
+            for player_name in rounds_db.query('(league == @league_title)')['player'].unique():
+                player_theme = f'favorite - {player_name}'
+        
+                db_query = playlists_db.query('(league == @league_title) & (theme == @player_theme)')
+                if len(db_query):
+                    playlist_uri = db_query['uri'].iloc[0]
+
+                else:
+                    playlist_uri = self.create_playlist(f'{league_title} - {player_name}\'s Favorites')
+                    playlists_db.loc[len(playlists_db), ['league', 'uri', 'theme']] = league_title, playlist_uri, player_theme
+                    
+                track_uris = rounds_db.query('(league == @league_title) & (player == @player_name)')['uri'].to_list()
+
+                self.update_playlist(playlist_uri, track_uris=track_uris)
+
+        for i in playlists_db.index:
+            playlists_db['src'][i] = self.check_playlist_image(playlists_db['league'][i],
+                                                               playlists_db['src'][i],
+                                                               playlist_uri)
+
+        self.database.store_playlists(playlists_db, theme='favorite')
+
+    def check_playlist_image(self, league_title, src, uri):
         image_src = self.database.get_cover(league_title)
         if (image_src is not None) and (image_src != src):
-            self.update_playlist_image(image_src)
+            self.update_playlist_image(uri, image_src)
             
             new_src = image_src
 
@@ -271,7 +308,7 @@ class Spotter:
 
     def update_playlist_image(self, uri, image_src):
         image64 = b64encode(requests.get(image_src).content)
-        self.sp.playlist_upload_cover_image(uri, image64)
+        ##self.sp.playlist_upload_cover_image(uri, image64)
 
     def update_playlist(self, playlist_uri, sublist_uri=None, track_uris=None):
         existing_uris = self.get_playlist_uris(playlist_uri)
@@ -283,8 +320,11 @@ class Spotter:
 
         update_uris = [uri for uri in new_uris if uri not in existing_uris]
 
-        if len(update_uris):
-            self.sp.playlist_add_items(playlist_uri, update_uris)
+        segment_size = 100
+        for update_uris_segment in [update_uris[i*segment_size:min(len(update_uris), (i+1)*segment_size)] \
+            for i in range(ceil(len(update_uris)/segment_size))]:
+
+            self.sp.playlist_add_items(playlist_uri, update_uris_segment)
 
 class FMer:
     def __init__(self): #, credentials):

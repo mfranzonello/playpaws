@@ -573,40 +573,56 @@ class Database:
         df = self.get_spotify('Genres')
         return df
 
-    def get_playlists(self, theme='complete', quantile=0.25):
+    def get_playlists(self, theme):
         # get playlists or track URIs to pull songs from
         if theme == 'complete':
+            # all songs
             sql = (f'SELECT league, round, playlist_url AS url FROM {self.table_name("Rounds")} '
                    f'WHERE playlist_url IS NOT NULL '
                    f'ORDER BY date;'
                    )
+
+            wheres = f'theme = {self.needs_quotes(theme)}'
             
         elif theme == 'best':
-            sql = (f'SELECT s.league, s.round, t.url AS uri, r.points FROM {self.table_name("Results")} as r '
+            # based on performance
+            sql = (f'SELECT s.league, s.round, t.url AS uri, r.points, d.date FROM {self.table_name("Results")} as r '
                    f'LEFT JOIN {self.table_name("Songs")} as s ON (r.league = s.league) AND (r.song_id = s.song_id) '
-                   f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_url = t.url;'
+                   f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_url = t.url '
+                   f'LEFT JOIN {self.table_name("Rounds")} as d ON (s.league = d.league) AND (s.round = d.round);'
                    )
+
+            wheres = f'theme = {self.needs_quotes(theme)}'
+
+        elif theme == 'favorite':
+            # player favorite
+            sql = (f'SELECT s.league, s.round, t.url AS uri, v.player, v.vote, d.date '
+                   f'FROM {self.table_name("Votes")} as v '
+                   f'LEFT JOIN {self.table_name("Songs")} as s ON (v.league = s.league) AND (v.song_id = s.song_id) '
+                   f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_url = t.url '
+                   f'LEFT JOIN {self.table_name("Rounds")} AS d ON (s.league = d.league) AND (s.round = d.round);'
+                   )
+
+            wheres = f'theme LIKE {self.needs_quotes(theme+"%%")}'
 
         rounds_df = read_sql(sql, self.connection)
 
-        # trim to best songs
-        if theme == 'best':
-            rounds_df.set_index(['league', 'round'])[\
-                rounds_df.set_index(['league', 'round'])['points'] >= rounds_df.groupby(['league', 'round']).quantile(1-quantile).reindex_like(\
-                rounds_df.set_index(['league', 'round']))['points']].dropna().reset_index().sort_values('points', ascending=False)
-
         # get comprehensive playlists
-        sql = (f'SELECT league, uri, src FROM {self.table_name("Playlists")} '
-               f'WHERE theme = {self.needs_quotes(theme)};'
+        selects = ', theme' if theme == 'favorite' else ''
+
+        sql = (f'SELECT league, uri, src{selects} FROM {self.table_name("Playlists")} '
+               f'WHERE {wheres};'
                )
 
         playlists_df = read_sql(sql, self.connection)
      
         return rounds_df, playlists_df
 
-    def store_playlists(self, playlists_df, theme='complete'):
+    def store_playlists(self, playlists_df, theme):
         df = playlists_df.reindex(columns=self.store_columns('Playlists'))
-        df['theme'] = theme
+        if theme in ['complete', 'best']:
+            df['theme'] = theme
+
         self.upsert_table('Playlists', df)
 
     def get_players_update_sp(self):
