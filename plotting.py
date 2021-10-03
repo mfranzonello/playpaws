@@ -1,9 +1,7 @@
 from math import sin, cos, atan2, pi, isnan
 from re import compile, UNICODE
 from urllib.request import urlopen
-#from os import getlogin
 from collections import Counter
-#from datetime import date
 
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from pandas import set_option, DataFrame, isnull, to_datetime
@@ -14,6 +12,7 @@ from wordcloud import WordCloud#, ImageColorGenerator
 from numpy import asarray
 import streamlit as st
 
+from media import Gallery
 from streaming import streamer
 
 class Printer:
@@ -71,6 +70,7 @@ class Texter:
 class Pictures:
     def __init__(self, database):
         self.database = database
+        #self.gallery = Gallery(database)
         self.players_df = self.database.get_players()
         self.images = self.download_images()
         self.crop_player_images()

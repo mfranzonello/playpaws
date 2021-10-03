@@ -11,6 +11,8 @@ from pylast import LastFMNetwork
 from pandas import DataFrame
 
 from plotting import Texter
+from storage import Boxer
+from media import Byter
 from streaming import streamer
 
 class Spotter:
@@ -30,6 +32,8 @@ class Spotter:
         #self.credentials = credentials
         self.database = database
         self.texter = Texter()
+        self.boxer = Boxer()
+        self.byter = Byter()
 
         self.sp = None
 
@@ -217,8 +221,8 @@ class Spotter:
 
         for i in playlists_db.index:
             playlists_db['src'][i] = self.check_playlist_image(playlists_db['league'][i],
-                                                               playlists_db['src'][i],
-                                                               playlist_uri)
+                                                               #playlists_db['src'][i],
+                                                               playlists_db['uri'][i])
             
         self.database.store_playlists(playlists_db, theme='complete')
 
@@ -246,8 +250,8 @@ class Spotter:
 
         for i in playlists_db.index:
             playlists_db['src'][i] = self.check_playlist_image(playlists_db['league'][i],
-                                                               playlists_db['src'][i],
-                                                               playlist_uri)
+                                                               #playlists_db['src'][i],
+                                                               playlists_db['uri'][i])
 
         self.database.store_playlists(playlists_db, theme='best')
 
@@ -275,20 +279,31 @@ class Spotter:
 
         for i in playlists_db.index:
             playlists_db['src'][i] = self.check_playlist_image(playlists_db['league'][i],
-                                                               playlists_db['src'][i],
-                                                               playlist_uri)
+                                                               #playlists_db['src'][i],
+                                                               playlists_db['uri'][i])
 
         self.database.store_playlists(playlists_db, theme='favorite')
 
-    def check_playlist_image(self, league_title, src, uri):
-        image_src = self.database.get_cover(league_title)
-        if (image_src is not None) and (image_src != src):
-            self.update_playlist_image(uri, image_src)
-            
-            new_src = image_src
+    def check_playlist_image(self, league_title, uri, theme='complete', player=None):
+        current_cover = self.sp.playlist_cover_image(uri)[0]['url']
+
+        mosaic = 'https://mosaic.scdn.co'
+        if current_cover[:len(mosaic)] == mosaic:
+            # needs an image
+            image_src = self.boxer.get_cover(league_title)
+            if image_src:
+                # found image in Dropbox
+                self.update_playlist_image(uri, image_src)
+
+                new_src = image_src
+
+            else:
+                # couldn't find an image
+                new_src = None
 
         else:
-            new_src = src
+            # already has an image
+            new_src = current_cover    
 
         return new_src
 
@@ -310,8 +325,8 @@ class Spotter:
         return uri
 
     def update_playlist_image(self, uri, image_src):
-        image64 = b64encode(requests.get(image_src).content)
-        ##self.sp.playlist_upload_cover_image(uri, image64)
+        image_b64 = self.byter.byte_me(image_src)
+        self.sp.playlist_upload_cover_image(uri, image_b64)
 
     def update_playlist(self, playlist_uri, sublist_uri=None, track_uris=None):
         existing_uris = self.get_playlist_uris(playlist_uri)
