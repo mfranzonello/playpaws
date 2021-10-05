@@ -18,7 +18,7 @@ class Database:
               'Songs': {'keys': ['league', 'song_id'], 'values': ['round', 'artist', 'title', 'submitter', 'track_url']},    
               'Votes': {'keys': ['league', 'player', 'song_id'], 'values': ['vote']},
 
-              'Playlists': {'keys': ['league', 'theme'], 'values': ['uri', 'src']},
+              'Playlists': {'keys': ['league', 'theme'], 'values': ['uri', 'src', 'rounds']},
 
               # Spotify data
               'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'title', 'artist_uri', 'album_uri', 'explicit', 'popularity',
@@ -618,7 +618,7 @@ class Database:
         # get comprehensive playlists
         selects = ', theme' if theme == 'favorite' else ''
 
-        sql = (f'SELECT league, uri, src{selects} FROM {self.table_name("Playlists")} '
+        sql = (f'SELECT league, uri, src, rounds{selects} FROM {self.table_name("Playlists")} '
                f'WHERE {wheres};'
                )
 

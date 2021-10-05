@@ -7,6 +7,7 @@ class Boxer:
     media_folder = '/media'
     covers_folder = f'{media_folder}/covers'
     masks_folder = f'{media_folder}/masks'
+    clipart_folder = f'{media_folder}/clipart'
 
     def __init__(self):
         self.dbx = Dropbox(getenv('DROPBOX_TOKEN'))
@@ -41,19 +42,7 @@ class Boxer:
 
         return url
 
+    def get_clipart(self, name):
+        url = self.get_url(self.clipart_folder, name, 'png')
 
-##from azure.identity import ClientSecretCredential
-###from azure.identity import InteractiveBrowserCredential
-##from msgraph.core import GraphClient
-
-##credential = ClientSecretCredential(tenant_id=getenv('AZURE_DIRECTORY_ID'),
-##                                    client_id=getenv('AZURE_CLIENT_ID'),
-##                                    client_secret=getenv('AZURE_CLIENT_SECRET'))
-####credential = InteractiveBrowserCredential(client_id=getenv('ONEDRIVE_CLIENT_ID'),
-####                                                  client_secret=getenv('ONEDRIVE_CLIENT_SECRET'))
-
-####credential = UsernamePasswordCredential()
-##client = GraphClient(credential=credential)
-
-##result = client.get('/users/mfranzonello@gmail.com/drive')
-###print(result.json())
+        return url

@@ -1,39 +1,139 @@
 from urllib.request import urlopen
 from base64 import b64encode
 from io import BytesIO
+from re import compile, UNICODE
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
+
+from streaming import streamer
 
 class Byter:
     def __init__(self):
         pass
 
-    def byte_me(self, image_url, extension='JPEG', size=(300, 300)):
+    def byte_me(self, image_url, extension='JPEG', size=(300, 300),
+                overlay=None, overlay_pct=0.5):
         image = Image.open(urlopen(image_url)).resize(size)
+
+        if overlay:
+            if isinstance(overlay, str):
+                print(overlay)
+                overlay = Image.open(urlopen(overlay))
+                
+            else:
+                print('HEREB')
+
+            W, H = size
+            w_0, h_0 = overlay.size
+            max_wh = max(w_0, h_0)
+            resize = (int(overlay_pct * w_0 / max_wh * W),
+                      int(overlay_pct * h_0 / max_wh * H))
+
+            overlay_resize = overlay.resize(resize)
+            w_1, h_1 = overlay_resize.size
+            image.paste(overlay_resize, ((W-w_1)//2, (H-h_1)//2), overlay_resize)
+
         buffered = BytesIO()
         image.save(buffered, format=extension)
         image_b64 = b64encode(buffered.getvalue())
 
         return image_b64
 
-class Gallery:
-    def __init__(self, database):
+class Texter:
+    emoji_pattern = compile('['
+                            u'\U0001F600-\U0001F64F' # emoticons
+                            u'\U0001F300-\U0001F5FF' # symbols & pictographs
+                            u'\U0001F680-\U0001F6FF' # transport & maps
+                            u'\U0001F1E0-\U0001F1FF' # flags
+                            u'\U00002500-\U00002BEF' # chinese char
+                            u'\U00002702-\U000027B0'
+                            u'\U00002702-\U000027B0'
+                            u'\U000024C2-\U0001F251'
+                            u'\U0001F926-\U0001F937'
+                            u'\U00010000-\U0010FFFF'
+                            u'\U000023E9-\U000023F3' # play, pause
+                            ']+', flags=UNICODE)
+
+    fonts = {'Segoe UI': 'fonts/segoeui.ttf'}
+
+    emoji_fonts = {'Segoe UI Emoji': 'fonts/seguiemj.ttf'}
+
+    bold_fonts = {'Segoe UI Semibold': 'fonts/seguisb.ttf'}
+
+    def __init__(self):
+        pass
+
+    def clean_text(self, text:str) -> str:
+        cleaned_text = self.emoji_pattern.sub(r'', text).strip()
+        return cleaned_text
+
+    def get_display_name(self, name:str) -> str:
+        if ' ' in name:
+            display_name = name[:name.index(' ')]
+        elif '.' in name:
+            display_name = name[:name.index('.')]
+        else:
+            display_name = name
+        return display_name.title()
+
+    def get_display_name_full(self, name):
+        if (name == name.lower()) and ('.' in name) and (' ' not in name):
+            display_name = name.replace('.', ' ')
+        else:
+            display_name = name
+        return display_name.title()
+
+
+class Imager:
+    def __init__(self):
+        self.images = {}
+
+    def get_color_image(self, color, size):
+        image = self.crop_image(Image.new('RGB', size, color))
+
+        return image
+    
+    def crop_image(self, image):
+        if image:
+            size = image.size
+            mask = Image.new('L', size, 0)
+            drawing = ImageDraw.Draw(mask)
+            drawing.ellipse((0, 0) + size, fill=255)
+            cropped = ImageOps.fit(image, mask.size, centering=(0.5, 0.5))
+            cropped.putalpha(mask)
+
+        else:
+            cropped = None
+
+        return cropped
+
+    def get_image(self, name):
+        return self.images.get(name)
+
+    def store_image(self, name, image):
+        self.images[name] = image
+
+class Gallery(Imager):
+    def __init__(self, database, crop=False):
+        super().__init__()
         self.database = database
-        self.players_df = self.database.get_players()
         self.images = self.download_images()
-        self.crop_player_images()
+        if crop:
+            self.crop_player_images()
                
     def download_images(self):
         images = {}
 
+        players_df = self.database.get_players()
+
         streamer.status(0)
         streamer.print('Downloading profile images...')
-        for i in self.players_df.index:
-            player_name = self.players_df['player'][i]
+        for i in players_df.index:
+            player_name = players_df['player'][i]
             streamer.print(f'\t...{player_name}', base=False)
 
             # download image
-            src = self.players_df['src'][i]
+            src = players_df['src'][i]
             if src[:len('http')] != 'http':
                 src = f'https://{src}'
             fp = urlopen(src)
@@ -49,11 +149,10 @@ class Gallery:
             # store in images dictionary
             images[player_name] = image
 
-            streamer.status(i/len(self.players_df))
+            streamer.status(i/len(players_df))
             
         return images
 
-    def get_player_image(self, player_name):
-        image = self.images[player_name]
-
-        return image
+    def crop_player_images(self):
+        for player_name in self.images:
+            self.images[player_name] = self.crop_image(self.images[player_name])

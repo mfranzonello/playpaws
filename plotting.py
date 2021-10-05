@@ -1,9 +1,8 @@
 from math import sin, cos, atan2, pi, isnan
-from re import compile, UNICODE
 from urllib.request import urlopen
 from collections import Counter
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 from pandas import set_option, DataFrame, isnull, to_datetime
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
@@ -12,7 +11,7 @@ from wordcloud import WordCloud#, ImageColorGenerator
 from numpy import asarray
 import streamlit as st
 
-from media import Gallery
+from media import Texter, Imager, Gallery
 from streaming import streamer
 
 class Printer:
@@ -23,124 +22,17 @@ class Printer:
         for option in self.options:
             set_option(option, None)
 
-class Texter:
-    emoji_pattern = compile('['
-                            u'\U0001F600-\U0001F64F' # emoticons
-                            u'\U0001F300-\U0001F5FF' # symbols & pictographs
-                            u'\U0001F680-\U0001F6FF' # transport & maps
-                            u'\U0001F1E0-\U0001F1FF' # flags
-                            u'\U00002500-\U00002BEF' # chinese char
-                            u'\U00002702-\U000027B0'
-                            u'\U00002702-\U000027B0'
-                            u'\U000024C2-\U0001F251'
-                            u'\U0001F926-\U0001F937'
-                            u'\U00010000-\U0010FFFF'
-                            u'\U000023E9-\U000023F3' # play, pause
-                            ']+', flags=UNICODE)
-
-    fonts = {'Segoe UI': 'fonts/segoeui.ttf'}
-
-    emoji_fonts = {'Segoe UI Emoji': 'fonts/seguiemj.ttf'}
-
-    bold_fonts = {'Segoe UI Semibold': 'fonts/seguisb.ttf'}
-
-    def __init__(self):
-        pass
-
-    def clean_text(self, text:str) -> str:
-        cleaned_text = self.emoji_pattern.sub(r'', text).strip()
-        return cleaned_text
-
-    def get_display_name(self, name:str) -> str:
-        if ' ' in name:
-            display_name = name[:name.index(' ')]
-        elif '.' in name:
-            display_name = name[:name.index('.')]
-        else:
-            display_name = name
-        return display_name.title()
-
-    def get_display_name_full(self, name):
-        if (name == name.lower()) and ('.' in name) and (' ' not in name):
-            display_name = name.replace('.', ' ')
-        else:
-            display_name = name
-        return display_name.title()
-
-class Pictures:
+class Pictures(Imager):
     def __init__(self, database):
-        self.database = database
-        #self.gallery = Gallery(database)
-        self.players_df = self.database.get_players()
-        self.images = self.download_images()
-        self.crop_player_images()
-        self.mask_url = 'https://1drv.ms/u/s!AmvtWraFDWXijohogLktabekPCkCFw'
-        
-    def __hash__(self):
-        return hash(player_name for player_name in self.images.keys())
-        
-    def download_images(self):
-        if 'profile_images' in st.session_state:
-            images = st.session_state['profile_images']
+        super().__init__()
 
-        else:
-
-            images = {}
-
-            streamer.status(0)
-            streamer.print('Downloading profile images...')
-            for i in self.players_df.index:
-                player_name = self.players_df['player'][i]
-                streamer.print(f'\t...{player_name}', base=False)
-
-                # download image
-                src = self.players_df['src'][i]
-                if src[:len('http')] != 'http':
-                    src = f'https://{src}'
-                fp = urlopen(src)
-
-                try:
-                    # see if image can load
-                    image = Image.open(fp)
-                except UnidentifiedImageError:
-                    # image is unloadable
-                    streamer.print(f'...unable to read image for {player_name}', base=False)
-                    image = None
-
-                # store in images dictionary
-                images[player_name] = image
-
-                streamer.status(i/len(self.players_df))
-            
-            st.session_state['profile_images'] = images
-
-        return images
+        self.gallery = Gallery(database, crop=True)
 
     def get_player_image(self, player_name):
-        image = self.images[player_name]
+        return self.gallery.get_image(player_name)
 
-        return image
-
-    def get_color_image(self, color, size):
-        image = self.crop_image(Image.new('RGB', size, color))
-
-        return image
-    
-    def crop_image(self, image):
-        size = image.size
-        mask = Image.new('L', size, 0)
-        drawing = ImageDraw.Draw(mask)
-        drawing.ellipse((0, 0) + size, fill=255)
-        cropped = ImageOps.fit(image, mask.size, centering=(0.5, 0.5))
-        cropped.putalpha(mask)
-
-        return cropped
-
-    def crop_player_images(self):
-        for player in self.images:
-            image = self.images[player]
-            if image:
-                self.images[player] = self.crop_image(image)
+    def store_player_image(self, player_name, image):
+        self.gallery.store_image(player_name, image)
 
     def add_text(self, image, text, font, color=(255, 255, 255), padding=0.05):
         draw = ImageDraw.Draw(image)
