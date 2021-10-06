@@ -23,7 +23,9 @@ class Streamer:
     def title(self, text):
         st.title(text)
         
-    def pyplot(self, figure):
+    def pyplot(self, figure, header=None):
+        if header:
+            st.header(header)
         st.pyplot(figure)
 
     def print(self, text, base=True):

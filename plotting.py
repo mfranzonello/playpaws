@@ -108,6 +108,7 @@ class Plotter:
                   'orange': (245, 170, 66),
                   'aqua': (85, 230, 203),
                   'pink': (225, 138, 227),
+                  'gold': (145, 110, 45),
                   }
 
     marker_sizing = 50
@@ -280,11 +281,10 @@ class Plotter:
             ax.set_ylim(members_df['y'].min() - self.name_offset - self.font_size,
                         members_df['y'].max() + self.name_offset + self.font_size)
             ax.axis('off')
-            ax.set_title('League Pulse', fontweight='bold', horizontalalignment='left', x=0)
 
             st.session_state[f'members_ax:{league_title}'] = ax
 
-        streamer.pyplot(ax.figure)
+        streamer.pyplot(ax.figure, header='League Pulse')
 
     def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
         plot_size = (s_p/2)**0.5/pi/10
@@ -391,11 +391,10 @@ class Plotter:
             ax.set_ylim(y_min + 0.5, y_max + 0.5)
             ax.set_yticks(yticks)
             ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
-            ax.set_title('Round Finishers', fontweight='bold', horizontalalignment='left', x=0)
 
             st.session_state[f'boards_ax:{league_title}'] = ax
 
-        streamer.pyplot(ax.figure)
+        streamer.pyplot(ax.figure, header='Round Finishers')
 
     def plot_board_player(self, ax, xs, player, board, lowest_rank):
         ys = board.where(board > 0).loc[player]
@@ -473,11 +472,10 @@ class Plotter:
 
             ax.set_xticks([(n_rounds-1)/2] + [n_rounds + i for i in range(3)])
             ax.set_xticklabels(['scores', 'dirtiness', 'discovery', 'popularity'], rotation=45)
-            ax.set_title('Player Scores', fontweight='bold', horizontalalignment='left', x=0)
 
             st.session_state['rankings_ax:{league_title}'] = ax
 
-        st.pyplot(ax.figure)
+        st.pyplot(ax.figure, header='Player Scores')
 
     def plot_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size):
         ys = [y] * len(xs)
@@ -539,7 +537,7 @@ class Plotter:
                              'acousticness': '🎸',
                              'instrumentalness': '🎹',
                              }
-            available_colors = self.get_dfc_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'yellow', 'pink')
+            available_colors = self.get_dfc_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'gold', 'pink')
 
             features_colors = self.get_scatter_colors(available_colors, divisor=self.color_wheel)
 
@@ -568,31 +566,30 @@ class Plotter:
                     
             streamer.status(1/6 * (1/3))
 
+            padding = 0.05
             for solo, f in zip(features_solo, range(len(features_solo))):
                 color = features_colors[(len(features_like) + f) % len(features_colors)]
-                features_df.plot(y=solo, secondary_y=solo, color=color,
+                features_df.plot(y=solo, color=color, #secondary_y=solo, 
                                  kind='line', legend=False, ax=ax)
             
                 for i in range(n_rounds-1):
-                    ax.text(x=i + 0.5, y=self.convert_axes(ax, (features_df[solo][i] + features_df[solo][i+1])/2), s=features_solo[solo], # + padding
+                    y = (features_df[solo][i] + features_df[solo][i+1])/2
+                    padding_multiplier = -1 if y > 0.5 else 1
+                    ax.text(x=i + 0.5, y=y + padding_multiplier * padding, s=features_solo[solo], # y=self.convert_axes(ax, (features_df[solo][i] + features_df[solo][i+1])/2)
                             size=font_size, color=color, font=self.emoji_font, horizontalalignment='center')
                 
                         
             streamer.status(1/6 * (1/3))
 
             for position in ['top', 'left', 'right']:
-                ax.spines['left'].set_visible(False)
+                ax.spines[position].set_visible(False)
 
             ax.set_yticklabels([])
             ax.set_yticks([])
-
-            ax.set_title('Audio Features', fontweight='bold', horizontalalignment='left', x=0)
-            #ax.secondary_yaxis.set_yticklabels([])
-            #ax.secondary_yaxis.set_yticks([])
         
             st.session_state[f'features_ax:{league_title}'] = ax
 
-        streamer.pyplot(ax.figure)
+        streamer.pyplot(ax.figure, header='Audio Features')
 
     def convert_axes(self, ax, z, y=True):
         if y:
@@ -623,13 +620,12 @@ class Plotter:
             wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)
             ax.imshow(wordcloud, interpolation="bilinear")
             ax.axis('off')
-            ax.set_title('Genre Cloud', fontweight='bold', horizontalalignment='left', x=0)
         
             streamer.status(1/6 * (1/2))
 
             st.session_state[f'tags_ax:{league_title}'] = ax
 
-        streamer.pyplot(ax.figure)
+        streamer.pyplot(ax.figure, header='Genre Cloud')
 
     def plot_top_songs(self, league_title, results_df, max_years=10):
         if f'top_songs_ax:{league_title}' in st.session_state:
@@ -691,11 +687,10 @@ class Plotter:
             years_range = range(0, n_years, max(1, ceil(n_years/max_years)))
             ax.set_xticks([D / n_years * d for d in years_range] + [(W + D) / 2])
             ax.set_xticklabels([max_date.year - i for i in years_range] + [f'< {max_date.year - max(years_range)}'])
-            ax.set_title('Top Songs', fontweight='bold', horizontalalignment='left', x=0)
         
             st.session_state[f'top_songs_ax:{league_title}'] = ax
 
-        streamer.pyplot(ax.figure)
+        streamer.pyplot(ax.figure, header='Top Songs')
 
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
