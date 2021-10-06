@@ -3,7 +3,7 @@ from urllib.request import urlopen
 from collections import Counter
 
 from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
-from pandas import set_option, DataFrame, isnull, to_datetime
+from pandas import DataFrame, isnull, to_datetime
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from matplotlib.dates import date2num#, num2date
@@ -12,15 +12,8 @@ from numpy import asarray
 import streamlit as st
 
 from media import Texter, Imager, Gallery
+from storage import Boxer
 from streaming import streamer
-
-class Printer:
-    def __init__(self, *options):
-        self.options = [*options]
-
-    #def set_display_options(self):
-        for option in self.options:
-            set_option(option, None)
 
 class Pictures(Imager):
     def __init__(self, database):
@@ -134,7 +127,6 @@ class Plotter:
     like_arrow_length = 0.4
     like_arrow_split = 0.05
 
-    #figure_size = (16, 10)
     figure_title = 'MusicLeague'
 
     subplot_aspects = {'golden': ((1 + 5**0.5) / 2, 1),
@@ -145,7 +137,7 @@ class Plotter:
 
     def __init__(self, database):
         self.texter = Texter()
-
+        self.boxer = Boxer()
         self.fonts = list(self.texter.fonts.keys())
         self.emoji_fonts = list(self.texter.emoji_fonts.keys())
 
@@ -156,7 +148,6 @@ class Plotter:
 
         rcParams['font.family'] = 'sans-serif'
         rcParams['font.sans-serif'] = self.fonts
-        ##rcParams['font.emoji'] = self.texter.emoji_fonts
         
         self.league_titles = None
         self.members_list = None
@@ -201,7 +192,7 @@ class Plotter:
         return pictures
 
     def add_analyses(self):
-        streamer.print('Getting analyses...')
+        streamer.print('Getting analyses')
         analyses_df = self.database.get_analyses()
 
         if len(analyses_df):
@@ -214,7 +205,7 @@ class Plotter:
         league_title = streamer.selectbox.selectbox('Pick a league to view', ['<select>'] + self.league_titles.to_list())
 
         if league_title != '<select>':
-            streamer.print(f'Preparing plot for {league_title}...')
+            streamer.print(f'Preparing plot for {league_title}')
             streamer.status(0, base=True)
             
             streamer.title(league_title)
@@ -223,7 +214,7 @@ class Plotter:
             self.plot_boards(league_title, self.database.get_boards(league_title))
             self.plot_rankings(league_title, self.database.get_rankings(league_title), self.database.get_dirtiness(league_title), self.database.get_discovery_scores(league_title))
             self.plot_features(league_title, self.database.get_audio_features(league_title))
-            self.plot_tags(league_title, self.database.get_genres_and_tags(league_title), self.database.get_mask(league_title))
+            self.plot_tags(league_title, self.database.get_genres_and_tags(league_title), self.boxer.get_mask(league_title))
             self.plot_top_songs(league_title, self.database.get_song_results(league_title))
 
             streamer.clear_printer()
@@ -391,7 +382,7 @@ class Plotter:
 
             if has_dnf:
                 # plot DNF line
-                ax.plot([x_min - 0.5, x_max + 0.5], [lowest_rank + 1] * 2, '--', color='0.5')
+                ax.plot([x_min - scaling[0]/2, x_max + scaling[0]/2], [lowest_rank + 1] * 2, '--', color='0.5')
             streamer.status(1/6 * (1/3))
 
             ax.set_xlim(x_min - scaling[0]/2, x_max + scaling[0]/2)
@@ -633,7 +624,7 @@ class Plotter:
 
         streamer.pyplot(ax.figure)
 
-    def plot_top_songs(self, league_title, results_df, years=10):
+    def plot_top_songs(self, league_title, results_df):
         print(st.session_state)
         if f'top_songs_ax:{league_title}' in st.session_state:
             ax = st.session_state[f'top_songs_ax:{league_title}']
@@ -648,8 +639,8 @@ class Plotter:
             rounds = list(results_df['round'].unique())
             n_rounds = len(rounds)
 
-            li = [1/(n+2) for n in range(n_rounds)]
-            li2 = [l / sum(li) for l in li]
+            ##li = [1/(n+2) for n in range(n_rounds)]
+            ##li2 = [l / sum(li) for l in li]
 
             results_df['text'] = results_df.apply(lambda x: ' + '.join(x['artist']) + ' "' + x['title'] + '"', axis=1)
             results_df['y_round'] = results_df['round'].map({d: rounds.index(d) for d in results_df['round'].unique()})

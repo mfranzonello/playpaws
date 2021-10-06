@@ -1,5 +1,5 @@
-from stripper import Stripper, Scraper
-from spotify import Spotter, FMer
+from extract import Stripper, Scraper
+from audio import Spotter, FMer
 from results import Songs, Votes, Rounds, Leagues, Players
 
 class Updater:
@@ -47,7 +47,7 @@ class Updater:
         results = self.stripper.extract_results(html_text, page_type='league')
 
         _, round_titles, \
-            player_names, player_urls, player_imgs, \
+            player_names, player_urls, \
             round_urls, round_dates, round_creators, round_playlists = results # _ = league_title
 
         if len(round_titles):
@@ -61,7 +61,7 @@ class Updater:
             self.database.store_rounds(rounds_df, league_title)
 
         if(len(player_names)):
-            players_df = players.sub_players(player_names, username=player_urls)#, src=player_imgs)
+            players_df = players.sub_players(player_names, username=player_urls)
             self.database.store_players(players_df, league_title=league_title)
         
         return round_titles, round_urls
@@ -82,25 +82,31 @@ class Updater:
         if round_available:
             print(f'Loading round {round_title}')
 
-            if round_status in ['missing', 'new', 'open']:#, 'closed']: # remove 'closed'
+            if round_status in ['missing', 'new', 'open']:
                 # round needs to be updated
                 print(f'\t...updating round {round_title}')
 
                 html_text = self.scraper.get_html_text(round_url)
                 results = self.stripper.extract_results(html_text, 'round')
-                _, _, artists, titles, submitters, \
-                    song_ids, player_names, vote_counts, vote_totals, track_urls = results # _, _ = league_title, round_title
+                _, _, _, _, submitters, \
+                    song_ids, player_names, vote_counts, vote_totals, track_urls = results # _, _ = league_title, round_title, artists, titles
+
+                if not(len(track_urls)):
+                    playlist_url = self.database.get_round_playlist(league_title, round_title)
+                    if playlist_url:
+                        self.spotter.connect_to_spotify()
+                        track_urls = self.spotter.get_playlist_uris(playlist_url, external_url=True)
                 
                 next_song_ids = self.database.get_song_ids(league_title, round_title, track_urls) # -> consider replacing existing song_ids?
 
                 # construct details with updates for new and open
-                songs_df = songs.sub_round(round_title, artists, titles, track_urls, submitters, next_song_ids)
+                songs_df = songs.sub_round(round_title, track_urls, submitters, next_song_ids)
                 votes_df = votes.sub_round(song_ids, player_names, vote_counts, vote_totals, next_song_ids)
 
                 # check if round can be closed
                 if len(player_names):
                     new_status = 'closed'
-                elif len(artists):
+                elif len(track_urls):
                     new_status = 'open'
                 else:
                     new_status = 'new'

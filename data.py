@@ -15,7 +15,7 @@ class Database:
               'Leagues': {'keys': ['league'], 'values': ['creator', 'date', 'url']},
               'Players': {'keys': ['player'], 'values': ['username', 'src', 'uri', 'followers']},
               'Rounds': {'keys': ['league', 'round'], 'values': ['creator', 'date', 'status', 'url', 'playlist_url']},
-              'Songs': {'keys': ['league', 'song_id'], 'values': ['round', 'artist', 'title', 'submitter', 'track_url']},    
+              'Songs': {'keys': ['league', 'song_id'], 'values': ['round', 'submitter', 'track_url']},    
               'Votes': {'keys': ['league', 'player', 'song_id'], 'values': ['vote']},
 
               'Playlists': {'keys': ['league', 'theme'], 'values': ['uri', 'src', 'rounds']},
@@ -32,14 +32,13 @@ class Database:
               
               # analytics
               'Members': {'keys': ['league', 'player'], 'values': ['x', 'y', 'wins', 'dfc', 'likes', 'liked']},
-              'Results': {'keys': ['league', 'song_id'], 'values': ['people', 'closed', 'discovery', 'points']},
+              'Results': {'keys': ['league', 'song_id'], 'values': ['people', 'votes', 'closed', 'discovery', 'points']},
               'Rankings': {'keys': ['league', 'round', 'player'], 'values': ['points', 'score']},
               'Boards': {'keys': ['league', 'round', 'player'], 'values': ['place']},
               'Analyses': {'keys': ['league'], 'values': ['date', 'open', 'closed', 'version']},
               
               # settings
               'Weights': {'keys': ['parameter', 'version'], 'values': ['value']},
-              'Images': {'keys': ['keyword'], 'values': ['src']}, 
               }
 
     def use_one_league(self, table_name):
@@ -495,50 +494,6 @@ class Database:
                 clean_value = value
         return clean_value
 
-    def clean_up_embed(self, src):
-        clean_src = src.replace('/embed?', '/download?')
-        return clean_src
-
-    def get_mask(self, league_title, default='<default>'):
-        sql = (f'SELECT src, keyword FROM {self.table_name("Images")} '
-               f'WHERE type = {self.needs_quotes("mask")};'
-               )
-
-        mask_df = read_sql(sql, self.connection)
-        #masks_df = self.get_table('Images')
-
-        masks_df['ratio'] = masks_df['keyword'].apply(lambda x: self.get_mask_ratio(league_title, x, default))
-        max_ratio = masks_df['ratio'].max()
-        if max_ratio == 0:
-            mask = masks_df[masks_df['keyword'] == default]['src']
-        else:
-            mask = masks_df[masks_df['ratio'] == max_ratio]['src']
-
-        mask_src = self.clean_up_embed(mask.iloc[0])
-
-        return mask_src
-
-    def get_mask_ratio(self, league_title, keyword, default):
-        if (keyword == default) or (keyword.lower() not in league_title.lower()):
-            ratio = 0
-        else:
-            ratio = SequenceMatcher(None, league_title, keyword).quick_ratio()
-        return ratio
-
-    def get_cover(self, league_title):
-        sql = (f'SELECT keyword AS league, src FROM {self.table_name("Images")} '
-               f'WHERE (type = {self.needs_quotes("cover")}) AND (keyword = {self.needs_quotes(league_title)});'
-               )
-
-        covers_df = read_sql(sql, self.connection)
-
-        if len(covers_df):
-            cover = self.clean_up_embed(covers_df['src'].iloc[0])
-
-        else:
-            cover = None
-
-        return cover
 
     # Spotify functions
     def store_spotify(self, df, table_name):
@@ -577,7 +532,24 @@ class Database:
         df = self.get_spotify('Genres')
         return df
 
-    def get_playlists(self, theme):
+    def get_round_playlist(self, league_title, round_title):
+        sql = (f'SELECT playlist_url AS url FROM {self.table_name("Rounds")} '
+               f'WHERE (league = {self.needs_quotes(league_title)}) AND (round = {self.needs_quotes(round_title)}) '
+               f'AND (playlist_url IS NOT NULL);')
+
+        playlist_df = read_sql(sql, self.connection)
+        if len(playlist_df):
+            playlist_url = playlist_df['url'].iloc[0]
+        else:
+            playlist_url = None
+
+        return playlist_url
+
+    def get_playlists(self):
+        playlists_df = self.get_table('Playlists')
+        return playlists_df
+
+    def get_theme_playlists(self, theme):
         # get playlists or track URIs to pull songs from
         if theme == 'complete':
             # all songs
@@ -600,7 +572,7 @@ class Database:
 
         elif theme == 'favorite':
             # player favorite
-            sql = (f'SELECT s.league, s.round, t.uri, v.player, v.vote, d.date '
+            sql = (f'SELECT * FROM (SELECT s.league, s.round, t.uri, v.player, v.vote, d.date '
                    f'FROM {self.table_name("Votes")} as v '
                    f'LEFT JOIN {self.table_name("Songs")} as s ON (v.league = s.league) AND (v.song_id = s.song_id) '
                    f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_url = t.url '
@@ -608,7 +580,8 @@ class Database:
                    f'UNION SELECT s.league, s.round, t.uri, s.submitter as player, -1 as vote,  d.date '
                    f'FROM {self.table_name("Songs")} as s '
                    f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_url = t.url '
-                   f'LEFT JOIN {self.table_name("Rounds")} AS d ON (s.league = d.league) AND (s.round = d.round);'
+                   f'LEFT JOIN {self.table_name("Rounds")} AS d ON (s.league = d.league) AND (s.round = d.round)) AS q '
+                   f'WHERE q.player IS NOT NULL;'
                    )
 
             wheres = f'theme LIKE {self.needs_quotes(theme+"%%")}'

@@ -1,7 +1,7 @@
 from data import Database
 from update import Updater
 from analyze import Analyzer
-from plotting import Printer
+from streaming import Printer
 
 def analyze_data(database):
     # analyze MusicLeague data

@@ -107,49 +107,60 @@ class Imager:
 
         return cropped
 
+class Gallery(Imager):
+    def __init__(self, database, download_all=False, crop=False):
+        super().__init__()
+        self.database = database
+        self.players_df = self.database.get_players()
+
+        self.crop = crop
+
+        self.images = self.download_images() if download_all else {}
+        
     def get_image(self, name):
-        return self.images.get(name)
+        if name not in self.images:
+            self.download_image(name)
+
+        image = self.images.get(name)
+
+        return image
 
     def store_image(self, name, image):
         self.images[name] = image
+   
+    def download_image(self, name):
+        streamer.print(f'\t...{name}', base=False)
 
-class Gallery(Imager):
-    def __init__(self, database, crop=False):
-        super().__init__()
-        self.database = database
-        self.images = self.download_images()
-        if crop:
-            self.crop_player_images()
-               
+        # download image
+        src = self.players_df[self.players_df['player']==name]['src'].iloc[0]
+        if src[:len('http')] != 'http':
+            src = f'https://{src}'
+        fp = urlopen(src)
+
+        try:
+            # see if image can load
+            image = Image.open(fp)
+
+            if self.crop:
+                image = self.crop_image(image)
+
+        except UnidentifiedImageError:
+            # image is unloadable
+            streamer.print(f'...unable to read image for {name}', base=False)
+            image = None
+
+        # store in images dictionary
+        self.images[name] = image
+
     def download_images(self):
         images = {}
 
-        players_df = self.database.get_players()
-
         streamer.status(0)
         streamer.print('Downloading profile images...')
-        for i in players_df.index:
-            player_name = players_df['player'][i]
-            streamer.print(f'\t...{player_name}', base=False)
+        for i in self.players_df.index:
+            self.download_image(self.players_df['player'][i])
 
-            # download image
-            src = players_df['src'][i]
-            if src[:len('http')] != 'http':
-                src = f'https://{src}'
-            fp = urlopen(src)
-
-            try:
-                # see if image can load
-                image = Image.open(fp)
-            except UnidentifiedImageError:
-                # image is unloadable
-                streamer.print(f'...unable to read image for {player_name}', base=False)
-                image = None
-
-            # store in images dictionary
-            images[player_name] = image
-
-            streamer.status(i/len(players_df))
+            streamer.status(i/len(self.players_df))
             
         return images
 

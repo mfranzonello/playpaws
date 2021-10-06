@@ -180,9 +180,3 @@ class Analyzer:
         members = self.database.get_members(league_title)
         xy_ = members[['player', 'x', 'y']]
         return xy_
-
-    ##def store_coordinates(self, league_title, members):
-    ##    print('Storing coordinates')
-    ##    members_df = members.get_members()
-    ##    print(members_df)
-    ##    self.database.store_members(members_df, league_title)

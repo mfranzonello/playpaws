@@ -1,6 +1,6 @@
 from data import Database
-from plotting import Printer, Plotter
-from streaming import streamer
+from plotting import Plotter
+from streaming import Printer, streamer
  
 def plot_data(database):
     # plot results of analysis

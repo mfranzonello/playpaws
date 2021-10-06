@@ -23,13 +23,12 @@ class Songs(Results):
     def __repr__(self):
         return f'SONGS\n{self.df.reindex(columns=self.columns)}\n'
 
-    def sub_round(self, round_title, artists, titles, track_urls, submitters, next_song_ids, **cols):
+    def sub_round(self, round_title, track_urls, submitters, next_song_ids, **cols):
         songs_df = DataFrame(columns=Songs.columns)
         songs_df['song_id'] = next_song_ids
         songs_df['round'] = round_title
-        songs_df['artist'] = artists
-        songs_df['title'] = titles
         songs_df['track_url'] = track_urls
+
         if len(submitters):
             songs_df['submitter'] = submitters
 
@@ -108,7 +107,7 @@ class Votes(Results):
         if len(player_names):
             votes_df['player'] = player_names
             votes_df['vote'] = vote_counts
-        else:
+        elif len(vote_totals):
             votes_df['vote'] = vote_totals
 
         return votes_df

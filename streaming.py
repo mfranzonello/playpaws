@@ -1,4 +1,13 @@
+from pandas import set_option
 import streamlit as st
+
+class Printer:
+    def __init__(self, *options):
+        self.options = [*options]
+
+    #def set_display_options(self):
+        for option in self.options:
+            set_option(option, None)
 
 class Streamer:
     def __init__(self):
@@ -18,7 +27,6 @@ class Streamer:
         st.pyplot(figure)
 
     def print(self, text, base=True):
-        base_text = self.base_text
         if base:
             self.base_text = text
             new_text = text
@@ -26,7 +34,7 @@ class Streamer:
             new_text = self.base_text + ' ' + text
         
         # print to Streamlit
-        self.text_print.text(new_text)
+        self.text_print.write(new_text)
 
         # print to cmd
         print(text)
