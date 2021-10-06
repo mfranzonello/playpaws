@@ -1,12 +1,13 @@
-from math import sin, cos, atan2, pi, isnan
+from math import sin, cos, atan2, pi, nan, isnan, ceil
 from urllib.request import urlopen
 from collections import Counter
+from datetime import datetime
 
 from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 from pandas import DataFrame, isnull, to_datetime
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from matplotlib.dates import date2num#, num2date
+from matplotlib.dates import date2num, num2date
 from wordcloud import WordCloud#, ImageColorGenerator
 from numpy import asarray
 import streamlit as st
@@ -27,14 +28,18 @@ class Pictures(Imager):
     def store_player_image(self, player_name, image):
         self.gallery.store_image(player_name, image)
 
-    def add_text(self, image, text, font, color=(255, 255, 255), padding=0.05):
+    def add_text(self, image, text, font, color=(255, 255, 255), boundary=[0.75, 0.8]):
         draw = ImageDraw.Draw(image)
 
         text_str = str(text)
         
+        bw, bh = boundary
         W, H = image.size
-        font_size = round(H * 0.75 * (1-padding))
-        font = ImageFont.truetype(font, font_size)
+        font_size = round(H * 0.75 * bh)
+        font_length = ImageFont.truetype(font, font_size).getmask(text_str).getbbox()[2]
+        true_font_size = int(min(1, bw * W / font_length) * font_size)
+
+        font = ImageFont.truetype(font, true_font_size)
         
         x0, y0, x1, y1 = draw.textbbox((0, 0), text_str, font=font)
         w = x1 - x0
@@ -78,25 +83,14 @@ class Pictures(Imager):
         image = Image.new('RGBA', (W, H), (0, 0, 0, 0))
         draw = ImageDraw.Draw(image)
 
+        text_df['new_x'] = text_df.apply(lambda x: x_ratio * (date2num(max_x) - date2num(x['x'])) + x['total_length'], axis=1)
+
         for i in text_df.index:
             x_text = x_ratio * (date2num(max_x) - date2num(text_df['x'][i]))
             y_text = text_df[['y_round', 'y_song']].sum(1)[i] * base
 
             draw.text((x_text, y_text), text_df['text'][i],
                       fill=text_df['font_color'][i], font=text_df['image_font'][i])
-
-        ##image.save(f'c:/users/{getlogin()}/desktop/test.png')
-        ##print(text_df[['text', 'length', 'total_length']])
-         
-        ##ascent, descent = image_font.getmetrics()
-
-        ##W = image_font.getmask(text).getbbox()[2]
-        ##H = image_font.getmask(text).getbbox()[3] + descent
-
-        ##image = Image.new('RGBA', (W, H), (0, 0, 0, 0))
-        ##draw = ImageDraw.Draw(image)
-
-        ##draw.text((0, -descent), text, fill=color + tuple([255]), font=image_font)
 
         return image, D
     
@@ -286,13 +280,14 @@ class Plotter:
             ax.set_ylim(members_df['y'].min() - self.name_offset - self.font_size,
                         members_df['y'].max() + self.name_offset + self.font_size)
             ax.axis('off')
+            ax.set_title('League Pulse', fontweight='bold', horizontalalignment='left', x=0)
 
             st.session_state[f'members_ax:{league_title}'] = ax
 
         streamer.pyplot(ax.figure)
 
     def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
-        plot_size = size=(s_p/2)**0.5/pi/10
+        plot_size = (s_p/2)**0.5/pi/10
         image, _ = self.plot_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False, zorder=1)
         if image:
             _, _ = self.plot_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05, zorder=0)
@@ -396,6 +391,7 @@ class Plotter:
             ax.set_ylim(y_min + 0.5, y_max + 0.5)
             ax.set_yticks(yticks)
             ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
+            ax.set_title('Round Finishers', fontweight='bold', horizontalalignment='left', x=0)
 
             st.session_state[f'boards_ax:{league_title}'] = ax
 
@@ -469,8 +465,15 @@ class Plotter:
             streamer.status(1/6 * (1/3))
             
             ax.axis('equal')
-            ax.tick_params(axis='both', which='both',
-                           bottom='off', top='off', left='off', right='off') # get rid of ticks?
+            #ax.axis('off')
+            ax.spines['left'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            ax.set_yticklabels([])
+            ax.set_yticks([])
+
+            ax.set_xticks([(n_rounds-1)/2] + [n_rounds + i for i in range(3)])
+            ax.set_xticklabels(['scores', 'dirtiness', 'discovery', 'popularity'], rotation=45)
+            ax.set_title('Player Scores', fontweight='bold', horizontalalignment='left', x=0)
 
             st.session_state['rankings_ax:{league_title}'] = ax
 
@@ -545,12 +548,14 @@ class Plotter:
             # ['loudness', 'key', 'mode']
             features_all = list(features_solo.keys()) + list(features_like.keys())
             mapper = {f'avg_{f}': f'{f}' for f in features_all}
+
+            features_df['round'] = features_df['round'].apply(self.texter.clean_text)
         
             features_df = features_df.set_index('round').rename(columns=mapper)[features_all]
             features_df[list(features_solo.keys())] = features_df[list(features_solo.keys())].abs().div(features_df[list(features_solo.keys())].max())
         
             features_df.plot(use_index=True, y=list(features_like.keys()), color=features_colors[:len(features_like)],
-                             kind='bar', legend=False, ax=ax)
+                             kind='bar', legend=False, xlabel=None, rot=45, ax=ax)
 
             padding = 5
             font_size = 'medium'
@@ -575,15 +580,16 @@ class Plotter:
                         
             streamer.status(1/6 * (1/3))
 
-            ##for position in ['top', 'left', 'right']:
-            ##    ax.spines[position].set_visible(False)
-        
-            ##ax.set_xticks([])
-            ##ax.set_xticklabels([])
-            ##ax.xaxis.set_ticks_position('none')
-            ##ax.yaxis.set_ticks_position('none') #'bottom')
-            ##ax.minorticks_off()
+            for position in ['top', 'left', 'right']:
+                ax.spines['left'].set_visible(False)
 
+            ax.set_yticklabels([])
+            ax.set_yticks([])
+
+            ax.set_title('Audio Features', fontweight='bold', horizontalalignment='left', x=0)
+            #ax.secondary_yaxis.set_yticklabels([])
+            #ax.secondary_yaxis.set_yticks([])
+        
             st.session_state[f'features_ax:{league_title}'] = ax
 
         streamer.pyplot(ax.figure)
@@ -617,6 +623,7 @@ class Plotter:
             wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)
             ax.imshow(wordcloud, interpolation="bilinear")
             ax.axis('off')
+            ax.set_title('Genre Cloud', fontweight='bold', horizontalalignment='left', x=0)
         
             streamer.status(1/6 * (1/2))
 
@@ -624,8 +631,7 @@ class Plotter:
 
         streamer.pyplot(ax.figure)
 
-    def plot_top_songs(self, league_title, results_df):
-        print(st.session_state)
+    def plot_top_songs(self, league_title, results_df, max_years=10):
         if f'top_songs_ax:{league_title}' in st.session_state:
             ax = st.session_state[f'top_songs_ax:{league_title}']
             streamer.status(1/6)
@@ -661,52 +667,32 @@ class Plotter:
             results_df['x'] = results_df.apply(lambda x: max(min_date, x['release_date']), axis=1)
             results_df['font_size'] = (1 - results_df['y_song']) / 2
             results_df['font_name'] = results_df.apply(lambda x: self.bold_font if x['closed'] else self.image_font, axis=1)
-            results_df['font_color'] = results_df.apply(lambda x: self.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max()),
-                                                        axis=1)
+            results_df['font_color'] = results_df.apply(lambda x: self.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max() \
+                                                if results_df[results_df['round'] == x['round']]['points'].max() else nan, self.get_dfc_colors('grey')), axis=1)
         
             streamer.status(1/6 * (1/4))
         
             base = 100
             image, D = self.pictures.get_text_image(results_df, self.subplot_aspects['top_songs'], base)
-            ax.imshow(image)
+            
         
             streamer.status(1/6 * (1/4))
         
+
+            ax.imshow(image)
+            W, H = image.size
+            
+            ax.set_yticks([H / n_rounds * (n + 0.5) for n in range(n_rounds)])
+            ax.set_yticklabels([self.texter.clean_text(r) for r in rounds])
+
             ax.yaxis.tick_right()
-            ax.set_yticks([(n + 0.5) * base for n in range(n_rounds)])
-            ax.set_yticklabels([self.texter.clean_text(r) for r in rounds])#, rotation=45)
+
+            n_years = max_date.year - min_date.year
+            years_range = range(0, n_years, max(1, ceil(n_years/max_years)))
+            ax.set_xticks([D / n_years * d for d in years_range] + [(W + D) / 2])
+            ax.set_xticklabels([max_date.year - i for i in years_range] + [f'< {max_date.year - max(years_range)}'])
+            ax.set_title('Top Songs', fontweight='bold', horizontalalignment='left', x=0)
         
-            #date_span = image.size[0] / D * (date2num(max_date) - date2num(min_date))
-            #ax.set_xlim(max_date, num2date(date2num(max_date) - date_span))
-
-            #x_ticks = [date(max_date.year - y, max_date.month, max_date.day) for y in range(max_date.year - min_date.year)]
-            #ax.set_xticks(x_ticks)
-
-            #ax.secondary_xaxis('top')
-            #ax.right_ax.set_xlim([0, max_date.year-min_date.year])
-                                 
-            ##for i in results_df.index:
-            ##    x = max(min_date, results_df['release_date'][i])
-            ##    y = results_df['y'][i]
-            ##    s = results_df['text'][i]
-            ##    size = fontsize * 2 * (1 - results_df['y_song'][i])
-            ##    #text_font = self.bold_font if results_df['closed'][i] else self.image_font
-            ##    fontweight = 'bold' if results_df['closed'][i] else None
-            ##    percent = float(results_df['points'][i] / results_df[results_df['round']==results_df['round'][i]]['points'].max())
-            ##    #font_color = self.get_rgb(rgb_df, percent, astype=int)
-            ##    color = self.get_rgb(rgb_df_2, percent, astype=float)
-
-            ##    ##image = self.pictures.get_text_image(s, text_font, font_color, size)
-            ##    ##extent = [date2num(x), date2num(x) + 10, #date2num(date(x.year - 10, x.month, x.day)), #image.size[0]
-            ##    ##          y, y + 0.5]# image.size[1]]
-            ##    ##print(f'extent: {extent}')
-            ##    ##ax.imshow(image, extent=extent)
-
-            ##    ax.text(x=x, y=y, s=s, fontweight=fontweight, size=size, color=color, verticalalignment='top')
-
-            ##ax.set_xlim(max_date, min_date)
-            ##ax.set_ylim(n_rounds, 0)
-
             st.session_state[f'top_songs_ax:{league_title}'] = ax
 
         streamer.pyplot(ax.figure)
