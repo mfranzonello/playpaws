@@ -7,38 +7,6 @@ from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
 from streaming import streamer
 
-class Byter:
-    def __init__(self):
-        pass
-
-    def byte_me(self, image_url, extension='JPEG', size=(300, 300),
-                overlay=None, overlay_pct=0.5):
-        image = Image.open(urlopen(image_url)).resize(size)
-
-        if overlay:
-            if isinstance(overlay, str):
-                print(overlay)
-                overlay = Image.open(urlopen(overlay))
-                
-            else:
-                print('HEREB')
-
-            W, H = size
-            w_0, h_0 = overlay.size
-            max_wh = max(w_0, h_0)
-            resize = (int(overlay_pct * w_0 / max_wh * W),
-                      int(overlay_pct * h_0 / max_wh * H))
-
-            overlay_resize = overlay.resize(resize)
-            w_1, h_1 = overlay_resize.size
-            image.paste(overlay_resize, ((W-w_1)//2, (H-h_1)//2), overlay_resize)
-
-        buffered = BytesIO()
-        image.save(buffered, format=extension)
-        image_b64 = b64encode(buffered.getvalue())
-
-        return image_b64
-
 class Texter:
     emoji_pattern = compile('['
                             u'\U0001F600-\U0001F64F' # emoticons
@@ -84,6 +52,55 @@ class Texter:
         return display_name.title()
 
 
+class Byter:
+    def __init__(self):
+        pass
+
+    def byte_me(self, image_src, extension='JPEG', size=(300, 300),
+                overlay=None, overlay_pct=0.5):
+        """Convert image and overlay to bytes object"""
+        # check image source type
+        if isinstance(image_src, str):
+            image = Image.open(urlopen(image_src))
+        
+        elif isinstance(image_src, BytesIO):
+            image = Image.open(image_src)
+        
+        else:
+            image = image_src
+
+        # convert to 300 x 300
+        image = image.resize(size)
+
+        # check if there is an overlay
+        if overlay:
+            # check overlay source type
+            if isinstance(overlay, str):
+                print(overlay)
+                overlay_image = Image.open(urlopen(overlay))
+                
+            elif isinstance(overlay, BytesIO):
+                overlay_image = Image.open(overlay)
+
+            else:
+                overlay_image = overlay
+
+            W, H = image.size
+            w_0, h_0 = overlay_image.size
+            max_wh = max(w_0, h_0)
+            resize = (int(overlay_pct * w_0 / max_wh * W),
+                      int(overlay_pct * h_0 / max_wh * H))
+
+            overlay_resize = overlay_image.resize(resize)
+            w_1, h_1 = overlay_resize.size
+            image.paste(overlay_resize, ((W-w_1)//2, (H-h_1)//2), overlay_resize)
+
+        buffered = BytesIO()
+        image.save(buffered, format=extension)
+        image_b64 = b64encode(buffered.getvalue())
+
+        return image_b64
+
 class Imager:
     def __init__(self):
         self.images = {}
@@ -95,10 +112,19 @@ class Imager:
     
     def crop_image(self, image):
         if image:
-            size = image.size
-            mask = Image.new('L', size, 0)
+            W, H = image.size
+            if W != H:
+                # crop to square
+                wh = min(W, H)
+                left = (W - wh)/2
+                right = (W + wh)/2
+                top = (H - wh)/2
+                bottom = (H + wh)/2
+                image = image.crop((left, top, right, bottom))
+
+            mask = Image.new('L', image.size, 0)
             drawing = ImageDraw.Draw(mask)
-            drawing.ellipse((0, 0) + size, fill=255)
+            drawing.ellipse((0, 0) + image.size, fill=255)
             cropped = ImageOps.fit(image, mask.size, centering=(0.5, 0.5))
             cropped.putalpha(mask)
 
@@ -133,20 +159,26 @@ class Gallery(Imager):
 
         # download image
         src = self.players_df[self.players_df['player']==name]['src'].iloc[0]
-        if src[:len('http')] != 'http':
-            src = f'https://{src}'
-        fp = urlopen(src)
+        if src:
+            # Spotify profile image exists
+            if src[:len('http')] != 'http':
+                src = f'https://{src}'
+            fp = urlopen(src)
 
-        try:
-            # see if image can load
-            image = Image.open(fp)
+            try:
+                # see if image can load
+                image = Image.open(fp)
 
-            if self.crop:
-                image = self.crop_image(image)
+                if self.crop:
+                    image = self.crop_image(image)
 
-        except UnidentifiedImageError:
-            # image is unloadable
-            streamer.print(f'...unable to read image for {name}', base=False)
+            except UnidentifiedImageError:
+                # image is unloadable
+                streamer.print(f'...unable to read image for {name}', base=False)
+                image = None
+
+        else:
+            # no Spotify profile image exists
             image = None
 
         # store in images dictionary

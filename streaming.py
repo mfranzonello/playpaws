@@ -27,6 +27,7 @@ class Streamer:
         if header:
             st.header(header)
         st.pyplot(figure)
+        st.write('\n')
 
     def print(self, text, base=True):
         if base:

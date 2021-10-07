@@ -1,5 +1,3 @@
-import codecs
-from os import listdir
 import re
 from dateutil.parser import parse
 
@@ -105,7 +103,7 @@ class Stripper:
                     'player': {'tag': 'a',
                                'href': 'user/',
                                'multiple': {'name': {'title': True},
-                                            'img': {'src': True},
+                                            ##'img': {'src': True},
                                             'url': {'href': True,
                                                     'remove': {'type': 'in',
                                                                'rems': ['/user/']},
@@ -121,11 +119,11 @@ class Stripper:
                    'round': {'tag': 'span',
                              'attrs': {'class': 'round-title'},
                              },
-                   'artist': {'tag': 'span',
-                              'attrs': {'class': 'vcenter artist'},
-                              'remove': {'type': 'start',
-                                         'rems': ['By ']},
-                              },
+                   ##'artist': {'tag': 'span',
+                   ##           'attrs': {'class': 'vcenter artist'},
+                   ##           'remove': {'type': 'start',
+                   ##                      'rems': ['By ']},
+                   ##           },
                    ##'artist2': {'tag': 'span',
                    ##            'attrs': {'class': 'trackArtist'},
                    ##            'remove': {'type': 'start',
@@ -150,6 +148,15 @@ class Stripper:
                    'player': {'tag': 'div',
                               'attrs': {'class': 'col-xs-9 col-sm-8 col-md-9 voter text-left vcenter'},
                               },
+                   'user': {'tag': 'a',
+                            'href': 'user/',
+                            'multiple': {'name': {'title': {}},
+                                         'url': {'href': True,
+                                                 'remove': {'type': 'in',
+                                                            'rems': ['/user/']},
+                                                 },
+                                         },
+                            },
                    'votes': {'tag': 'span',
                              'attrs': {'class': 'vote-count'},
                              'value': True,
@@ -189,11 +196,14 @@ class Stripper:
         elif type(rt.get('href')) is str:
             # specific link exists
             href_like = rt['href']
+            slash = '/' if href_like[0] != '/' else ''
+
             if (href_like[:len('http')] != 'http'):
-                href_compile = f'{self.main_url}/{href_like}'
+                href_compile = '|'.join(f'(^{m}{href_like})' for m in [f'{self.main_url}{slash}', slash])
             else:
-                href_compile = f'/{href_like}'
-            attributes['href'] = re.compile(f'^{href_compile}') # must start with string
+                href_compile = f'{slash}{href_like}'
+            
+            attributes['href'] = re.compile(href_compile) # must start with string
         if rt.get('string'):
             attributes['string'] = rt['string']
 
@@ -316,9 +326,6 @@ class Stripper:
         
         round_playlists_all = results['playlists']
 
-        ##input(f'{round_titles_all}, {viewable_urls}, {round_urls_all}, {round_dates_all}, {round_creators_all}, {round_playlists_all}')
-
-
         round_dates_all = round_dates_all[(len(round_dates_all)-len(round_titles_all)+1)//2:\
             (len(round_dates_all)-len(round_titles_all)+1)//2+len(round_titles_all)]
         round_creators_all = round_creators_all[(len(round_creators_all)-len(round_titles_all)+1)//2:\
@@ -346,13 +353,17 @@ class Stripper:
         league_title = results['league'][0]
         round_title = results['round'][0]
 
-        artists = results['artist'][0::2]
         tracks = results['track'][0::2]
-        titles = [track['title'] for track in tracks]
         track_urls = [track['url'] for track in tracks]
 
         submitters = results['submitter'][0::2]
         
+        if len(results['user']):
+            users_all = {user['url']: user['name'] for user in results['user']}
+            users = {'username': users_all.keys(), 'player_names': users_all.values()}
+        else:
+            users = None
+
         voter_totals = results['people']
         point_totals = results['points']
         player_names = []
@@ -380,11 +391,4 @@ class Stripper:
 
                 num += count*2    
 
-        ##else:
-        ##    # round is in voting without owner having voted
-        ##    artists = results['artist2']
-        ##    tracks = results['track2']
-        ##    titles = [track['title'] for track in tracks]
-        ##    track_urls = [track['url'] for track in tracks]
-
-        return league_title, round_title, artists, titles, submitters, song_ids, player_names, vote_counts, point_totals, track_urls #voter_totals
+        return league_title, round_title, submitters, song_ids, player_names, vote_counts, point_totals, track_urls, users #voter_totals

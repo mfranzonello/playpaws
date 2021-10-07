@@ -59,7 +59,7 @@ class Spotter:
                     'genres': results['genres'],
                     'popularity': results['popularity'],
                     'followers': results['followers']['total'],
-                    'src': results['images'][0]['url'],
+                    'src': self.get_image_src(results['images']),
                     }
         return elements
 
@@ -71,17 +71,26 @@ class Spotter:
                     'genres': results['genres'],
                     'popularity': results['popularity'],
                     'release_date': self.get_date(results['release_date'], results['release_date_precision']),
-                    'src': results['images'][0]['url'],
+                    'src': self.get_image_src(results['images']),
                     }
         return elements
 
     def get_date(self, string, precision):
-        if precision == 'year':
-            date = datetime.strptime(string, '%Y')
-        else: # precision == 'day':
-            date = datetime.strptime(string, '%Y-%m-%d')
+        pattern = {'year': '%Y',
+                   'month': '%Y-%m',
+                   'day': '%Y-%m-%d'}[precision]
+        
+        date = datetime.strptime(string, pattern)
             
         return date
+
+    def get_image_src(self, result_images):
+        if len(result_images):
+            src = result_images[0]['url']
+        else:
+            src = None
+
+        return src
 
     def search_for_track(self, artist, title):
         results = self.sp.search(q=f'artist: {artist} track: {title}', type='track')
@@ -98,7 +107,7 @@ class Spotter:
 
         elements = {'uri': results['uri'],
                     'followers': results['followers']['total'],
-                    'src': results['images'][0]['url'],
+                    'src': self.get_image_src(results['images']),
                     }
         return elements
 
@@ -328,14 +337,11 @@ class Spotter:
             league_title, src, uri, theme = playlists_db.loc[i, ['league', 'src', 'uri', 'theme']]
             playlists_db['src'][i] = self.check_playlist_image(league_title, src, uri, theme)
 
+        self.database.store_playlists(playlists_db)
+
     def check_playlist_image(self, league_title, src, uri, theme='complete'):
         """check if a playlist has an image already or if the src has changed and update if necessary"""
-        current_cover = self.sp.playlist_cover_image(uri)
-        if len(current_cover):
-            cover_src = current_cover[0]['url']
-        else:
-            input('error')
-        ## sample error: HTTPSConnectionPool(host='api.spotify.com', port=443): Read timed out. (read timeout=5)
+        cover_src = self.get_playlist_cover(uri)
 
         mosaic = 'https://mosaic.scdn.co'
         if isnull(src) or (cover_src[:len(mosaic)] == mosaic):
@@ -356,7 +362,7 @@ class Spotter:
 
                 self.update_playlist_image(uri, image_src, overlay=overlay)
 
-                new_src = image_src
+                new_src = self.get_playlist_cover(uri)
 
             else:
                 # couldn't find an image
@@ -367,6 +373,17 @@ class Spotter:
             new_src = cover_src    
 
         return new_src
+
+    def get_playlist_cover(self, uri):
+        current_cover = self.sp.playlist_cover_image(uri)
+        ## sample error: HTTPSConnectionPool(host='api.spotify.com', port=443): Read timed out. (read timeout=5)
+        if len(current_cover):
+            cover_src = current_cover[0]['url']
+        else:
+            cover_src = None
+
+        return cover_src
+
 
     def update_playlist_image(self, uri, image_src, overlay=None):
         image_b64 = self.byter.byte_me(image_src, overlay=overlay)
@@ -404,9 +421,10 @@ class FMer:
         
     def clean_title(self, title):
         # remove featuring artists
-        featuring = ['feat', 'with']
-        title = self.remove_parenthetical(title, ['feat', 'with '], position='start') #<- should with only be for []?
+        title = self.remove_parenthetical(title, ['feat', 'with ', 'Duet with '], position='start') #<- should with only be for []?
+        title = self.remove_parenthetical(title, ['Live '], position='start', parentheses=[['- '], ['$']], middle=[' with '])
         title = self.remove_parenthetical(title, ['remix'], position='end')
+        title = self.remove_parenthetical(title, ['feat. '], position='start', parentheses=[[''], ['$']], middle=[' with '])
 
         # remove description after dash
         if ' - ' in title:
@@ -414,16 +432,20 @@ class FMer:
 
         return title
 
-    def remove_parenthetical(self, title, words, position):
+    ##def find_remix(self, title):
+    ##    if 'Mix' in title or 'Remix' in title:
+
+    def remove_parenthetical(self, title, words, position, parentheses=[['(', ')'], ['[', ']']], middle=None):
         parentheses = [['(', ')'], ['[', ']']]
         capture_s = '(.*?)' if position == 'end' else ''
         capture_e = '(.*?)' if position == 'start' else ''
-        pattern = '|'.join(f'(\{s}{capture_s}{w}{capture_e}\{e})' for w in words for s, e in parentheses)
+        capture_m = f'.*?{middle}.*?' if middle else ''
+        pattern = '|'.join(f'(\{s}{capture_s}{w}{capture_m}{capture_e}\{e})' for w in words for s, e in parentheses)
         searched = re.search(pattern, title, flags=re.IGNORECASE)
         if searched:
             title = title.replace(next(s for s in searched.groups() if s), '').strip()
 
-        return title
+        return title#, mix
 
     def get_track_info(self, artist, title):
         track = self.fm.get_track(artist, title)
@@ -444,7 +466,6 @@ class FMer:
 
         self.connect_to_lastfm()
 
-
         self.update_db_tracks()
 
     def update_db_tracks(self):
@@ -457,8 +478,12 @@ class FMer:
             tracks_update_db['title'] = tracks_update_db.apply(lambda x: self.clean_title(x['unclean']), axis=1)
 
             # get LastFM elements
-            df_elements = [self.get_track_info(artist, title) for artist, title in tracks_update_db[['artist', 'title']].values]
+            # limit how many are updated in one go to keep under rate limites
+            segment_size = 50
+            for tracks_update_db_segment in [tracks_update_db.loc[i*segment_size:(i+1)*segment_size-1] \
+                                            for i in range(ceil(len(tracks_update_db)/segment_size))]:
+                df_elements = [self.get_track_info(artist, title) for artist, title in tracks_update_db_segment[['artist', 'title']].values]
 
-            df_to_update = DataFrame(df_elements, index=tracks_update_db.index)
-            tracks_update_db.loc[:, df_to_update.columns] = df_to_update
-            self.database.store_tracks(tracks_update_db)
+                df_to_update = DataFrame(df_elements, index=tracks_update_db_segment.index)
+                tracks_update_db_segment.loc[:, df_to_update.columns] = df_to_update
+                self.database.store_tracks(tracks_update_db_segment)

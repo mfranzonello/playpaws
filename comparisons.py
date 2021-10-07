@@ -199,7 +199,7 @@ class Members:
         self.df['x'] = [0] + [R * cos(angle * i) for i in circle_players]
         self.df['y'] = [0] + [R * sin(angle * i) for i in circle_players]
 
-    def update_coordinates(self, pulse, xy_=None):
+    def update_coordinates(self, pulse, xy_=None, max_iterations=5000):
         # best fit player nodes
         distances = DataFrame(data=self.player_combinations, columns=['p1', 'p2'])
         distances['distance'] = distances.merge(pulse.df, on=['p1', 'p2'], how='left')['plot_distance']
@@ -216,7 +216,7 @@ class Members:
 
         xy0 = self.df[['x','y']][1:].fillna(0).melt()['value']
         print('\t...minimizing')
-        xy = minimize(self.distdiff, xy0, args=(distances['distance'], needed))
+        xy = minimize(self.distdiff, xy0, args=(distances['distance'], needed), options={'maxiter': max_iterations})
         print('\t\t...optimal solution found')
         dist = self.distdiff(xy.x, distances['distance'], needed)
 

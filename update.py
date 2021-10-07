@@ -7,13 +7,10 @@ class Updater:
         self.database = database
         self.main_url = database.main_url
 
-        self.spotter = Spotter()
-        self.fmer = FMer()
-
         self.stripper = Stripper(self.main_url)
         self.scraper = Scraper(self.stripper)
 
-    def update_database(self):
+    def update_musicleague(self):
         print('Updating database')
         leagues = Leagues()
 
@@ -69,6 +66,7 @@ class Updater:
     def update_round(self, league_title, round_title, round_url):
         songs = Songs()
         votes = Votes()
+        players = Players()
 
         # check round status
         round_status = self.database.get_round_status(league_title, round_title)
@@ -88,8 +86,14 @@ class Updater:
 
                 html_text = self.scraper.get_html_text(round_url)
                 results = self.stripper.extract_results(html_text, 'round')
-                _, _, _, _, submitters, \
-                    song_ids, player_names, vote_counts, vote_totals, track_urls = results # _, _ = league_title, round_title, artists, titles
+                _, _, submitters, \
+                    song_ids, player_names, vote_counts, vote_totals, track_urls, \
+                    users = results # _, _ = league_title, round_title, artists, titles
+
+                if users:
+                    # update any users that may have dropped
+                    players_df = players.sub_players(users['player_names'], username=users['username'])
+                    self.database.store_players(players_df, league_title=league_title)
 
                 if not(len(track_urls)):
                     playlist_url = self.database.get_round_playlist(league_title, round_title)
@@ -98,7 +102,7 @@ class Updater:
                         track_urls = self.spotter.get_playlist_uris(playlist_url, external_url=True)
                 
                 next_song_ids = self.database.get_song_ids(league_title, round_title, track_urls) # -> consider replacing existing song_ids?
-
+                
                 # construct details with updates for new and open
                 songs_df = songs.sub_round(round_title, track_urls, submitters, next_song_ids)
                 votes_df = votes.sub_round(song_ids, player_names, vote_counts, vote_totals, next_song_ids)
@@ -115,10 +119,10 @@ class Updater:
                     # remove placeholder votes
                     self.database.drop_votes(league_title, round_title)
 
+
                 # store updates
                 self.database.store_songs(songs_df, league_title)
                 self.database.store_votes(votes_df, league_title)
-
                 self.database.store_round(league_title, round_title, new_status, round_url) # -> consider replacing with store_rounds
 
             else:
@@ -129,6 +133,13 @@ class Updater:
             # the URL is missing
             print(f'Round {round_title} not found.')
             self.database.store_round(league_title, round_title, 'new')
+
+class Musician:
+    def __init__(self, database):
+        self.database = database
+
+        self.spotter = Spotter()
+        self.fmer = FMer()
 
     def update_spotify(self):
         self.spotter.update_database(self.database)

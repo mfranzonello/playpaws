@@ -1,13 +1,11 @@
 from math import sin, cos, atan2, pi, nan, isnan, ceil
-from urllib.request import urlopen
 from collections import Counter
-from datetime import datetime
 
 from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 from pandas import DataFrame, isnull, to_datetime
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from matplotlib.dates import date2num, num2date
+from matplotlib.dates import date2num
 from wordcloud import WordCloud#, ImageColorGenerator
 from numpy import asarray
 import streamlit as st
@@ -21,9 +19,23 @@ class Pictures(Imager):
         super().__init__()
 
         self.gallery = Gallery(database, crop=True)
-
+        self.boxer = Boxer()
+        self.mobis = {}
+        
     def get_player_image(self, player_name):
-        return self.gallery.get_image(player_name)
+        image = self.gallery.get_image(player_name)
+
+        if not image:
+            # no Spotify profile exists
+            if player_name not in self.mobis:
+                # get a random image of Mobi that hasn't been used already
+                mobi_byte = self.boxer.get_mobi()
+                mobi_image = Image.open(mobi_byte) if mobi_byte else None
+                self.mobis[player_name] = self.crop_image(mobi_image)
+
+            image = self.mobis[player_name]
+
+        return image
 
     def store_player_image(self, player_name, image):
         self.gallery.store_image(player_name, image)
@@ -51,13 +63,13 @@ class Pictures(Imager):
 
         return image
 
-    def get_mask_array(self, src):
-        fp = urlopen(src)
+    def get_mask_array(self, image_bytes):
+        #fp = urlopen(src)
         try:
-            image = Image.open(fp)
+            image = Image.open(image_bytes) #fp)
             mask = asarray(image)
         except UnidentifiedImageError:
-            streamer.print(f'can\'t open image at {src}')
+            streamer.print(f'can\'t open image') # at {src}')
             mask = None
 
         return mask
@@ -475,7 +487,7 @@ class Plotter:
 
             st.session_state['rankings_ax:{league_title}'] = ax
 
-        st.pyplot(ax.figure, header='Player Scores')
+        streamer.pyplot(ax.figure, header='Player Scores')
 
     def plot_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size):
         ys = [y] * len(xs)
@@ -603,7 +615,7 @@ class Plotter:
 
         return z_
 
-    def plot_tags(self, league_title, tags_df, mask_src):
+    def plot_tags(self, league_title, tags_df, mask_bytes): #_src):
         if f'tags_ax:{league_title}' in st.session_state:
             ax = st.session_state[f'tags_ax:{league_title}']
             streamer.status(1/6)
@@ -614,7 +626,7 @@ class Plotter:
             
             streamer.status(1/6 * (1/2))
             streamer.print('\t...genres', base=False)
-            mask = self.pictures.get_mask_array(mask_src)
+            mask = self.pictures.get_mask_array(mask_bytes) #_src)
 
             text = Counter(tags_df.dropna().sum().sum())
             wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)

@@ -1,6 +1,5 @@
 from datetime import date
 import json
-from difflib import SequenceMatcher
 from os import getenv
 
 from sqlalchemy import create_engine
@@ -13,7 +12,7 @@ from streaming import streamer
 class Database:
     tables = {# MusicLeague data
               'Leagues': {'keys': ['league'], 'values': ['creator', 'date', 'url']},
-              'Players': {'keys': ['player'], 'values': ['username', 'src', 'uri', 'followers']},
+              'Players': {'keys': ['username'], 'values': ['player', 'src', 'uri', 'followers']},
               'Rounds': {'keys': ['league', 'round'], 'values': ['creator', 'date', 'status', 'url', 'playlist_url']},
               'Songs': {'keys': ['league', 'song_id'], 'values': ['round', 'submitter', 'track_url']},    
               'Votes': {'keys': ['league', 'player', 'song_id'], 'values': ['vote']},
@@ -196,21 +195,26 @@ class Database:
 
     def find_existing(self, df_store, df_existing, keys):
         # split dataframe between old and new rows
-        links = ['(' + ' & '.join(f'({key} ' + ('!=' if isnull(key_value) else '==') + ' ' + (f'{key}' if isnull(key_value) else self.needs_quotes(key_value)) + ')' \
-            for key, key_value in zip(keys, df_existing[keys].loc[i])) + ')' \
-            for i in df_existing.index]
-        
-        if len(df_existing):
-            # there is already data in the database
-            sql_up = ' | '.join(links)
-            sql_in = f'~({sql_up})'
 
-            df_updates = df_store.query(sql_up)
-            df_inserts = df_store.query(sql_in)
-        else:
-            # all data is new
-            df_updates = df_store.reindex([])
-            df_inserts = df_store.reindex()
+        df_merge = df_store.merge(df_existing, on=keys, how='left', indicator=True)
+        df_updates = df_store.iloc[df_merge[df_merge['_merge'] == 'both'].index]
+        df_inserts = df_store.iloc[df_merge[df_merge['_merge'] == 'left_only'].index]
+
+        ##links = ['(' + ' & '.join(f'({key} ' + ('!=' if isnull(key_value) else '==') + ' ' + (f'{key}' if isnull(key_value) else self.needs_quotes(key_value)) + ')' \
+        ##    for key, key_value in zip(keys, df_existing[keys].loc[i])) + ')' \
+        ##    for i in df_existing.index]
+        
+        ##if len(df_existing):
+        ##    # there is already data in the database
+        ##    sql_up = ' | '.join(links)
+        ##    sql_in = f'~({sql_up})'
+
+        ##    df_updates = df_store.query(sql_up)
+        ##    df_inserts = df_store.query(sql_in)
+        ##else:
+        ##    # all data is new
+        ##    df_updates = df_store.reindex([])
+        ##    df_inserts = df_store.reindex()
         
         return df_updates, df_inserts
 
@@ -228,9 +232,8 @@ class Database:
         return values
 
     def execute_sql(self, sql):
-        for s in sql.split(';'):
-            if len(s):
-                self.connection.execute(s.strip())
+        if len(sql):
+            self.connection.execute(sql)
 
     def upsert_table(self, table_name, df):
         # update existing rows and insert new rows
@@ -257,13 +260,11 @@ class Database:
 
             # write SQL for updates and inserts
             sql_updates = self.update_rows(table_name, df_updates, keys)
-            sql_inserts = self.insert_rows(table_name, df_inserts)
-
-            # write combined SQL
-            sql = ' '.join(s for s in [sql_updates, sql_inserts] if len(s))
+            sql_inserts = self.insert_rows(table_name, df_inserts)         
 
             # execute SQL
-            self.execute_sql(sql)
+            self.execute_sql(sql_updates)
+            self.execute_sql(sql_inserts)
 
     def get_player_match(self, league_title=None, partial_name=None, url=None):
         # find closest name
@@ -599,7 +600,7 @@ class Database:
      
         return rounds_df, playlists_df
 
-    def store_playlists(self, playlists_df, theme):
+    def store_playlists(self, playlists_df, theme='all'):
         df = playlists_df.reindex(columns=self.store_columns('Playlists'))
         if theme in ['complete', 'best']:
             df['theme'] = theme
