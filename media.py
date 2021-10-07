@@ -23,9 +23,7 @@ class Texter:
                             ']+', flags=UNICODE)
 
     fonts = {'Segoe UI': 'fonts/segoeui.ttf'}
-
     emoji_fonts = {'Segoe UI Emoji': 'fonts/seguiemj.ttf'}
-
     bold_fonts = {'Segoe UI Semibold': 'fonts/seguisb.ttf'}
 
     def __init__(self):
