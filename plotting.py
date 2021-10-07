@@ -258,7 +258,7 @@ class Plotter:
             imgs = None
 
         if image and text:
-            image = self.pictures.add_text(image, text, self.sans_font)
+            image = self.pictures.add_text(image, text, self.image_sans_font)
 
         if image:
             scaling = [a / max(aspect) for a in aspect]
