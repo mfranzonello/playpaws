@@ -22,11 +22,11 @@ class Texter:
                             u'\U000023E9-\U000023F3' # play, pause
                             ']+', flags=UNICODE)
 
-    fonts = {'fonts/Segoe UI': 'fonts/segoeui.ttf'}
+    fonts = {'Segoe UI': 'fonts/segoeui.ttf'}
 
-    emoji_fonts = {'fonts/Segoe UI Emoji': 'fonts/seguiemj.ttf'}
+    emoji_fonts = {'Segoe UI Emoji': 'fonts/seguiemj.ttf'}
 
-    bold_fonts = {'fonts/Segoe UI Semibold': 'fonts/seguisb.ttf'}
+    bold_fonts = {'Segoe UI Semibold': 'fonts/seguisb.ttf'}
 
     def __init__(self):
         pass

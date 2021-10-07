@@ -1,11 +1,12 @@
 from math import sin, cos, atan2, pi, nan, isnan, ceil
 from collections import Counter
+import os
 
 from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 from pandas import DataFrame, isnull, to_datetime
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-from matplotlib.font_manager import FontManager
+import matplotlib.font_manager as font_manager
 from matplotlib.dates import date2num, num2date
 from wordcloud import WordCloud#, ImageColorGenerator
 from numpy import asarray
@@ -155,17 +156,18 @@ class Plotter:
         self.emoji_font = self.emoji_fonts[0]
 
         # set plotting fonts
-        import os 
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        streamer.print(dir_path)
-        input()
-        ##font_manager = FontManager()
-        ##font_files = font_manager.list_fonts(directory=f'{dir_path}/fonts', extensions=['ttf'])
+        font_files = font_manager.list_fonts(directory=f'{dir_path}/fonts', extensions=['ttf'])
+        fman = font_manager.FontManager()
+        for font_file in font_files:
+            fman.addfont(font_file)
+        #print(font_files)
         ##for font in font_files:
         ##    font_manager.addfont(font)
 
-        rcParams['font.family'] = 'sans-serif'
         rcParams['font.sans-serif'] = self.fonts
+        rcParams['font.family'] = 'sans-serif'
+        
         
         self.league_titles = None
         self.members_list = None
