@@ -20,7 +20,7 @@ class Database:
               'Playlists': {'keys': ['league', 'theme'], 'values': ['uri', 'src', 'rounds']},
 
               # Spotify data
-              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'title', 'artist_uri', 'album_uri', 'explicit', 'popularity',
+              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'title', 'mix', 'artist_uri', 'album_uri', 'explicit', 'popularity',
                                                      'duration', 'key', 'mode', 'loudness', 'tempo',
                                                      'danceability', 'energy', 'liveness', 'valence',
                                                      'speechiness', 'acousticness', 'instrumentalness',

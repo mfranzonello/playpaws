@@ -421,32 +421,14 @@ class FMer:
         
     def clean_title(self, title):
         # remove featuring artists
-        title = self.remove_parenthetical(title, ['feat', 'with ', 'Duet with '], position='start') #<- should with only be for []?
-        title = self.remove_parenthetical(title, ['Live '], position='start', parentheses=[['- '], ['$']], middle=[' with '])
-        title = self.remove_parenthetical(title, ['remix'], position='end')
-        title = self.remove_parenthetical(title, ['feat. '], position='start', parentheses=[[''], ['$']], middle=[' with '])
+        title, _ = self.texter.remove_parenthetical(title, ['feat', 'with ', 'Duet with '], position='start') #<- should with only be for []?
+        title, _ = self.texter.remove_parenthetical(title, ['Live '], position='start', parentheses=[['- '], ['$']], middle=[' with '])
+        title, mix = self.texter.remove_parenthetical(title, ['remix'], position='end')
+        title, _ = self.texter.remove_parenthetical(title, ['feat. '], position='start', parentheses=[['', '$']])
+        title, _ = self.texter.drop_dash(title)
 
-        # remove description after dash
-        if ' - ' in title:
-            title = title[:title.find(' - ')].strip()
-
-        return title
-
-    ##def find_remix(self, title):
-    ##    if 'Mix' in title or 'Remix' in title:
-
-    def remove_parenthetical(self, title, words, position, parentheses=[['(', ')'], ['[', ']']], middle=None):
-        parentheses = [['(', ')'], ['[', ']']]
-        capture_s = '(.*?)' if position == 'end' else ''
-        capture_e = '(.*?)' if position == 'start' else ''
-        capture_m = f'.*?{middle}.*?' if middle else ''
-        pattern = '|'.join(f'(\{s}{capture_s}{w}{capture_m}{capture_e}\{e})' for w in words for s, e in parentheses)
-        searched = re.search(pattern, title, flags=re.IGNORECASE)
-        if searched:
-            title = title.replace(next(s for s in searched.groups() if s), '').strip()
-
-        return title#, mix
-
+        return title, mix
+    
     def get_track_info(self, artist, title):
         track = self.fm.get_track(artist, title)
 
@@ -475,7 +457,8 @@ class FMer:
         # strip featured artists and remix call outs from track title
         ## add binary for Remix status?
         if len(tracks_update_db):
-            tracks_update_db['title'] = tracks_update_db.apply(lambda x: self.clean_title(x['unclean']), axis=1)
+            tracks_update_db[['title', 'mix']] = tracks_update_db.apply(lambda x: self.clean_title(x['unclean']),
+                                                                        axis=1, result_type='expand')
 
             # get LastFM elements
             # limit how many are updated in one go to keep under rate limites

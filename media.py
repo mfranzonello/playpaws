@@ -49,6 +49,36 @@ class Texter:
             display_name = name
         return display_name.title()
 
+    def slashable(self, char):
+        slash_chars = ['[', '(', ']', ')', '.']
+        slash = '\\' if char in slash_chars else ''
+        return slash
+
+    def remove_parenthetical(self, text, words, position, parentheses=[['(', ')'], ['[', ']']], middle=None):
+        capture_s = '(.*?)' if position == 'end' else ''
+        capture_e = '(.*?)' if position == 'start' else ''
+        capture_m = f'.*?{middle}.*?' if middle else ''
+
+        pattern = '|'.join(f'({self.slashable(s)}{s}{capture_s}'
+                           f'{w}{capture_m}'
+                           f'{capture_e}{self.slashable(e)}{e})' for w in words for s, e in parentheses)
+        
+        searched = re.search(pattern, text, flags=re.IGNORECASE)
+        if searched:
+            captured = next(s for s in searched.groups() if s).strip()
+            text = text.replace(captured, '').strip()
+            
+        else:
+            captured = None
+
+        return text, captured
+
+    def drop_dash(self, text):
+        # remove description after dash
+        if ' - ' in text:
+            text = text[:text.find(' - ')].strip()
+        return text
+
 
 class Byter:
     def __init__(self):
