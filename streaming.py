@@ -23,10 +23,10 @@ class Streamer:
     def title(self, text):
         st.title(text)
         
-    def pyplot(self, figure, header=None):
+    def pyplot(self, figure, header=None, tooltip=None):
         if header:
             st.header(header)
-        st.pyplot(figure)
+        st.pyplot(figure, help=tooltip)
         st.write('\n')
 
     def print(self, text, base=True):
