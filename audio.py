@@ -5,7 +5,7 @@ from math import ceil
 
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth
-from pylast import LastFMNetwork
+from pylast import LastFMNetwork, NetworkError
 from pandas import DataFrame, isnull
 
 from media import Texter, Gallery
@@ -420,12 +420,18 @@ class FMer:
 
         
     def clean_title(self, title):
-        # remove featuring artists
+        # remove featuring artists and pull remixes
+        self.texter = Texter()
+
+        title, mix1 = self.texter.remove_parenthetical(title, ['Remix', 'Mix'], position='end', case_sensitive=True)
+        title, mix2 = self.texter.remove_parenthetical(title, ['Remix', 'Mix'], parentheses=[['- ', '$']], position='end', case_sensitive=True)
         title, _ = self.texter.remove_parenthetical(title, ['feat', 'with ', 'Duet with '], position='start') #<- should with only be for []?
-        title, _ = self.texter.remove_parenthetical(title, ['Live '], position='start', parentheses=[['- '], ['$']], middle=[' with '])
-        title, mix = self.texter.remove_parenthetical(title, ['remix'], position='end')
+        title, _ = self.texter.remove_parenthetical(title, ['Live '], position='start', parentheses=[['- ', '$']], middle=[' with '])
         title, _ = self.texter.remove_parenthetical(title, ['feat. '], position='start', parentheses=[['', '$']])
-        title, _ = self.texter.drop_dash(title)
+        title = self.texter.drop_dash(title)
+
+        mixes = [m for m in filter(None, [mix1, mix2])]
+        mix = mixes[0] if len(mixes) else None
 
         return title, mix
     
@@ -463,10 +469,15 @@ class FMer:
             # get LastFM elements
             # limit how many are updated in one go to keep under rate limites
             segment_size = 50
-            for tracks_update_db_segment in [tracks_update_db.loc[i*segment_size:(i+1)*segment_size-1] \
+            for tracks_update_db_segment in [tracks_update_db.loc[i*segment_size:(i+1)*segment_size-1].copy() \
                                             for i in range(ceil(len(tracks_update_db)/segment_size))]:
-                df_elements = [self.get_track_info(artist, title) for artist, title in tracks_update_db_segment[['artist', 'title']].values]
+                try:
+                    df_elements = [self.get_track_info(artist, title) for artist, title in tracks_update_db_segment[['artist', 'title']].values]
 
-                df_to_update = DataFrame(df_elements, index=tracks_update_db_segment.index)
-                tracks_update_db_segment.loc[:, df_to_update.columns] = df_to_update
-                self.database.store_tracks(tracks_update_db_segment)
+                    df_to_update = DataFrame(df_elements, index=tracks_update_db_segment.index)
+                    tracks_update_db_segment.loc[:, df_to_update.columns] = df_to_update
+                    self.database.store_tracks(tracks_update_db_segment)
+
+                except NetworkError:
+                    print('Error: disconnected (possibly too many API calls)')
+                    break

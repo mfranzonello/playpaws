@@ -671,9 +671,6 @@ class Plotter:
             rounds = list(results_df['round'].unique())
             n_rounds = len(rounds)
 
-            ##li = [1/(n+2) for n in range(n_rounds)]
-            ##li2 = [l / sum(li) for l in li]
-
             results_df['text'] = results_df.apply(lambda x: ' + '.join(x['artist']) + ' "' + x['title'] + '"', axis=1)
             results_df['y_round'] = results_df['round'].map({d: rounds.index(d) for d in results_df['round'].unique()})
             results_df['y_song'] = (1-1/(2**results_df['song_id'].map({d: list(results_df[results_df['round']==r]['song_id'].unique()).index(d) \
@@ -701,10 +698,8 @@ class Plotter:
             base = 100
             image, D = self.pictures.get_text_image(results_df, self.subplot_aspects['top_songs'], base)
             
-        
             streamer.status(1/6 * (1/4))
         
-
             ax.imshow(image)
             W, H = image.size
             
