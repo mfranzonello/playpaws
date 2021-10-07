@@ -1,12 +1,12 @@
 from datetime import date
 import json
-from os import getenv
 
 from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame, isnull
 from pandas.api.types import is_numeric_dtype
 import streamlit as st
 
+from secret import get_secret
 from streaming import streamer
 
 class Database:
@@ -45,8 +45,9 @@ class Database:
         return use_one
    
     def __init__(self, main_url):
-        self.db = f'"{getenv("BITIO_USERNAME")}/{getenv("BITIO_DBNAME")}"'
-        engine_string = f'postgresql://{getenv("BITIO_USERNAME")}{getenv("BITIO_ADD_ON")}:{getenv("BITIO_PASSWORD")}@{getenv("BITIO_HOST")}'
+        self.db = f'"{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}"'
+        engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}{get_secret("BITIO_ADD_ON")}'
+                         f':{get_secret("BITIO_PASSWORD")}@{get_secret("BITIO_HOST")}')
         
         self.main_url = main_url
 

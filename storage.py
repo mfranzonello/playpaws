@@ -1,9 +1,9 @@
-from os import getenv
 from io import BytesIO
 from random import randint
 
 from dropbox import Dropbox
 
+from secret import get_secret
 from media import Texter
 
 class Boxer:
@@ -14,7 +14,7 @@ class Boxer:
     mobi_folder = f'{media_folder}/mobi'
 
     def __init__(self):
-        self.dbx = Dropbox(getenv('DROPBOX_TOKEN'))
+        self.dbx = Dropbox(get_secret('DROPBOX_TOKEN'))
 
         self.texter = Texter()
 
