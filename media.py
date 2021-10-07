@@ -86,6 +86,20 @@ class Texter:
 
         return text
 
+    def split_long_text(self, text, limit=100):
+        splits = [[t for t in tx.split(' ')] for tx in text.split('\n')]
+
+        split_text = []
+        for sp in splits:
+            count = 0
+            p = 0
+            txt = []
+            while (p < len(sp)):
+                txt += sp[p]
+                count += len(sp)
+                
+
+
 class Byter:
     def __init__(self):
         pass
