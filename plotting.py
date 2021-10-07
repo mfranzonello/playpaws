@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 from pandas import DataFrame, isnull, to_datetime
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
-import matplotlib.font_manager as font_manager
+from matplotlib.font_manager import FontManager
 from matplotlib.dates import date2num, num2date
 from wordcloud import WordCloud#, ImageColorGenerator
 from numpy import asarray
@@ -155,10 +155,14 @@ class Plotter:
         self.emoji_font = self.emoji_fonts[0]
 
         # set plotting fonts
-        ##font_dirs = ['/fonts']
-        ##font_files = font_manager.findSystemFonts(fontpaths=font_dirs)
-        ##font_list = font_manager.createFontList(font_files)
-        ##font_manager.fontManager.ttflist.extend(font_list)
+        import os 
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        print(dir_path)
+        ##font_manager = FontManager()
+        ##font_files = font_manager.list_fonts(directory=f'{dir_path}/fonts', extensions=['ttf'])
+        ##for font in font_files:
+        ##    font_manager.addfont(font)
+
         rcParams['font.family'] = 'sans-serif'
         rcParams['font.sans-serif'] = self.fonts
         
