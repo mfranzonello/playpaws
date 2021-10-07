@@ -157,7 +157,8 @@ class Plotter:
         # set plotting fonts
         import os 
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        print(dir_path)
+        streamer.print(dir_path)
+        input()
         ##font_manager = FontManager()
         ##font_files = font_manager.list_fonts(directory=f'{dir_path}/fonts', extensions=['ttf'])
         ##for font in font_files:
