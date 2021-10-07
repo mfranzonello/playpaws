@@ -314,7 +314,7 @@ class Plotter:
 
             st.session_state[f'members_ax:{league_title}'] = ax
 
-        streamer.pyplot(ax.figure, header='League Pulse')
+        streamer.pyplot(ax.figure, header='League Pulse', tooltip=self.get_tooltip('members'))
 
     def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
         plot_size = (s_p/2)**0.5/pi/10
@@ -757,3 +757,21 @@ class Plotter:
     def normalize_color(self, color, divisor):
         color = tuple(c / divisor for c in color)
         return color
+
+    def get_tooltip(self, plot_name):
+        members_text = (f'This shows the relationships between\n'
+                        f'the league players. Players with similar\n'
+                        f'music tastes are closer together. The\n'
+                        f'arrows indicate who likes whom the most\n'
+                        f'(the pink arrow shows who a player gives\n'
+                        f'most of their votes to, and the orange\n'
+                        f'arrow shows who they get the most votes\n'
+                        f'from).'
+                        )
+
+        tooltips = {'members': members_text,
+                    }
+
+        tooltip = tooltips.get(plot_name)
+
+        return tooltip

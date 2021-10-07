@@ -1,6 +1,5 @@
 from datetime import datetime
 import re
-from os import getenv
 from math import ceil
 
 from spotipy import Spotify
@@ -8,6 +7,7 @@ from spotipy.oauth2 import SpotifyOAuth
 from pylast import LastFMNetwork, NetworkError
 from pandas import DataFrame, isnull
 
+from secret import get_secret
 from media import Texter, Gallery
 from storage import Boxer
 from media import Byter
@@ -32,9 +32,9 @@ class Spotter:
     def connect_to_spotify(self):
         streamer.print('Connecting to Spotify API...')
 
-        auth_manager = SpotifyOAuth(client_id=getenv('SPOTIFY_CLIENT_ID'),
-                                    client_secret=getenv('SPOTIFY_CLIENT_SECRET'),
-                                    redirect_uri=getenv('SPOTIFY_REDIRECT_URL'),
+        auth_manager = SpotifyOAuth(client_id=get_secret('SPOTIFY_CLIENT_ID'),
+                                    client_secret=get_secret('SPOTIFY_CLIENT_SECRET'),
+                                    redirect_uri=get_secret('SPOTIFY_REDIRECT_URL'),
                                     scope='playlist-modify-public ugc-image-upload user-read-private user-read-email')
 
         self.sp = Spotify(auth_manager=auth_manager)
@@ -324,7 +324,7 @@ class Spotter:
 
     def create_playlist(self, name):
         """create a new playlist"""
-        playlist = self.sp.user_playlist_create(getenv('SPOTIFY_USER_ID'), name, public=True, collaborative=False, description='')
+        playlist = self.sp.user_playlist_create(get_secret('SPOTIFY_USER_ID'), name, public=True, collaborative=False, description='')
         uri = playlist['uri']
         
         return uri
@@ -416,7 +416,7 @@ class FMer:
 
     def connect_to_lastfm(self):
         streamer.print('Connecting to LastFM API...')
-        self.fm = LastFMNetwork(api_key=getenv('LASTFM_API_KEY'), api_secret=getenv('LASTFM_API_SECRET'))
+        self.fm = LastFMNetwork(api_key=get_secret('LASTFM_API_KEY'), api_secret=get_secret('LASTFM_API_SECRET'))
 
         
     def clean_title(self, title):
