@@ -156,12 +156,14 @@ class Plotter:
         self.bold_font = list(self.texter.bold_fonts.values())[0]
         self.emoji_font = list(self.texter.emoji_fonts.values())[0]
 
+        self.image_sans_font = f'fonts/{self.sans_font}'
+        self.image_bold_font = f'fonts/{self.bold_font}'
+
         # set plotting fonts
         dir_path = os.path.dirname(os.path.realpath(__file__))
         #font_files = font_manager.list_fonts(directory=f'{dir_path}/fonts', extensions=['ttf'])
         font_dir = f'{dir_path}/fonts'
         font_files = font_manager.findSystemFonts(fontpaths=[font_dir])
-        streamer.print(font_files)
 
         for font_file in font_files:
             font_manager.fontManager.addfont(font_file)
@@ -690,7 +692,7 @@ class Plotter:
 
             results_df['x'] = results_df.apply(lambda x: max(min_date, x['release_date']), axis=1)
             results_df['font_size'] = (1 - results_df['y_song']) / 2
-            results_df['font_name'] = results_df.apply(lambda x: self.bold_font if x['closed'] else self.sans_font, axis=1)
+            results_df['font_name'] = results_df.apply(lambda x: self.image_bold_font if x['closed'] else self.image_sans_font, axis=1)
             results_df['font_color'] = results_df.apply(lambda x: self.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max() \
                                                 if results_df[results_df['round'] == x['round']]['points'].max() else nan, self.get_dfc_colors('grey')), axis=1)
         
