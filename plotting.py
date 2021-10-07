@@ -143,10 +143,10 @@ class Plotter:
         self.emoji_font = self.emoji_fonts[0]
 
         # set plotting fonts
-        font_dirs = ['/fonts']
-        font_files = font_manager.findSystemFonts(fontpaths=font_dirs)
-        font_list = font_manager.createFontList(font_files)
-        font_manager.fontManager.ttflist.extend(font_list)
+        ##font_dirs = ['/fonts']
+        ##font_files = font_manager.findSystemFonts(fontpaths=font_dirs)
+        ##font_list = font_manager.createFontList(font_files)
+        ##font_manager.fontManager.ttflist.extend(font_list)
         rcParams['font.family'] = 'sans-serif'
         rcParams['font.sans-serif'] = self.fonts
         
