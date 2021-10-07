@@ -149,25 +149,28 @@ class Plotter:
         self.boxer = Boxer()
         
         # define fonts to use
-        self.sans_fonts = list(self.texter.fonts.keys())
+        self.sans_fonts = list(self.texter.sans_fonts.keys())
         self.emoji_fonts = list(self.texter.emoji_fonts.keys())
-        self.image_font = list(self.texter.fonts.values())[0]
+
+        self.sans_font = list(self.texter.sans_fonts.values())[0]
         self.bold_font = list(self.texter.bold_fonts.values())[0]
-        #self.emoji_font = list(self.texter.emoji_fonts.values())[0]
-        self.emoji_font = self.emoji_fonts[0]
+        self.emoji_font = list(self.texter.emoji_fonts.values())[0]
 
         # set plotting fonts
         dir_path = os.path.dirname(os.path.realpath(__file__))
         #font_files = font_manager.list_fonts(directory=f'{dir_path}/fonts', extensions=['ttf'])
-        font_dirs = [f'{dir_path}/fonts']
-        font_files = font_manager.findSystemFonts(fontpaths=font_dirs)
+        font_dir = f'{dir_path}/fonts'
+        font_files = font_manager.findSystemFonts(fontpaths=[font_dir])
         streamer.print(font_files)
 
         for font_file in font_files:
             font_manager.fontManager.addfont(font_file)
 
+        self.plot_sans_font = font_manager.get_font(f'{font_dir}/{self.sans_font}').family_name
+        self.plot_emoji_font = font_manager.get_font(f'{font_dir}/{self.emoji_font}').family_name
+
         rcParams['font.family'] = 'sans-serif'
-        rcParams['font.sans-serif'] = self.sans_fonts        
+        rcParams['font.sans-serif'] = self.sans_fonts
         
         self.league_titles = None
         self.members_list = None
@@ -253,7 +256,7 @@ class Plotter:
             imgs = None
 
         if image and text:
-            image = self.pictures.add_text(image, text, self.image_font)
+            image = self.pictures.add_text(image, text, self.sans_font)
 
         if image:
             scaling = [a / max(aspect) for a in aspect]
@@ -586,7 +589,7 @@ class Plotter:
             for c in range(len(features_like)):
                 #c = ax.containers.index(container)
                 ax.bar_label(ax.containers[c], color=features_colors[c % len(features_colors)], labels=[list(features_like.values())[c]]*n_rounds,
-                             fontfamily=self.emoji_font, horizontalalignment='center', padding=padding, size=font_size)
+                             fontfamily=self.plot_emoji_font, horizontalalignment='center', padding=padding, size=font_size)
             
                     
             streamer.status(1/6 * (1/3))
@@ -601,7 +604,7 @@ class Plotter:
                     y = (features_df[solo][i] + features_df[solo][i+1])/2
                     padding_multiplier = -1 if y > 0.5 else 1
                     ax.text(x=i + 0.5, y=y + padding_multiplier * padding, s=features_solo[solo], # y=self.convert_axes(ax, (features_df[solo][i] + features_df[solo][i+1])/2)
-                            size=font_size, color=color, fontfamily=self.emoji_font, horizontalalignment='center') #font=self.emoji_font
+                            size=font_size, color=color, fontfamily=self.plot_emoji_font, horizontalalignment='center') #font=self.emoji_font
                 
                         
             streamer.status(1/6 * (1/3))
@@ -687,7 +690,7 @@ class Plotter:
 
             results_df['x'] = results_df.apply(lambda x: max(min_date, x['release_date']), axis=1)
             results_df['font_size'] = (1 - results_df['y_song']) / 2
-            results_df['font_name'] = results_df.apply(lambda x: self.bold_font if x['closed'] else self.image_font, axis=1)
+            results_df['font_name'] = results_df.apply(lambda x: self.bold_font if x['closed'] else self.sans_font, axis=1)
             results_df['font_color'] = results_df.apply(lambda x: self.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max() \
                                                 if results_df[results_df['round'] == x['round']]['points'].max() else nan, self.get_dfc_colors('grey')), axis=1)
         
