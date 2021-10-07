@@ -149,10 +149,11 @@ class Plotter:
         self.boxer = Boxer()
         
         # define fonts to use
-        self.fonts = list(self.texter.fonts.keys())
+        self.sans_fonts = list(self.texter.fonts.keys())
         self.emoji_fonts = list(self.texter.emoji_fonts.keys())
         self.image_font = list(self.texter.fonts.values())[0]
         self.bold_font = list(self.texter.bold_fonts.values())[0]
+        #self.emoji_font = list(self.texter.emoji_fonts.values())[0]
         self.emoji_font = self.emoji_fonts[0]
 
         # set plotting fonts
@@ -160,13 +161,13 @@ class Plotter:
         #font_files = font_manager.list_fonts(directory=f'{dir_path}/fonts', extensions=['ttf'])
         font_dirs = [f'{dir_path}/fonts']
         font_files = font_manager.findSystemFonts(fontpaths=font_dirs)
+        streamer.print(font_files)
 
         for font_file in font_files:
             font_manager.fontManager.addfont(font_file)
 
-        rcParams['font.sans-serif'] = self.fonts
         rcParams['font.family'] = 'sans-serif'
-        
+        rcParams['font.sans-serif'] = self.sans_fonts        
         
         self.league_titles = None
         self.members_list = None
@@ -585,7 +586,7 @@ class Plotter:
             for c in range(len(features_like)):
                 #c = ax.containers.index(container)
                 ax.bar_label(ax.containers[c], color=features_colors[c % len(features_colors)], labels=[list(features_like.values())[c]]*n_rounds,
-                             font=self.emoji_font, horizontalalignment='center', padding=padding, size=font_size)
+                             fontfamily=self.emoji_font, horizontalalignment='center', padding=padding, size=font_size)
             
                     
             streamer.status(1/6 * (1/3))
@@ -600,7 +601,7 @@ class Plotter:
                     y = (features_df[solo][i] + features_df[solo][i+1])/2
                     padding_multiplier = -1 if y > 0.5 else 1
                     ax.text(x=i + 0.5, y=y + padding_multiplier * padding, s=features_solo[solo], # y=self.convert_axes(ax, (features_df[solo][i] + features_df[solo][i+1])/2)
-                            size=font_size, color=color, font=self.emoji_font, horizontalalignment='center')
+                            size=font_size, color=color, fontfamily=self.emoji_font, horizontalalignment='center') #font=self.emoji_font
                 
                         
             streamer.status(1/6 * (1/3))
