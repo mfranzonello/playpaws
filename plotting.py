@@ -771,7 +771,8 @@ class Plotter:
                         f'(the pink arrow shows who a player gives\n'
                         f'most of their votes to, and the orange\n'
                         f'arrow shows who they get the most votes\n'
-                        f'from).'}
+                        f'from).'
+                        )
 
         tooltips = {'members': members_text,
                     }
