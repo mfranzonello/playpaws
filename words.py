@@ -80,27 +80,28 @@ class Texter:
         return text
 
     def split_long_text(self, text, limit=100):
-        splits = text.split('\n')
+        if text:
+            splits = text.split('\n')
 
-        split_text = []
-        for sp in splits:
-            split_t = []
-            p = 0
-            iterations = 0
+            split_text = []
+            for sp in splits:
+                split_t = []
+                p = 0
+                iterations = 0
 
-            while (p < len(sp)):
-                last_space = sp[p:p+limit][::-1].find(' ')
+                while (p < len(sp)):
+                    last_space = sp[p:p+limit][::-1].find(' ')
             
-                if last_space == -1:
-                    cutoff = min(len(sp), p+limit)
-                else:
-                    cutoff = limit - last_space + p
+                    if last_space == -1:
+                        cutoff = min(len(sp), p+limit)
+                    else:
+                        cutoff = limit - last_space + p
                                
-                split_t += [sp[p:cutoff]]
-                p = cutoff
+                    split_t += [sp[p:cutoff]]
+                    p = cutoff
             
-            split_text += ['\n'.join(split_t)]
+                split_text += ['\n'.join(split_t)]
 
-        text = '\n\n'.join(split_text)
+            text = '\n\n'.join(split_text)
 
         return text
