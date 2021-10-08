@@ -1,11 +1,12 @@
 from pandas import set_option
 import streamlit as st
 
+from media import Texter
+
 class Printer:
     def __init__(self, *options):
         self.options = [*options]
 
-    #def set_display_options(self):
         for option in self.options:
             set_option(option, None)
 
@@ -19,6 +20,8 @@ class Streamer:
         
         self.text_print = self.sidebar.empty()
         self.base_text = ''
+
+        self.texter = Texter()
                
     def title(self, text):
         st.title(text)
@@ -26,7 +29,7 @@ class Streamer:
     def pyplot(self, figure, header=None, tooltip=None):
         if header:
             st.header(header)
-        st.pyplot(figure, help=tooltip)
+        st.pyplot(figure, help=self.texter.split_long_text(tooltip))
         st.write('\n')
 
     def print(self, text, base=True):

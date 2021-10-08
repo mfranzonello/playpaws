@@ -4,7 +4,7 @@ from random import randint
 from dropbox import Dropbox
 
 from secret import get_secret
-from media import Texter
+from words import Texter
 
 class Boxer:
     media_folder = '/media'

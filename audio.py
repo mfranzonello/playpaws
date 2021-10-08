@@ -8,7 +8,8 @@ from pylast import LastFMNetwork, NetworkError
 from pandas import DataFrame, isnull
 
 from secret import get_secret
-from media import Texter, Gallery
+from words import Texter
+from media import Gallery
 from storage import Boxer
 from media import Byter
 from streaming import streamer

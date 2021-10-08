@@ -12,7 +12,8 @@ from wordcloud import WordCloud#, ImageColorGenerator
 from numpy import asarray
 import streamlit as st
 
-from media import Texter, Imager, Gallery
+from words import Texter
+from media import Imager, Gallery
 from storage import Boxer
 from streaming import streamer
 

@@ -4,7 +4,6 @@ import json
 from sqlalchemy import create_engine
 from pandas import read_sql, DataFrame, isnull
 from pandas.api.types import is_numeric_dtype
-import streamlit as st
 
 from secret import get_secret
 from streaming import streamer
