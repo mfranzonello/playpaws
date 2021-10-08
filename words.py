@@ -1,5 +1,5 @@
 import re
-from fuzzywuzzy import fuzz
+from thefuzz import fuzz, process
 
 class Texter:
     emoji_pattern = re.compile('['
@@ -95,6 +95,7 @@ class Texter:
         return text
 
     def split_long_text(self, text, limit=100):
+        # break up long text with newlines
         if text:
             splits = text.split('\n')
 
@@ -123,31 +124,34 @@ class Texter:
 
     def find_closest_match(self, text, texts, threshold=40, similarity=5):
         if (not text) or (text in texts):
+            # text is None or text is already a match
             closest_text = text
 
         else:
-            ratios = [fuzz.ratio(text.lower(), t.lower()) for t in texts]
-            max_ratio = max(ratios)
-            if max_ratio >= threshold:
-                all_sorted = [(r, t) for r, t in sorted(zip(ratios, texts), reverse=True) if (r >= max_ratio - similarity)]
-                ratios_sorted = [r for r, t in all_sorted]
-                matches_sorted = [t for r, t in all_sorted]
+            # find fuzzy match ratios
+            matches = list(filter(lambda x: x[1] > threshold,
+                                  process.extract(text.lower(), [t.lower() for t in texts], limit=10)))
 
-                if (len(matches_sorted) == 1) or (similarity == 0):
-                    # only one value is close
-                    closest_text = matches_sorted[0]
-                elif similarity > 0:
-                    # look at abbreviations
-                    closest_text = self.find_closest_match(self.abbreviate_name(text), texts,
-                                                           threshold=threshold, similarity=0)
-                   
+            if (len(matches) == 1) or (similarity == 0):
+                # only one matching result or being forced to choose best match
+                closest_text = matches[0][0]
+
+            elif similarity > 0:
+                # more than one result and others that are close
+                texts_sublist = [m[0] for m in matches if m[1] >= matches[0][1] - similarity],
+                closest_text = self.find_closest_match(self.abbreviate_name(text), text_sublist,
+                                                      threshold=threshold, similarity=0)
+
             else:
+                # no match
                 closest_text = text
 
         return closest_text
 
     def abbreviate_name(self, text):
+        # return any words after the first word as initials
         punctuation = '- .'
         pattern = '|'.join(f'{self.slashable(p)}{p}' for p in punctuation)
         abbreviation = ''.join(s if i == 0 else s[0] for i, s in enumerate(re.split(pattern, text)))
+
         return abbreviation
