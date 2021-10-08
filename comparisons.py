@@ -218,16 +218,18 @@ class Members:
         print('\t...minimizing')
         xy = minimize(self.distdiff, xy0, args=(distances['distance'], needed), options={'maxiter': max_iterations})
         print('\t\t...optimal solution found')
-        dist = self.distdiff(xy.x, distances['distance'], needed)
+        ##dist = self.distdiff(xy.x, distances['distance'], needed)
 
         self.df['x'] = [0] + xy.x.tolist()[0:int(len(xy.x)/2)]
         self.df['y'] = [0] + xy.x.tolist()[int(len(xy.x)/2):]
 
     def who_likes_whom(self, pulse):
         # calculate likes and liked values
-        for like in ['likes', 'liked']:
+        like_cols = ['likes', 'liked']
+        for like in like_cols:
             most_like = pulse.df.sort_values(['p1', like], ascending=False).groupby('p1').first().reset_index()
-            self.df[like] = self.df.merge(most_like, left_on='player', right_on='p1', how='left')['p2']
+            merged_like = self.df.drop(columns=like_cols).merge(most_like, left_on='player', right_on='p1', how='left')
+            self.df[like] = merged_like['p2'].where(merged_like[like] > 0)
 
     def get_dfc(self, songs, votes):
         patternizer = songs.get_patternizer(votes, self.player_names)

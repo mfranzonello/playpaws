@@ -1,4 +1,4 @@
-from math import sin, cos, atan2, pi, nan, isnan, ceil
+from math import sin, cos, atan2, pi, inf, nan, isnan, ceil
 from collections import Counter
 import os
 
@@ -84,6 +84,9 @@ class Pictures(Imager):
         ppi = 72
 
         max_x = text_df['x'].max()
+
+        # remove text too small
+        text_df = text_df.replace([inf, -inf], nan).dropna(subset=['font_size'])
 
         text_df['image_font'] = text_df.apply(lambda x: ImageFont.truetype(x['font_name'], int(x['font_size'] * ppi)), axis=1)
         text_df['length'] = text_df.apply(lambda x: x['image_font'].getmask(x['text']).getbbox()[2], axis=1)
@@ -361,18 +364,19 @@ class Plotter:
     def plot_member_likers(self, ax, members_df, me, x_me, y_me, split_distance, direction, color):
         x_like, y_like, theta_us = self.who_likes_whom(members_df, me, direction, self.like_arrow_length)
 
-        side = {'likes': -1,
-                'liked': 1}[direction]
+        if theta_us:
+            side = {'likes': -1,
+                    'liked': 1}[direction]
 
-        x_1, y_1 = self.translate(x_me, y_me, theta_us, side, shift_distance=split_distance)
-        x_2, y_2 = self.translate(x_like, y_like, theta_us, side, shift_distance=split_distance)
+            x_1, y_1 = self.translate(x_me, y_me, theta_us, side, shift_distance=split_distance)
+            x_2, y_2 = self.translate(x_like, y_like, theta_us, side, shift_distance=split_distance)
 
-        xy = {'likes': [x_1, y_1, x_2-x_1, y_2-y_1],
-              'liked': [x_2, y_2, x_1-x_2, y_1-y_2]}[direction]
+            xy = {'likes': [x_1, y_1, x_2-x_1, y_2-y_1],
+                  'liked': [x_2, y_2, x_1-x_2, y_1-y_2]}[direction]
 
-        ax.arrow(*xy,
-                 width=self.like_arrow_width, facecolor=color,
-                 edgecolor='none', length_includes_head=True, zorder=2)
+            ax.arrow(*xy,
+                     width=self.like_arrow_width, facecolor=color,
+                     edgecolor='none', length_includes_head=True, zorder=2)
 
     def plot_boards(self, league_title, board):
         if f'boards_ax:{league_title}' in st.session_state:
@@ -736,14 +740,19 @@ class Plotter:
         likes_me = members_df[direction][members_df['player'] == player_name].values[0]
 
         x_me, y_me, _ = self.where_am_i(members_df, player_name)
+        them = members_df[['x', 'y']][members_df['player'] == likes_me]
+        if len(them):
+            x_them, y_them = them.values[0]
         
-        x_them = members_df['x'][members_df['player'] == likes_me].values[0]
-        y_them = members_df['y'][members_df['player'] == likes_me].values[0]
+            theta_us = atan2(y_them - y_me, x_them - x_me)
 
-        theta_us = atan2(y_them - y_me, x_them - x_me)
+            x_likes = x_me + line_dist * cos(theta_us)
+            y_likes = y_me + line_dist * sin(theta_us)
 
-        x_likes = x_me + line_dist * cos(theta_us)
-        y_likes = y_me + line_dist * sin(theta_us)
+        else:
+            theta_us = None
+            x_likes = None
+            y_likes = None
 
         return x_likes, y_likes, theta_us
 

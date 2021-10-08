@@ -270,7 +270,7 @@ class Stripper:
   
     def get_results(self, html_text, page_type):
         # get HTML tags from URL
-        soup = BeautifulSoup(html_text, 'lxml')#'html.parser')
+        soup = BeautifulSoup(html_text, 'html.parser')
 
         result_types = self.result_types[page_type]
 
