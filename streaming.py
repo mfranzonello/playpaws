@@ -1,7 +1,7 @@
 from pandas import set_option
 import streamlit as st
 
-from media import Texter
+from words import Texter
 
 class Printer:
     def __init__(self, *options):
