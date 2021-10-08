@@ -1,4 +1,5 @@
 from extract import Stripper, Scraper
+from media import Texter
 from audio import Spotter, FMer
 from results import Songs, Votes, Rounds, Leagues, Players
 
@@ -9,6 +10,9 @@ class Updater:
 
         self.stripper = Stripper(self.main_url)
         self.scraper = Scraper(self.stripper)
+        self.texter = Texter()
+
+        self.spotter = Spotter()
 
     def update_musicleague(self):
         print('Updating database')
@@ -36,6 +40,9 @@ class Updater:
                 # get information from round page
                 results = self.update_round(league_title, round_title, round_url)
 
+            # find round creators
+            self.update_creators(league_title)
+
     def update_league(self, league_title, league_url):
         rounds = Rounds()
         players = Players()
@@ -45,16 +52,11 @@ class Updater:
 
         _, round_titles, \
             player_names, player_urls, \
-            round_urls, round_dates, round_creators, round_playlists = results # _ = league_title
+            round_urls, round_dates, round_descriptions, round_playlists = results # _ = league_title ##round_creators
 
         if len(round_titles):
-
-            round_creators = [self.database.get_player_match(league_title=league_title, partial_name=round_creator) \
-                for round_creator in round_creators]
-
-            league_creator = self.database.get_league_creator(league_title)
-            rounds_df = rounds.sub_rounds(round_titles, league_creator=league_creator,
-                                          url=round_urls, date=round_dates, creator=round_creators, playlist_url=round_playlists)
+            rounds_df = rounds.sub_rounds(round_titles, url=round_urls, date=round_dates, playlist_url=round_playlists,
+                                          description=round_descriptions) # league_creator=league_creator,creator=round_creators,
             self.database.store_rounds(rounds_df, league_title)
 
         if(len(player_names)):
@@ -119,7 +121,6 @@ class Updater:
                     # remove placeholder votes
                     self.database.drop_votes(league_title, round_title)
 
-
                 # store updates
                 self.database.store_songs(songs_df, league_title)
                 self.database.store_votes(votes_df, league_title)
@@ -133,6 +134,49 @@ class Updater:
             # the URL is missing
             print(f'Round {round_title} not found.')
             self.database.store_round(league_title, round_title, 'new')
+
+    def update_creators(self, league_title):
+        rounds_df = self.database.get_uncreated_rounds(league_title)
+
+        if len(rounds_df):
+            members_df = self.database.get_members(league_title)
+            player_names = members_df['player']
+            league_creator = self.database.get_league_creator(league_title)
+        
+            rounds_df[['creator', 'capture']] = rounds_df.apply(lambda x: \
+                                             self.find_creator(x['description'], player_names, league_creator),
+                                                                axis=1, result_type='expand')
+
+            self.database.store_rounds(rounds_df, league_title)
+            #database.store_players()
+
+    def find_creator(self, description, player_names, league_creator):
+        creator = None
+        captured = None
+        
+        if description:
+        
+            # first look for item in Created By, Submitted By, etc
+            words = ['chosen by', 'created by ', 'submitted by ', 'theme is from ', 'theme from ']
+            if not creator:
+                _, captured = self.texter.remove_parenthetical(description, words,
+                                                               position='start', parentheses='all_end')
+                creator = self.texter.find_closest_match(captured, player_names)
+
+            # then look to see if a player name is in the description
+            if not creator:
+                for player_name in player_names:
+                    if player_name in description:
+                        creator = player_name
+                        break
+
+            creator = self.texter.find_closest_match(creator, player_names)
+
+            # finally, default to league creator
+            if not creator:
+                creator = league_creator
+        
+        return creator, captured
 
 class Musician:
     def __init__(self, database):

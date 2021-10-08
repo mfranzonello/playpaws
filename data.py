@@ -10,33 +10,48 @@ from streaming import streamer
 
 class Database:
     tables = {# MusicLeague data
-              'Leagues': {'keys': ['league'], 'values': ['creator', 'date', 'url']},
-              'Players': {'keys': ['username'], 'values': ['player', 'src', 'uri', 'followers']},
-              'Rounds': {'keys': ['league', 'round'], 'values': ['creator', 'date', 'status', 'url', 'playlist_url']},
-              'Songs': {'keys': ['league', 'song_id'], 'values': ['round', 'submitter', 'track_url']},    
-              'Votes': {'keys': ['league', 'player', 'song_id'], 'values': ['vote']},
+              'Leagues': {'keys': ['league'],
+                          'values': ['creator', 'date', 'url']},
+              'Players': {'keys': ['username'],
+                          'values': ['player', 'src', 'uri', 'followers']},
+              'Rounds': {'keys': ['league', 'round'],
+                         'values': ['creator', 'date', 'status', 'url', 'playlist_url', 'description', 'capture']},
+              'Songs': {'keys': ['league', 'song_id'],
+                        'values': ['round', 'submitter', 'track_url']},    
+              'Votes': {'keys': ['league', 'player', 'song_id'],
+                        'values': ['vote']},
 
-              'Playlists': {'keys': ['league', 'theme'], 'values': ['uri', 'src', 'rounds']},
+              'Playlists': {'keys': ['league', 'theme'],
+                            'values': ['uri', 'src', 'rounds']},
 
               # Spotify data
-              'Tracks': {'keys': ['url'], 'values': ['uri', 'name', 'title', 'mix', 'artist_uri', 'album_uri', 'explicit', 'popularity',
-                                                     'duration', 'key', 'mode', 'loudness', 'tempo',
-                                                     'danceability', 'energy', 'liveness', 'valence',
-                                                     'speechiness', 'acousticness', 'instrumentalness',
-                                                     'scrobbles', 'listeners', 'top_tags']},
-              'Artists': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'followers', 'src']},
-              'Albums': {'keys': ['uri'], 'values': ['name', 'genres', 'popularity', 'release_date', 'src']},
-              'Genres': {'keys': ['name'], 'values': ['category']},
+              'Tracks': {'keys': ['url'],
+                         'values': ['uri', 'name', 'title', 'mix', 'artist_uri', 'album_uri', 'explicit', 'popularity',
+                                    'duration', 'key', 'mode', 'loudness', 'tempo',
+                                    'danceability', 'energy', 'liveness', 'valence', 'speechiness', 'acousticness', 'instrumentalness',
+                                    'scrobbles', 'listeners', 'top_tags']},
+              'Artists': {'keys': ['uri'],
+                          'values': ['name', 'genres', 'popularity', 'followers', 'src']},
+              'Albums': {'keys': ['uri'],
+                         'values': ['name', 'genres', 'popularity', 'release_date', 'src']},
+              'Genres': {'keys': ['name'],
+                         'values': ['category']},
               
               # analytics
-              'Members': {'keys': ['league', 'player'], 'values': ['x', 'y', 'wins', 'dfc', 'likes', 'liked']},
-              'Results': {'keys': ['league', 'song_id'], 'values': ['people', 'votes', 'closed', 'discovery', 'points']},
-              'Rankings': {'keys': ['league', 'round', 'player'], 'values': ['points', 'score']},
-              'Boards': {'keys': ['league', 'round', 'player'], 'values': ['place']},
-              'Analyses': {'keys': ['league'], 'values': ['date', 'open', 'closed', 'version']},
+              'Members': {'keys': ['league', 'player'],
+                          'values': ['x', 'y', 'wins', 'dfc', 'likes', 'liked']},
+              'Results': {'keys': ['league', 'song_id'],
+                          'values': ['people', 'votes', 'closed', 'discovery', 'points']},
+              'Rankings': {'keys': ['league', 'round', 'player'],
+                           'values': ['points', 'score']},
+              'Boards': {'keys': ['league', 'round', 'player'],
+                         'values': ['place']},
+              'Analyses': {'keys': ['league'],
+                           'values': ['date', 'open', 'closed', 'version']},
               
               # settings
-              'Weights': {'keys': ['parameter', 'version'], 'values': ['value']},
+              'Weights': {'keys': ['parameter', 'version'],
+                          'values': ['value']},
               }
 
     def use_one_league(self, table_name):
@@ -383,8 +398,9 @@ class Database:
         if (league_title is None) and (round_title is None):
             round_status = 'n/a'
         else:
-            table_name = 'Rounds'
-            sql = f'SELECT * FROM {self.table_name(table_name)} WHERE (league = {self.needs_quotes(league_title)}) AND (round = {self.needs_quotes(round_title)})' 
+            sql = (f'SELECT * FROM {self.table_name("Rounds")} '
+                   f'WHERE (league = {self.needs_quotes(league_title)}) AND (round = {self.needs_quotes(round_title)});'
+                   )
             status_df = read_sql(sql, self.connection)
 
             if len(status_df) and (not isnull(status_df['status'].iloc[0])):
@@ -393,6 +409,14 @@ class Database:
                 round_status = 'missing'
 
         return round_status
+
+    def get_uncreated_rounds(self, league_title):
+        sql = (f'SELECT round, description, creator FROM {self.table_name("Rounds")} '
+               f'WHERE (league = {self.needs_quotes(league_title)}) AND (creator IS NULL);')
+
+        rounds_df = read_sql(sql, self.connection)
+
+        return rounds_df
 
     def store_round(self, league_title, round_title, new_status, url=None):
         df = DataFrame([[league_title, round_title, new_status, url]], columns=['league', 'round', 'status', 'url'])

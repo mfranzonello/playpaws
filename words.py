@@ -1,4 +1,5 @@
 import re
+from fuzzywuzzy import fuzz
 
 class Texter:
     emoji_pattern = re.compile('['
@@ -43,30 +44,43 @@ class Texter:
         return display_name.title()
 
     def slashable(self, char):
-        slash_chars = ['[', '(', ']', ')', '.']
+        slash_chars = ['[', '(', ']', ')', '.', '\\', '-']
         slash = '\\' if char in slash_chars else ''
         return slash
 
     def remove_parenthetical(self, text, words, position, parentheses=[['(', ')'], ['[', ']']],
                              middle=None, case_sensitive=False):
-        capture_s = '(.*?)' if position == 'end' else ''
-        capture_e = '(.*?)' if position == 'start' else ''
-        capture_m = f'.*?{middle}.*?' if middle else ''
+        captured = None
+        if text:
 
-        pattern = '|'.join(f'({self.slashable(s)}{s}{capture_s}'
-                           f'{w}{capture_m}'
-                           f'{capture_e}{self.slashable(e)}{e})' for w in words for s, e in parentheses)
+            punctuation = '!,.;()/\\-[]'
+            punctuation_s = '^' + punctuation
+            punctuation_e = punctuation + '$'
+
+            if parentheses == 'all':
+                parentheses = [[start, end] for start in punctuation_s for end in punctuation_e]
+            elif parentheses == 'all_start':
+                [[start, ''] for end in punctuation_s]
+            elif parentheses == 'all_end':
+                parentheses = [['', end] for end in punctuation_e]
+
+            capture_s = '(.*?)' if position == 'end' else ''
+            capture_e = '(.*?)' if position == 'start' else ''
+            capture_m = f'.*?{middle}.*?' if middle else ''
+
+            pattern = '|'.join(f'({self.slashable(s)}{s}{capture_s}'
+                               f'{w}{capture_m}'
+                               f'{capture_e}{self.slashable(e)}{e})' for w in words for s, e in parentheses)
         
-        flags = re.IGNORECASE if not case_sensitive else 0
+            flags = re.IGNORECASE if not case_sensitive else 0
 
-        searched = re.search(pattern, text, flags=flags)
-        if searched:
-            captured = next(s for s in searched.groups() if s).strip()
-            text = text.replace(captured, '').strip()
+            searched = re.search(pattern, text, flags=flags)
+            if searched:
+                # find the shortest captured text
+                captured = sorted((s for s in searched.groups()[1::2] if s), key=len)[0].strip()
+                ##captured = next(s for s in searched.groups()[1::2] if s).strip()
+                text = text.replace(captured, '').strip()
             
-        else:
-            captured = None
-
         return text, captured
 
     def drop_dash(self, text):
@@ -105,3 +119,34 @@ class Texter:
             text = '\n\n'.join(split_text)
 
         return text
+
+    def find_closest_match(self, text, texts, threshold=40, similarity=5):
+        if (not text) or (text in texts):
+            closest_text = text
+
+        else:
+            ratios = [fuzz.ratio(text.lower(), t.lower()) for t in texts]
+            max_ratio = max(ratios)
+            if max_ratio >= threshold:
+                all_sorted = [(r, t) for r, t in sorted(zip(ratios, texts), reverse=True) if (r >= max_ratio - similarity)]
+                ratios_sorted = [r for r, t in all_sorted]
+                matches_sorted = [t for r, t in all_sorted]
+
+                if (len(matches_sorted) == 1) or (similarity == 0):
+                    # only one value is close
+                    closest_text = matches_sorted[0]
+                elif similarity > 0:
+                    # look at abbreviations
+                    closest_text = self.find_closest_match(self.abbreviate_name(text), texts,
+                                                           threshold=threshold, similarity=0)
+                   
+            else:
+                closest_text = text
+
+        return closest_text
+
+    def abbreviate_name(self, text):
+        punctuation = '- .'
+        pattern = '|'.join(f'{self.slashable(p)}{p}' for p in punctuation)
+        abbreviation = ''.join(s if i == 0 else s[0] for i, s in enumerate(re.split(pattern, text)))
+        return abbreviation

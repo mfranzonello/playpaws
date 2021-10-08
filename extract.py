@@ -5,6 +5,7 @@ import requests
 import browser_cookie3 as browsercookie
 from bs4 import BeautifulSoup
 
+from words import Texter
 from streaming import streamer
 
 class Scraper:
@@ -89,12 +90,16 @@ class Stripper:
                     'round_dates': {'tag': 'span',
                                     'attrs': {'data-timestamp': True},
                                     },
-                    'round_creators': {'tag': 'span',
-                                       'attrs': {'class': 'status-text'},
-                                       'self_only': True,
-                                       'remove': {'type': 'in',
-                                                  'rems': [f'{b} by ' for b in ['Chosen', 'Submitted']]},
-                                       },
+                    'description': {'tag': 'span',
+                                    'attrs': {'class': 'status-text'},
+                                    'self_only': True,
+                                    },
+                    ##'round_creators': {'tag': 'span',
+                    ##                   'attrs': {'class': 'status-text'},
+                    ##                   'self_only': True,
+                    ##                   'remove': {'type': 'in',
+                    ##                              'rems': [f'{b} by ' for b in ['Chosen', 'Submitted']]},
+                    ##                   },
                     'playlists': {'tag': 'a',
                                   'attrs': {'class': 'action-link',
                                             'title': 'Listen to Playlist'},
@@ -181,6 +186,8 @@ class Stripper:
 
         self.main_url = main_url
 
+        self.texter = Texter()
+
     def strain_soup(self, soup, rt):
         name = rt['tag']
         attributes = {}
@@ -250,6 +257,8 @@ class Stripper:
                         stripped = stripped.replace(rem, '', 1)
                 # extract what comes between items
                 elif attrs['remove']['type'] == 'in':
+                    ##_, stripped = self.texter.remove_parenthetical()
+                 
                     starts = attrs['remove']['rems']
                     pattern_starts = [start.replace('(','\(').replace(')','\)') for start in starts]
                     pattern_ends = ['[,.;()/\- ]', '$']
@@ -322,21 +331,25 @@ class Stripper:
         round_urls_all = [None]*((t2u+1)//2) + round_urls_all + [None]*(t2u//2)
         
         round_dates_all = results['round_dates']
-        round_creators_all = [creator if len(creator) else None for creator in results['round_creators'] if creator is not None] #[creator for creator in results['round_creators'] if creator is not None]
+        round_descriptions_all = results['description'][::2]
+        ##round_creators_all = [creator if len(creator) else None for creator in results['round_creators'] if creator is not None] #[creator for creator in results['round_creators'] if creator is not None]
         
         round_playlists_all = results['playlists']
 
         round_dates_all = round_dates_all[(len(round_dates_all)-len(round_titles_all)+1)//2:\
             (len(round_dates_all)-len(round_titles_all)+1)//2+len(round_titles_all)]
-        round_creators_all = round_creators_all[(len(round_creators_all)-len(round_titles_all)+1)//2:\
-            (len(round_creators_all)-len(round_titles_all)+1)//2+len(round_titles_all)]
+        round_descriptions_all = round_descriptions_all[(len(round_descriptions_all)-len(round_titles_all)+1)//2:\
+            (len(round_descriptions_all)-len(round_titles_all)+1)//2+len(round_titles_all)]
+        ##round_creators_all = round_creators_all[(len(round_creators_all)-len(round_titles_all)+1)//2:\
+        ##    (len(round_creators_all)-len(round_titles_all)+1)//2+len(round_titles_all)]
 
         # remove rounds titles and URLS that are duplicate (i.e. open)
         round_title_set = list(dict.fromkeys(round_titles_all))
         round_titles = [round_titles_all[round_titles_all.index(s)] for s in round_title_set]
         round_urls = [round_urls_all[round_titles_all.index(s)] for s in round_title_set]
         round_dates = [round_dates_all[round_titles_all.index(s)] for s in round_title_set]
-        round_creators = [round_creators_all[round_titles_all.index(s)] for s in round_title_set]
+        round_descriptions = [round_descriptions_all[round_titles_all.index(s)] for s in round_title_set]
+        ##round_creators = [round_creators_all[round_titles_all.index(s)] for s in round_title_set]
 
         t2p = len(round_titles_all) - len(round_playlists_all)
         round_playlists_all = [None]*((t2p+1)//2) + round_playlists_all + [None]*(t2p//2)
@@ -347,7 +360,7 @@ class Stripper:
 
         return league_title, round_titles, \
             player_names, player_urls, \
-            round_urls, round_dates, round_creators, round_playlists
+            round_urls, round_dates, round_descriptions, round_playlists #round_creators
 
     def extract_round(self, results):
         league_title = results['league'][0]
