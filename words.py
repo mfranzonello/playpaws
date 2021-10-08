@@ -78,8 +78,9 @@ class Texter:
             if searched:
                 # find the shortest captured text
                 captured = sorted((s for s in searched.groups()[1::2] if s), key=len)[0].strip()
-                ##captured = next(s for s in searched.groups()[1::2] if s).strip()
-                text = text.replace(captured, '').strip()
+                replaceable = sorted((s for s in searched.groups()[0::2] if s), key=len)[0].strip()
+                
+                text = text.replace(replaceable, '').strip()
             
         return text, captured
 

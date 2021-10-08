@@ -699,11 +699,11 @@ class Database:
         return tracks_df
 
     # analytics functions
-    def store_analysis(self, league_title, version, statuses):
+    def store_analysis(self, league_title, version, statuses, optimized):
         today = date.today()
         analyses_df = DataFrame([[league_title, today, version,
-                                  statuses['open'], statuses['closed']]],
-                                columns=['league', 'date', 'version', 'open', 'closed'])
+                                  statuses['open'], statuses['closed']], optimized],
+                                columns=['league', 'date', 'version', 'open', 'closed', 'optimized'])
 
         self.upsert_table('Analyses', analyses_df)
 

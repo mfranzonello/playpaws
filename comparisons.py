@@ -164,6 +164,9 @@ class Members:
 
         self.player_names = player_names
 
+        self.coordinates = {'success': False,
+                            'message': None}
+
     def __repr__(self):
         printed = self.df.drop(columns=['x', 'y']).sort_values(['wins', 'dfc'], ascending=[False, True])
         return f'MEMBERS\n{printed}\n'
@@ -199,8 +202,11 @@ class Members:
         self.df['x'] = [0] + [R * cos(angle * i) for i in circle_players]
         self.df['y'] = [0] + [R * sin(angle * i) for i in circle_players]
 
-    def update_coordinates(self, pulse, xy_=None, max_iterations=5000):
+    def update_coordinates(self, pulse, xy_=None, max_iters=5000):
         # best fit player nodes
+        n = len(self.player_combinations)
+        max_iterations = max(1, min(max_iters, int(10**(8/log(n*(n+1)/2)))))
+
         distances = DataFrame(data=self.player_combinations, columns=['p1', 'p2'])
         distances['distance'] = distances.merge(pulse.df, on=['p1', 'p2'], how='left')['plot_distance']
         
@@ -222,6 +228,9 @@ class Members:
 
         self.df['x'] = [0] + xy.x.tolist()[0:int(len(xy.x)/2)]
         self.df['y'] = [0] + xy.x.tolist()[int(len(xy.x)/2):]
+
+        self.coordinates['success'] = xy.success
+        self.coordiantes['message'] = xy.message
 
     def who_likes_whom(self, pulse):
         # calculate likes and liked values

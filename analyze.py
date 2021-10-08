@@ -47,7 +47,7 @@ class Analyzer:
                         self.database.store_rankings(rankings.df, league_title)
                         self.database.store_boards(board, league_title)
 
-                        self.database.store_analysis(league_title, self.version, statuses)
+                        self.database.store_analysis(league_title, self.version, statuses, members.status)
 
     def get_statuses(self, rounds_df):
         statuses = {status: [round_title for round_title in rounds_df.query(f'status == "{status}"')['round']] \
