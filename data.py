@@ -570,9 +570,18 @@ class Database:
 
         return playlist_url
 
-    def get_playlists(self):
-        playlists_df = self.get_table('Playlists')
+    def get_playlists(self, league_title=None):
+        playlists_df = self.get_table('Playlists', league=league_title)
         return playlists_df
+
+    def get_track_count(self, league_title):
+        sql = (f'SELECT COUNT(DISTINCT track_url) FROM {self.table_name("Songs")} '
+               f'WHERE league = {self.needs_quotes(league_title)};'
+               )
+
+        count = read_sql(sql, self.connection)['count'].iloc[0]
+
+        return count
 
     def get_theme_playlists(self, theme):
         # get playlists or track URIs to pull songs from
@@ -896,6 +905,18 @@ class Database:
         results_df = read_sql(sql, self.connection).drop_duplicates(subset='song_id')
 
         return results_df
+
+    def get_creators_and_winners(self, league_title):
+        sql = (f'SELECT r.round, r.creator, b.player AS winner '
+               f'FROM {self.table_name("Rounds")} as r '
+               f'LEFT JOIN {self.table_name("Boards")} as b '
+               f'ON (r.league = b.league) AND (r.round = b.round) '
+               f'WHERE (r.league = {self.needs_quotes(league_title)}) AND (b.place = 1);'
+               )
+        
+        creators_winners_df = read_sql(sql, self.connection)
+
+        return creators_winners_df
 
     def get_all_artists(self, league_title):
         sql = (f'SELECT s.league, s.song_id, json_agg(DISTINCT a.name) as arist '

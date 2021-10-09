@@ -10,7 +10,7 @@ from pandas import DataFrame, isnull
 from secret import get_secret
 from words import Texter
 from media import Gallery
-from storage import Boxer
+from storage import Boxer, Googler
 from media import Byter
 from streaming import streamer
 
@@ -29,6 +29,11 @@ class Spotter:
 
     def __init__(self):
         self.sp = None
+
+        self.texter = Texter()
+        self.byter = Byter()
+        self.boxer = Boxer()
+        self.googler = Googler()
 
     def connect_to_spotify(self):
         streamer.print('Connecting to Spotify API...')
@@ -60,7 +65,7 @@ class Spotter:
                     'genres': results['genres'],
                     'popularity': results['popularity'],
                     'followers': results['followers']['total'],
-                    'src': self.get_image_src(results['images']),
+                    'src': self.get_image_src(results['images'], name=results['name']),
                     }
         return elements
 
@@ -72,7 +77,7 @@ class Spotter:
                     'genres': results['genres'],
                     'popularity': results['popularity'],
                     'release_date': self.get_date(results['release_date'], results['release_date_precision']),
-                    'src': self.get_image_src(results['images']),
+                    'src': self.get_image_src(results['images'], name=results['name']),
                     }
         return elements
 
@@ -85,10 +90,17 @@ class Spotter:
             
         return date
 
-    def get_image_src(self, result_images):
+    def get_image_src(self, result_images, name=None):
         if len(result_images):
+            # get src from Spotify
             src = result_images[0]['url']
+
+        elif name:
+            # get first result from Google
+            src = self.googler.get_image_src(name)
+
         else:
+            # return null
             src = None
 
         return src
@@ -199,9 +211,6 @@ class Spotter:
     def update_playlists(self):
         streamer.print('\t...updating playlists')
 
-        self.texter = Texter()
-        self.boxer = Boxer()
-        self.byter = Byter()
         self.gallery = Gallery(self.database, crop=True)
         
         self.update_complete_playlists()

@@ -1,5 +1,6 @@
 from pandas import set_option
 import streamlit as st
+from streamlit.components.v1 import html as st_html
 
 from words import Texter
 
@@ -14,29 +15,38 @@ class Streamer:
     def __init__(self):
         self.sidebar = st.sidebar
         
-        self.selectbox = self.sidebar.empty() #selectbox()
+        self.selectbox = self.sidebar.empty() #selectbox('Loading app...', ['']) 
         self.status_bar = self.sidebar.progress(0)
         self.base_status = 0.0
         
-        self.text_print = self.sidebar.empty()
+        self.text_print = self.sidebar.empty()#write('')
         self.base_text = ''
 
         self.texter = Texter()
                
-    def title(self, text):
-        st.title(text)
+    def wrapper(self, header, tooltip):
+        self.header(header)
+        self.tooltip(tooltip)
         
     def header(self, header):
         if header:
             st.header(header)
 
-    def pyplot(self, figure, header=None, tooltip=None):
-        self.header(header)
-        st.pyplot(figure) #, help=self.texter.split_long_text(tooltip))
-        st.write('\n')
+    def tooltip(self, tooltip):
+        if tooltip:
+            with st.expander(tooltip['label']):
+                st.write(tooltip['content'])
 
-    def image(self, image, header=None):
-        self.header(header)
+    def title(self, text, tooltip=None):
+        st.title(text)
+        self.tooltip(tooltip)
+       
+    def pyplot(self, figure, header=None, tooltip=None):
+        self.wrapper(header, tooltip)
+        st.pyplot(figure)
+        
+    def image(self, image, header=None, tooltip=None):
+        self.wrapper(header, tooltip)
         st.image(image)
 
     def print(self, text, base=True):
@@ -53,7 +63,7 @@ class Streamer:
         print(text)
 
     def clear_printer(self):
-        self.text_print.empty()
+        self.text_print.write('')
 
     def status(self, pct, base=False):
         if base:
@@ -64,6 +74,10 @@ class Streamer:
             self.base_status = new_pct
             
         self.status_bar.progress(new_pct)
+
+    def embed(self, html, height=150, header=None, tooltip=None):
+        self.wrapper(header, tooltip)
+        st_html(html, height=height)
 
 streamer = Streamer()
 

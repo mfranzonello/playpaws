@@ -155,3 +155,20 @@ class Texter:
         abbreviation = ''.join(s if i == 0 else s[0] for i, s in enumerate(re.split(pattern, text)))
 
         return abbreviation
+
+    def get_plurals(self, text, markdown=None):
+        plurals = {}
+        if markdown:
+            text = [f'{markdown}{t}{markdown[::-1]}' for t in text]
+
+        if text is not None:
+            if len(text) == 1:
+                plurals['be'] = 'is'
+                plurals['s'] = ''
+                plurals['text'] = text[0]
+            else:
+                plurals['be'] = 'are'
+                plurals['s'] = 's'
+                plurals['text'] = ', '.join(text[:-1]) + ' and ' + text[-1]
+        
+        return plurals

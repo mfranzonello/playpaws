@@ -2,6 +2,7 @@ from io import BytesIO
 from random import randint
 
 from dropbox import Dropbox
+from google_images_search import GoogleImagesSearch
 
 from secret import get_secret
 from words import Texter
@@ -72,3 +73,17 @@ class Boxer:
             image_bytes = self.get_mobi()
 
         return image_bytes
+
+class Googler:
+    def __init__(self):
+        self.gis = GoogleImagesSearch(get_secret('GCP_API_KEY'), get_secret('GCP_PROJECT_CX'))
+
+    def get_image_src(self, name):
+        self.gis.search(search_params={'q': name, 'num': 1})
+        results = self.gis.results()
+        if len(results):
+            src = results[0].url
+        else:
+            src = None
+
+        return src
