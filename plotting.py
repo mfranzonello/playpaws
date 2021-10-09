@@ -951,7 +951,7 @@ class Plotter:
 
         elif plot_name == 'tags':
             tag_count = len(parameters.get('top_tags'))
-            top_tags = self.texter.get_plurals(parameters.get('top_tags'), markdown='🏷️**')
+            top_tags = self.texter.get_plurals(parameters.get('top_tags'), markdown='💬**')
             text = (f'This is a word cloud of the most popular descriptors of '
                     f'songs submitted in this league, from Spotify genres '
                     f'and Last.FM user-submitted tags. You can see the top '
