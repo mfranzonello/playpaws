@@ -26,11 +26,18 @@ class Streamer:
     def title(self, text):
         st.title(text)
         
-    def pyplot(self, figure, header=None, tooltip=None):
+    def header(self, header):
         if header:
             st.header(header)
-        st.pyplot(figure, help=self.texter.split_long_text(tooltip))
+
+    def pyplot(self, figure, header=None, tooltip=None):
+        self.header(header)
+        st.pyplot(figure) #, help=self.texter.split_long_text(tooltip))
         st.write('\n')
+
+    def image(self, image, header=None):
+        self.header(header)
+        st.image(image)
 
     def print(self, text, base=True):
         if base:

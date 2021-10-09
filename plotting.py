@@ -1,6 +1,7 @@
 from math import sin, cos, atan2, pi, inf, nan, isnan, ceil
 from collections import Counter
 import os
+from urllib.request import urlopen
 
 from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 from pandas import DataFrame, isnull, to_datetime
@@ -78,18 +79,21 @@ class Pictures(Imager):
         return mask
 
     def get_text_image(self, text_df, aspect, base):
-        H = int((text_df['y_round'].max() + 1) * base)
+        H = int(base) #int((text_df['y_round'].max() + 1) * base)
         W = int(aspect[0] * H / aspect[1])
 
-        ppi = 72
+        ppt = 0.75
 
         max_x = text_df['x'].max()
 
         # remove text too small
-        text_df = text_df.replace([inf, -inf], nan).dropna(subset=['font_size'])
+        text_df = text_df.replace([inf, -inf], nan).dropna(subset=['size'])
 
-        text_df['image_font'] = text_df.apply(lambda x: ImageFont.truetype(x['font_name'], int(x['font_size'] * ppi)), axis=1)
-        text_df['length'] = text_df.apply(lambda x: x['image_font'].getmask(x['text']).getbbox()[2], axis=1)
+        text_df['image_font'] = text_df.apply(lambda x: ImageFont.truetype(x['font_name'],
+                                                                           int(x['size'] * ppt * base / 2)), axis=1)
+        text_df['length'] = text_df.apply(lambda x: max(x['image_font'].getmask(x['text_top']).getbbox()[2],
+                                                        x['image_font'].getmask(x['text_bottom']).getbbox()[2]),
+                                          axis=1)
         
         text_df['total_length'] = text_df['length'].add(date2num(max_x) - date2num(text_df['x']))
         max_x_i = text_df[text_df['total_length'] == text_df['total_length'].max()].index[0]
@@ -98,19 +102,43 @@ class Pictures(Imager):
         x_ratio = (W - text_df['length'][max_x_i]) / X
         D = x_ratio * X
         
-        image = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+        images = [self.place_text(text_df[text_df['round'] == r],
+                                  max_x, x_ratio, W, H, base) for r in text_df['round'].unique()]
+
+        return images, D
+
+    def place_text(self, text_df, max_x, x_ratio, W, H, base, padding=0.1):
+        image = Image.new('RGB', (W, H), (255, 255, 255))
         draw = ImageDraw.Draw(image)
 
-        text_df['new_x'] = text_df.apply(lambda x: x_ratio * (date2num(max_x) - date2num(x['x'])) + x['total_length'], axis=1)
-
         for i in text_df.index:
-            x_text = x_ratio * (date2num(max_x) - date2num(text_df['x'][i]))
-            y_text = text_df[['y_round', 'y_song']].sum(1)[i] * base
+            x_text = int(x_ratio * (date2num(max_x) - date2num(text_df['x'][i])))
+            y_text = int(text_df['y'][i] * base)
 
-            draw.text((x_text, y_text), text_df['text'][i],
-                      fill=text_df['font_color'][i], font=text_df['image_font'][i])
+            album_src = text_df['src'][i]
+            album_size = int(text_df['size'][i] * base)
+            padded_size = int(album_size * (1 - padding))
+            album_color = text_df['color'][i]
+            pad_offset = int(album_size * padding / 2)
 
-        return image, D
+            if padded_size:
+                if album_src:
+                    src_size = tuple([padded_size] * 2)
+                    album_img = Image.open(urlopen(album_src)).resize(src_size)
+                    image.paste(album_img, (x_text + pad_offset, y_text + pad_offset))
+                else:
+                    draw.rectangle([x_text + pad_offset,
+                                    y_text + pad_offset,
+                                    x_text + album_size - pad_offset,
+                                    y_text + album_size - pad_offset],
+                                   fill=album_color)
+
+            draw.text((x_text + album_size, y_text), text_df['text_top'][i],
+                      fill=album_color, font=text_df['image_font'][i])
+            draw.text((x_text + album_size, y_text + album_size/2), text_df['text_bottom'][i],
+                      fill=album_color, font=text_df['image_font'][i])
+
+        return image
     
 class Plotter:
     color_wheel = 255
@@ -143,7 +171,7 @@ class Plotter:
     figure_title = 'MusicLeague'
 
     subplot_aspects = {'golden': ((1 + 5**0.5) / 2, 1),
-                       'top_songs': (2, 1),
+                       'top_songs': (3, 1),
                        }
 
     ranking_size = 0.75
@@ -241,9 +269,12 @@ class Plotter:
 
             self.plot_members(league_title, self.database.get_members(league_title))
             self.plot_boards(league_title, self.database.get_boards(league_title))
-            self.plot_rankings(league_title, self.database.get_rankings(league_title), self.database.get_dirtiness(league_title), self.database.get_discovery_scores(league_title))
+            self.plot_rankings(league_title, self.database.get_rankings(league_title),
+                               self.database.get_dirtiness(league_title),
+                               self.database.get_discovery_scores(league_title))
             self.plot_features(league_title, self.database.get_audio_features(league_title))
-            self.plot_tags(league_title, self.database.get_genres_and_tags(league_title), self.boxer.get_mask(league_title))
+            self.plot_tags(league_title, self.database.get_genres_and_tags(league_title),
+                           self.boxer.get_mask(league_title))
             self.plot_top_songs(league_title, self.database.get_song_results(league_title))
 
             streamer.clear_printer()
@@ -640,31 +671,30 @@ class Plotter:
 
     def plot_tags(self, league_title, tags_df, mask_bytes): #_src):
         if f'tags_ax:{league_title}' in st.session_state:
-            ax = st.session_state[f'tags_ax:{league_title}']
+            wordcloud_image = st.session_state[f'tags_ax:{league_title}']
             streamer.status(1/6)
 
-        else:
-            fig = plt.figure()
-            ax = fig.add_axes([1, 1, 1, 1])
-            
+        else:          
             streamer.status(1/6 * (1/2))
             streamer.print('\t...genres', base=False)
             mask = self.pictures.get_mask_array(mask_bytes) #_src)
 
             text = Counter(tags_df.dropna().sum().sum())
             wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)
-            ax.imshow(wordcloud, interpolation="bilinear")
-            ax.axis('off')
-        
+            wordcloud_image = wordcloud.to_array()
+  
             streamer.status(1/6 * (1/2))
 
-            st.session_state[f'tags_ax:{league_title}'] = ax
+            st.session_state[f'tags_ax:{league_title}'] = wordcloud_image
+        
+        streamer.image(wordcloud_image, header='Genre Cloud')
 
-        streamer.pyplot(ax.figure, header='Genre Cloud')
+    def sum_num(self, num):
+        return sum(1/(n+2) for n in range(int(num)))
 
     def plot_top_songs(self, league_title, results_df, max_years=10):
-        if f'top_songs_ax:{league_title}' in st.session_state:
-            ax = st.session_state[f'top_songs_ax:{league_title}']
+        if False: #f'top_songs_ax:{league_title}' in st.session_state:
+            #ax = st.session_state[f'top_songs_ax:{league_title}']
             streamer.status(1/6)
 
         else:
@@ -673,15 +703,20 @@ class Plotter:
             
             streamer.status(1/6 * (1/4))
             streamer.print('\t...songs', base=False)
-            rounds = list(results_df['round'].unique())
-            n_rounds = len(rounds)
+            round_titles = list(results_df['round'].unique())
+
+            results_df.index = range(len(results_df))
 
             results_df['text'] = results_df.apply(lambda x: ' + '.join(x['artist']) + ' "' + x['title'] + '"', axis=1)
-            results_df['y_round'] = results_df['round'].map({d: rounds.index(d) for d in results_df['round'].unique()})
-            results_df['y_song'] = (1-1/(2**results_df['song_id'].map({d: list(results_df[results_df['round']==r]['song_id'].unique()).index(d) \
-                for r in rounds for d in results_df[results_df['round']==r]['song_id'].unique()})))
-            results_df['y'] = results_df[['y_round', 'y_song']].sum(1)
-        
+            results_df['text_top'] = results_df.apply(lambda x: ' + '.join(x['artist']), axis=1)
+            results_df['text_bottom'] = results_df.apply(lambda x: '"' + x['title'] + '"', axis=1)
+
+            divisor = results_df['round'].map(results_df.groupby('round').count()['song_id'].to_dict()).apply(self.sum_num)
+            results_df['size'] = results_df.reset_index().groupby('round').rank()['index'].add(1).pow(-1)\
+                .div(divisor)
+            results_df['y'] = results_df.reset_index().groupby('round').rank()['index'].sub(1).apply(self.sum_num)\
+                .div(divisor)
+       
             streamer.status(1/6 * (1/4))
     
             max_date = results_df['release_date'].max()
@@ -693,35 +728,37 @@ class Plotter:
                                                             'green', 'blue', 'dark_blue'))
 
             results_df['x'] = results_df.apply(lambda x: max(min_date, x['release_date']), axis=1)
-            results_df['font_size'] = (1 - results_df['y_song']) / 2
             results_df['font_name'] = results_df.apply(lambda x: self.image_bold_font if x['closed'] else self.image_sans_font, axis=1)
-            results_df['font_color'] = results_df.apply(lambda x: self.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max() \
+            results_df['color'] = results_df.apply(lambda x: self.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max() \
                                                 if results_df[results_df['round'] == x['round']]['points'].max() else nan, self.get_dfc_colors('grey')), axis=1)
         
             streamer.status(1/6 * (1/4))
         
-            base = 100
-            image, D = self.pictures.get_text_image(results_df, self.subplot_aspects['top_songs'], base)
+            base = 500
+            images, D = self.pictures.get_text_image(results_df, self.subplot_aspects['top_songs'], base)
             
             streamer.status(1/6 * (1/4))
         
-            ax.imshow(image)
-            W, H = image.size
-            
-            ax.set_yticks([H / n_rounds * (n + 0.5) for n in range(n_rounds)])
-            ax.set_yticklabels([self.texter.clean_text(r) for r in rounds])
-
-            ax.yaxis.tick_right()
-
             n_years = max_date.year - min_date.year
             years_range = range(0, n_years, max(1, ceil(n_years/max_years)))
-            ax.set_xticks([D / n_years * d for d in years_range] + [(W + D) / 2])
-            ax.set_xticklabels([max_date.year - i for i in years_range] + [f'< {max_date.year - max(years_range)}'])
+            
+            for i, image in enumerate(images):
+                ax.imshow(image)
+                W, H = image.size
+            
+                ax.set_yticks([])
+                ax.set_yticklabels([])
+
+                ax.set_xticks([D / n_years * d for d in years_range] + [(W + D) / 2])
+                ax.set_xticklabels([max_date.year - i for i in years_range] + [f'< {max_date.year - max(years_range)}'])
         
-            st.session_state[f'top_songs_ax:{league_title}'] = ax
+                ax.set_title(self.texter.clean_text(round_titles[i]), loc='left', fontweight='bold') #, horizontalalignment='left')
+                
+                streamer.pyplot(ax.figure, header='Top Songs' if i == 0 else None)
 
-        streamer.pyplot(ax.figure, header='Top Songs')
+            ##st.session_state[f'top_songs_ax:{league_title}'] = ax
 
+            
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
         y_center = members_df['y'].mean()

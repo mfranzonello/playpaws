@@ -176,6 +176,7 @@ class Spotter:
         artists_db = self.database.get_artists_update_sp()
         
         if len(artists_db):
+            ## note that some artists don't have images on Spotify -- should these be left blank permanently?
             artists_update = self.get_updates(artists_db, self.get_artist_elements)
             self.database.store_artists(artists_update)
 
@@ -192,7 +193,7 @@ class Spotter:
         genres_db = self.database.get_genres_update_sp()
 
         if len(genres_db):
-            genres_update = genres_db
+            genres_update = genres_db.rename(columns={'genre': 'name'})
             self.database.store_genres(genres_update)
 
     def update_playlists(self):
@@ -439,7 +440,7 @@ class FMer:
     def get_track_info(self, artist, title):
         track = self.fm.get_track(artist, title)
 
-        streamer.print(f'{artist} - {title}')
+        streamer.print(f'\t...{artist} - {title}')
 
         max_tags = 5
         top_tags = track.get_top_tags()

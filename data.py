@@ -632,8 +632,9 @@ class Database:
         self.upsert_table('Playlists', df)
 
     def get_players_update_sp(self):
+        wheres = ' OR '.join(f'({v} IS NULL)' for v in ['src', 'uri', 'followers'])
         sql = (f'SELECT username FROM {self.table_name("Players")} '
-               f'WHERE (src IS NULL) OR (uri IS NULL) OR (followers IS NULL);')
+               f'WHERE {wheres};')
 
         players_df = read_sql(sql, self.connection)
 
@@ -641,9 +642,15 @@ class Database:
 
 
     def get_tracks_update_sp(self):
+        wheres = ' OR '.join(f'({v} IS NULL)' for v in ['uri', 'name', 'artist_uri', 'album_uri',
+                                                        'explicit', 'popularity', 'duration',
+                                                        'key', 'mode', 'loudness', 'tempo',
+                                                        'danceability', 'energy', 'liveness', 'valence',
+                                                        'speechiness', 'acousticness', 'instrumentalness'])
         sql = (f'SELECT DISTINCT track_url AS url FROM {self.table_name("Songs")} '
                f'WHERE track_url NOT IN '
-               f'(SELECT url FROM {self.table_name("Tracks")})'
+               f'(SELECT url FROM {self.table_name("Tracks")}) '
+               f'UNION SELECT url FROM {self.table_name("Tracks")} WHERE {wheres};'
                )
 
         tracks_df = read_sql(sql, self.connection)
@@ -651,10 +658,13 @@ class Database:
         return tracks_df
     
     def get_artists_update_sp(self):
+        wheres = ' OR '.join(f'({v} IS NULL)' for v in ['src', 'name', 'popularity',
+                                                        'genres', 'followers'])
         sql = (f'SELECT t.a_uri as uri FROM '
                f'(SELECT DISTINCT jsonb_array_elements(artist_uri)->>0 AS a_uri '
                f'FROM {self.table_name("Tracks")}) AS t '
-               f'WHERE t.a_uri NOT IN (SELECT uri FROM {self.table_name("Artists")});'
+               f'WHERE t.a_uri NOT IN (SELECT uri FROM {self.table_name("Artists")}) '
+               f'UNION SELECT uri FROM {self.table_name("Artists")} WHERE {wheres};'
                )
 
         artists_df = read_sql(sql, self.connection)
@@ -662,8 +672,11 @@ class Database:
         return artists_df
 
     def get_albums_update_sp(self):
+        wheres = ' OR '.join(f'({v} IS NULL)' for v in ['src', 'name', 'popularity',
+                                                        'release_date', 'genres'])
         sql = (f'SELECT DISTINCT album_uri AS uri FROM {self.table_name("Tracks")} '
-               f'WHERE album_uri NOT IN (SELECT uri FROM {self.table_name("Albums")})'
+               f'WHERE (album_uri NOT IN (SELECT uri FROM {self.table_name("Albums")})) '
+               f'UNION SELECT uri FROM {self.table_name("Albums")} WHERE {wheres};'
                )
 
         albums_df = read_sql(sql, self.connection)
@@ -686,12 +699,13 @@ class Database:
 
     # LastFM functions
     def get_tracks_update_fm(self):
-        sql = (f'SELECT t.url, t.name AS unclean, t.title, a.name AS artist, '
+        wheres = ' OR '.join(f'(t.{v} IS NULL)' for v in ['title', 'scrobbles', 'listeners',
+                                                          'top_tags'])
+        sql = (f'SELECT t.url, t.name AS unclean, t.title, t.mix, a.name AS artist, '
                f't.scrobbles, t.listeners, t.top_tags '
                f'FROM {self.table_name("Tracks")} as t '
                f'LEFT JOIN {self.table_name("Artists")} AS a '
-               f'ON (t.artist_uri->>0) = a.uri '
-               f'WHERE (t.title IS NULL) OR ((t.scrobbles IS NULL) AND (t.listeners IS NULL) AND (t.top_tags IS NULL));'
+               f'ON (t.artist_uri->>0) = a.uri WHERE {wheres};'
                )
 
         tracks_df = read_sql(sql, self.connection)
@@ -787,7 +801,7 @@ class Database:
         return dirtiness
 
     def get_audio_features(self, league_title, json=False, methods=None):
-        values = ['duration', 'danceability', 'energy', 'key', 'loudness', #'mode',
+        values = ['duration', 'danceability', 'energy', 'key', 'loudness', 'mode',
                   'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo']
 
         if not methods:
@@ -856,7 +870,7 @@ class Database:
 
     def get_song_results(self, league_title):
         sql = (f'SELECT s.round, s.song_id, '
-               f't.title, ttt.artist, b.release_date, r.closed, r.points '
+               f't.title, ttt.artist, b.release_date, b.src, r.closed, r.points '
                f'FROM {self.table_name("Results")} AS r '
                f'LEFT JOIN {self.table_name("Songs")} AS s '
                f'ON (s.league = r.league) AND (s.song_id = r.song_id) '
