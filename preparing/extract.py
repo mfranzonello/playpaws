@@ -5,8 +5,8 @@ import requests
 import browser_cookie3 as browsercookie
 from bs4 import BeautifulSoup
 
-from words import Texter
-from streaming import streamer
+from common.words import Texter
+from display.streaming import streamer
 
 class Scraper:
     headers = {'X-Requested-With': 'XMLHttpRequest'}

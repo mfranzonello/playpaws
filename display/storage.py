@@ -4,8 +4,8 @@ from random import randint
 from dropbox import Dropbox
 from google_images_search import GoogleImagesSearch
 
-from secret import get_secret
-from words import Texter
+from common.secret import get_secret
+from common.words import Texter
 
 class Boxer:
     media_folder = '/media'

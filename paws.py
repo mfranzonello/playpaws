@@ -1,7 +1,7 @@
-from data import Database
-from update import Updater, Musician
-from analyze import Analyzer
-from streaming import Printer
+from common.data import Database
+from preparing.update import Updater, Musician
+from crunching.analyze import Analyzer
+from display.streaming import Printer
 
 def update_web_data(database):
     # scrape data from MusicLeague, Spotify and LastFM

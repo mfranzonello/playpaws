@@ -4,8 +4,8 @@ from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
-from words import Texter
-from streaming import streamer
+from common.words import Texter
+from display.streaming import streamer
 
 class Byter:
     def __init__(self):

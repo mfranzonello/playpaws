@@ -1,6 +1,6 @@
 ﻿from pandas import isnull
 
-from words import Texter, Feeler
+from common.words import Texter, Feeler
 
 class Librarian:
     def __init__(self):

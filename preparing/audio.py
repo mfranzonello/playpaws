@@ -7,12 +7,11 @@ from spotipy.oauth2 import SpotifyOAuth
 from pylast import LastFMNetwork, NetworkError
 from pandas import DataFrame, isnull
 
-from secret import get_secret
-from words import Texter
-from media import Gallery
-from storage import Boxer, Googler
-from media import Byter
-from streaming import streamer
+from common.secret import get_secret
+from common.words import Texter
+from display.media import Gallery, Byter
+from display.storage import Boxer, Googler
+from display.streaming import streamer
 
 class Spotter:
     audio_features = ['danceability',

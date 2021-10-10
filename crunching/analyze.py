@@ -1,5 +1,5 @@
-from results import Songs, Votes, Rounds, Leagues ##, Players
-from comparisons import Members, Rankings, Pulse
+from crunching.results import Songs, Votes, Rounds, Leagues ##, Players
+from crunching.comparisons import Members, Rankings, Pulse
 
 class Analyzer:
     version = 1.1

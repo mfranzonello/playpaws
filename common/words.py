@@ -1,5 +1,5 @@
 import re
-from thefuzz import fuzz, process
+from thefuzz import process
 
 class Texter:
     emoji_pattern = re.compile('['
