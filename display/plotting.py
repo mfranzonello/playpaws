@@ -308,7 +308,7 @@ class Plotter:
 
     def plot_welcome(self):
         image = self.boxer.get_welcome()
-        self.streamer.image(image, header='Welcome to MöbiMusic!')
+        self.streamer.image(image, header='Welcome to MöbiMusic!', in_expander=False)
         self.streamer.wrapper(None, tooltip=self.librarian.get_tooltip('welcome'))
 
         self.streamer.clear_printer()
@@ -615,6 +615,9 @@ class Plotter:
 
             player_names = rankings_df.index
             n_rounds = len(rankings_df.columns)
+                        
+            fig_w, _ = fig.get_size_inches()
+            fig.set_size_inches([fig_w, fig_w / (n_rounds + 4) * len(player_names)])
 
             max_score = rankings_df.max().max()
             rgb_df = self.grade_colors(self.get_dfc_colors('red', 'yellow', 'green', 'blue'))

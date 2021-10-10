@@ -61,13 +61,20 @@ class Streamer:
         st.title(text)
         self.tooltip(tooltip)
        
-    def pyplot(self, figure, header=None, header2=None, tooltip=None):
+    def in_expander(self, in_expander, func, item, **args):
+        if in_expander:
+            with st.expander(label='', expanded=True):
+                func(item, **args)
+        else:
+            func(item)
+
+    def pyplot(self, figure, header=None, header2=None, tooltip=None, in_expander=True):
         self.wrapper(header, tooltip, header2=header2)
-        st.pyplot(figure)
+        self.in_expander(in_expander, st.pyplot, figure)
         
-    def image(self, image, header=None, header2=None, tooltip=None):
+    def image(self, image, header=None, header2=None, tooltip=None, in_expander=True):
         self.wrapper(header, tooltip, header2=header2)
-        st.image(image)
+        self.in_expander(in_expander, st.image, image)
 
     def print(self, text, base=True):
         if self.deployed:
@@ -97,6 +104,7 @@ class Streamer:
             
             self.status_bar.progress(new_pct)
 
-    def embed(self, html, height=150, header=None, header2=None, tooltip=None):
+    def embed(self, html, height=150, header=None, header2=None, tooltip=None, in_expander=True):
         self.wrapper(header, tooltip, header2=header2)
-        st_html(html, height=height)
+        self.in_expander(in_expander, st_html, html, height=height)
+        ##st_html(html, height=height)
