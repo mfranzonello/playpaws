@@ -888,9 +888,44 @@ class Database:
 
         return genres_df
 
+    def get_exclusive_genres(self, league_title):
+        sql = (f'SELECT q.tag FROM '
+               f'(SELECT jsonb_array_elements(a.genres) as tag '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t '
+               f'ON s.track_url = t.url '
+               f'LEFT JOIN {self.table_name("Artists")} AS a '
+               f'ON t.artist_uri ? a.uri '
+               f'WHERE s.league = {self.needs_quotes(league_title)} '
+               f'UNION '
+               f'SELECT jsonb_array_elements(t.top_tags) AS tag '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t '
+               f'ON s.track_url = t.url '
+               f'WHERE s.league = {self.needs_quotes(league_title)}) AS q '
+               f'WHERE q.tag NOT IN '
+               f'(SELECT jsonb_array_elements(a.genres) as tag '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t '
+               f'ON s.track_url = t.url '
+               f'LEFT JOIN {self.table_name("Artists")} AS a '
+               f'ON t.artist_uri ? a.uri '
+               f'WHERE s.league != {self.needs_quotes(league_title)} '
+               f'UNION '
+               f'SELECT jsonb_array_elements(t.top_tags) AS tag '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t '
+               f'ON s.track_url = t.url '
+               f'WHERE s.league != {self.needs_quotes(league_title)});'
+               )
+
+        exclusives = read_sql(sql, self.connection)['tag']
+
+        return exclusives
+
     def get_song_results(self, league_title):
         sql = (f'SELECT s.round, s.song_id, '
-               f't.title, ttt.artist, b.release_date, b.src, r.closed, r.points '
+               f't.title, ttt.artist, b.release_date, b.src, r.closed, r.points, d.status '
                f'FROM {self.table_name("Results")} AS r '
                f'LEFT JOIN {self.table_name("Songs")} AS s '
                f'ON (s.league = r.league) AND (s.song_id = r.song_id) '
@@ -917,12 +952,21 @@ class Database:
 
         return results_df
 
+    def get_round_descriptions(self, league_title):
+        descriptions_df = self.get_table('Rounds', columns=['round', 'description'],
+                                         league=league_title, order_by={'column': 'date',
+                                                                        'sort': 'ASC'})
+
+        return descriptions_df
+
     def get_creators_and_winners(self, league_title):
         sql = (f'SELECT r.round, r.creator, b.player AS winner '
                f'FROM {self.table_name("Rounds")} as r '
                f'LEFT JOIN {self.table_name("Boards")} as b '
                f'ON (r.league = b.league) AND (r.round = b.round) '
-               f'WHERE (r.league = {self.needs_quotes(league_title)}) AND (b.place = 1);'
+               f'WHERE (r.league = {self.needs_quotes(league_title)}) '
+               f'AND ((b.place = 1) OR (b.place IS NULL)) '
+               f'ORDER BY r.date;'
                )
         
         creators_winners_df = read_sql(sql, self.connection)

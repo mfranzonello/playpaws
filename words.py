@@ -173,15 +173,42 @@ class Texter:
         
         return plurals
 
-    def get_times(self, time):
+    def get_times(self, time, markdown=None):
         # time in minutes
-        times = {'day': max(0, time // (60*24)),
-                 'hour': max(0, (time - 60*24*days) // 60),
-                 'minute': max(0, round(time - 60*24*days - 60*hours)),
-                 }
-
+        day = max(0, time // (60*24))
+        hour = max(0, (time - 60*24*day) // 60)
+        minute = max(0, round(time - 60*24*day - 60*hour))
+        times = {'day': int(day), 'hour': int(hour), 'minute': int(minute)}
+        
         durations = [f'{times[t]} {t}{"s" if times[t] > 1 else ""}' for t in times if times[t] > 0]
+        if markdown:
+            durations = [f'{markdown}{d}{markdown[::-1]}' for d in durations]
 
         duration = ', '.join(durations[:-1]) + ' and ' + durations[-1]
         
         return duration
+
+class Feeler:
+    library = {'🐾': ['paws', 'dog', 'animal'],
+               '💿': ['mixtape', 'CD'],
+               '🧭': ['compass'],
+               '👬': ['brothers', 'men'],
+               }
+
+    def __init__(self):
+        pass
+
+    def match_emoji(self, text, default=''):
+        emoji = None
+        for key, value in self.library.items():
+            for v in value:
+                if v.lower() in [t.lower() for t in text.split()]:
+                    emoji = key
+                    break
+            if emoji:
+                break
+
+        if emoji is None:
+            emoji = default
+
+        return emoji

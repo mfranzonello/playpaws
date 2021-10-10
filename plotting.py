@@ -2,9 +2,10 @@ from math import sin, cos, atan2, pi, inf, nan, isnan, ceil
 from collections import Counter
 import os
 from urllib.request import urlopen
+from datetime import datetime
 
-from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
-from pandas import DataFrame, isnull, to_datetime
+from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
+from pandas import DataFrame, isnull, to_datetime, Timestamp
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from matplotlib import font_manager
@@ -13,7 +14,7 @@ from wordcloud import WordCloud#, ImageColorGenerator
 from numpy import asarray
 import streamlit as st
 
-from words import Texter
+from words import Texter, Feeler
 from media import Imager, Gallery
 from storage import Boxer
 from streaming import streamer
@@ -78,7 +79,7 @@ class Pictures(Imager):
 
         return mask
 
-    def get_text_image(self, text_df, aspect, base):
+    def get_time_parameters(self, text_df, aspect, base):
         H = int(base) #int((text_df['y_round'].max() + 1) * base)
         W = int(aspect[0] * H / aspect[1])
 
@@ -101,13 +102,11 @@ class Pictures(Imager):
         X = (date2num(max_x) - date2num(text_df['x'][max_x_i]))
         x_ratio = (W - text_df['length'][max_x_i]) / X
         D = x_ratio * X
-        
-        images = [self.place_text(text_df[text_df['round'] == r],
-                                  max_x, x_ratio, W, H, base) for r in text_df['round'].unique()]
 
-        return images, D
-
-    def place_text(self, text_df, max_x, x_ratio, W, H, base, padding=0.1):
+        return text_df, D, max_x, x_ratio, W, H, base
+       
+    def get_timeline_image(self, text_df, max_x, x_ratio, W, H, base,
+                           padding=0.1, min_box_size=5):
         image = Image.new('RGB', (W, H), (255, 255, 255))
         draw = ImageDraw.Draw(image)
 
@@ -115,28 +114,33 @@ class Pictures(Imager):
             x_text = int(x_ratio * (date2num(max_x) - date2num(text_df['x'][i])))
             y_text = int(text_df['y'][i] * base)
 
-            album_src = text_df['src'][i]
-            album_size = int(text_df['size'][i] * base)
-            padded_size = int(album_size * (1 - padding))
-            album_color = text_df['color'][i]
-            pad_offset = int(album_size * padding / 2)
+            box_src = text_df['src'][i]
+            box_size = int(text_df['size'][i] * base)
+            padded_size = int(box_size * (1 - padding))
+            box_color = text_df['color'][i]
+            pad_offset = int(box_size * padding / 2)
 
             if padded_size:
-                if album_src:
+                if box_src and padded_size > min_box_size:
                     src_size = tuple([padded_size] * 2)
-                    album_img = Image.open(urlopen(album_src)).resize(src_size)
-                    image.paste(album_img, (x_text + pad_offset, y_text + pad_offset))
+                    box_img = Image.open(urlopen(box_src)).resize(src_size)
+
+                    if isnan(text_df['points'][i]):
+                        # grey out an image without points
+                        ImageOps.grayscale(box_img)
+
+                    image.paste(box_img, (x_text + pad_offset, y_text + pad_offset))
                 else:
                     draw.rectangle([x_text + pad_offset,
                                     y_text + pad_offset,
-                                    x_text + album_size - pad_offset,
-                                    y_text + album_size - pad_offset],
-                                   fill=album_color)
+                                    x_text + box_size - pad_offset,
+                                    y_text + box_size - pad_offset],
+                                   fill=box_color)
 
-            draw.text((x_text + album_size, y_text), text_df['text_top'][i],
-                      fill=album_color, font=text_df['image_font'][i])
-            draw.text((x_text + album_size, y_text + album_size/2), text_df['text_bottom'][i],
-                      fill=album_color, font=text_df['image_font'][i])
+            draw.text((x_text + box_size, y_text), text_df['text_top'][i],
+                      fill=box_color, font=text_df['image_font'][i])
+            draw.text((x_text + box_size, y_text + box_size/2), text_df['text_bottom'][i],
+                      fill=box_color, font=text_df['image_font'][i])
 
         return image
     
@@ -178,6 +182,7 @@ class Plotter:
 
     def __init__(self, database):
         self.texter = Texter()
+        self.feeler = Feeler()
         self.boxer = Boxer()
         
         # define fonts to use
@@ -282,10 +287,12 @@ class Plotter:
 
             self.plot_tags(league_title,
                            self.database.get_genres_and_tags(league_title),
+                           self.database.get_exclusive_genres(league_title),
                            self.boxer.get_mask(league_title))
 
             self.plot_top_songs(league_title,
-                                self.database.get_song_results(league_title))
+                                self.database.get_song_results(league_title),
+                                self.database.get_round_descriptions(league_title))
 
             self.plot_playlists(league_title,
                                 self.database.get_playlists(league_title),
@@ -320,6 +327,22 @@ class Plotter:
             imgs = ax.imshow(image, extent=extent, zorder=zorder) ## NOTE that nodes z-order should tie
 
         return image, imgs
+
+    def rotate_labels(self, n_rounds):
+        if n_rounds < 5:
+            rotation = 0
+        elif n_rounds < 10:
+            rotation = 45
+        else:
+            rotation = 90
+
+        return rotation
+
+    def split_labels(self, labels, n_rounds):
+        if n_rounds >= 10:
+            labels = [self.texter.split_long_text(l, limit=30) for l in labels]
+
+        return labels
 
     def plot_title(self, league_title, creator):
         parameters = {'title': league_title,
@@ -436,6 +459,45 @@ class Plotter:
                      width=self.like_arrow_width, facecolor=color,
                      edgecolor='none', length_includes_head=True, zorder=2)
 
+    def get_center(self, members_df):
+        x_center = members_df['x'].mean()
+        y_center = members_df['y'].mean()
+        
+        return x_center, y_center
+
+    def where_am_i(self, members_df, player_name):
+        x_me = members_df['x'][members_df['player'] == player_name].values[0]
+        y_me = members_df['y'][members_df['player'] == player_name].values[0]
+        x_center, y_center = self.get_center(members_df)
+        theta_me = atan2(y_center - y_me, x_center - x_me)
+
+        return x_me, y_me, theta_me
+
+    def who_likes_whom(self, members_df, player_name, direction, line_dist):
+        likes_me = members_df[direction][members_df['player'] == player_name].values[0]
+
+        x_me, y_me, _ = self.where_am_i(members_df, player_name)
+        them = members_df[['x', 'y']][members_df['player'] == likes_me]
+        if len(them):
+            x_them, y_them = them.values[0]
+        
+            theta_us = atan2(y_them - y_me, x_them - x_me)
+
+            x_likes = x_me + line_dist * cos(theta_us)
+            y_likes = y_me + line_dist * sin(theta_us)
+
+        else:
+            theta_us = None
+            x_likes = None
+            y_likes = None
+
+        return x_likes, y_likes, theta_us
+
+    def get_scatter_sizes(self, members_df):
+        sizes = (members_df['wins'] + 1) * self.marker_sizing
+        return sizes
+
+
     def plot_boards(self, league_title, board, creators_winners_df):
         if f'boards_ax:{league_title}' in st.session_state:
             ax = st.session_state[f'boards_ax:{league_title}']
@@ -475,7 +537,8 @@ class Plotter:
 
             ax.set_xlim(x_min - scaling[0]/2, x_max + scaling[0]/2)
             ax.set_xticks(xs)
-            ax.set_xticklabels(round_titles, rotation=45)
+            ax.set_xticklabels(self.split_labels(round_titles, n_rounds),
+                               rotation=self.rotate_labels(n_rounds))
 
             y_min = lowest_rank - highest_dnf + has_dnf
             y_max = 0
@@ -569,7 +632,8 @@ class Plotter:
             ax.set_yticks([])
 
             ax.set_xticks([(n_rounds-1)/2] + [n_rounds + i for i in range(3)])
-            ax.set_xticklabels(['scores', 'dirtiness', 'discovery', 'popularity'], rotation=45)
+            ax.set_xticklabels(['scores', 'dirtiness', 'discovery', 'popularity'],
+                               rotation=self.rotate_labels(n_rounds))
 
             st.session_state['rankings_ax:{league_title}'] = ax
 
@@ -687,7 +751,8 @@ class Plotter:
             for position in ['top', 'left', 'right']:
                 ax.spines[position].set_visible(False)
 
-            ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
+            ax.set_xticklabels(self.split_labels(ax.get_xticklabels(), n_rounds),
+                               rotation=self.rotate_labels(n_rounds))
             ax.set_xlabel('') ## None?
             ax.set_yticklabels([])
             ax.set_yticks([])
@@ -709,7 +774,7 @@ class Plotter:
 
         return z_
 
-    def plot_tags(self, league_title, tags_df, mask_bytes): #_src):
+    def plot_tags(self, league_title, tags_df, exclusives, mask_bytes):
         if f'tags_ax:{league_title}' in st.session_state:
             wordcloud_image = st.session_state[f'tags_ax:{league_title}']
             streamer.status(1/self.plot_counts)
@@ -717,17 +782,24 @@ class Plotter:
         else:          
             streamer.status(1/self.plot_counts * (1/2))
             streamer.print('\t...genres', base=False)
-            mask = self.pictures.get_mask_array(mask_bytes) #_src)
+            mask = self.pictures.get_mask_array(mask_bytes)
 
             text = Counter(tags_df.dropna().sum().sum())
+            
             wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)
             wordcloud_image = wordcloud.to_array()
   
+            text_ex = text.copy()
+            for k in text.keys():
+               if k not in exclusives.values:
+                   del text_ex[k]
+
             streamer.status(1/self.plot_counts * (1/2))
 
             st.session_state[f'tags_ax:{league_title}'] = wordcloud_image
         
         parameters = {'top_tags': [t[0] for t in text.most_common(3)],
+                      'exclusives': [t[0] for t in text_ex.most_common(3)]
                       }
         streamer.image(wordcloud_image, header='Genre Cloud',
                        tooltip=self.get_tooltip('tags', parameters=parameters))
@@ -735,7 +807,7 @@ class Plotter:
     def sum_num(self, num):
         return sum(1/(n+2) for n in range(int(num)))
 
-    def plot_top_songs(self, league_title, results_df, max_years=10):
+    def plot_top_songs(self, league_title, results_df, descriptions, max_years=10):
         if False: #f'top_songs_ax:{league_title}' in st.session_state:
             #ax = st.session_state[f'top_songs_ax:{league_title}']
             streamer.status(1/self.plot_counts)
@@ -777,15 +849,28 @@ class Plotter:
         
             streamer.status(1/self.plot_counts * (1/4))
         
-            base = 500
-            images, D = self.pictures.get_text_image(results_df, self.subplot_aspects['top_songs'], base)
-            
-            streamer.status(1/self.plot_counts * (1/4))
-        
             n_years = max_date.year - min_date.year
             years_range = range(0, n_years, max(1, ceil(n_years/max_years)))
-            
-            for i, image in enumerate(images):
+
+            average_year = results_df.groupby('round').first()['release_date'].apply(Timestamp).mean().year
+            parameters = {'max_year': max_date.year,
+                          'min_year': min_date.year,
+                          'average_age': datetime.today().year - average_year,
+                          'oldest_year': results_df['release_date'].min().year,
+                          }
+            streamer.wrapper(header='Top Songs',
+                             tooltip=self.get_tooltip('top_songs', parameters=parameters))
+                
+            base = 500
+            text_image_results = self.pictures.get_time_parameters(results_df,
+                                                                   self.subplot_aspects['top_songs'],
+                                                                   base)
+            text_df, D, max_x, x_ratio, W, H, base = text_image_results
+
+            n_rounds = len(round_titles)
+            for i, r in enumerate(round_titles):
+                image = self.pictures.get_timeline_image(text_df[text_df['round'] == r], max_x, x_ratio, W, H, base)
+
                 ax.imshow(image)
                 W, H = image.size
             
@@ -795,51 +880,16 @@ class Plotter:
                 ax.set_xticks([D / n_years * d for d in years_range] + [(W + D) / 2])
                 ax.set_xticklabels([max_date.year - i for i in years_range] + [f'< {max_date.year - max(years_range)}'])
         
-                ax.set_title(self.texter.clean_text(round_titles[i]), loc='left', fontweight='bold') #, horizontalalignment='left')
+                ##ax.set_title(self.texter.clean_text(r), loc='left', fontweight='bold') #, horizontalalignment='left')
                 
-                streamer.pyplot(ax.figure, header='Top Songs' if i == 0 else None,
-                                tooltip=self.get_tooltip('top_songs', parameters={}) if i == 0 else None)
+                streamer.status(1/self.plot_counts * (1/n_rounds))
 
+                parameters = {'description': descriptions[descriptions['round'] == r]['description'].iloc[0],
+                              }
+                streamer.pyplot(ax.figure, header2=self.texter.clean_text(r),
+                                tooltip=self.get_tooltip('top_songs_round', parameters=parameters))
+                
             ##st.session_state[f'top_songs_ax:{league_title}'] = ax
-
-            
-    def get_center(self, members_df):
-        x_center = members_df['x'].mean()
-        y_center = members_df['y'].mean()
-        
-        return x_center, y_center
-
-    def where_am_i(self, members_df, player_name):
-        x_me = members_df['x'][members_df['player'] == player_name].values[0]
-        y_me = members_df['y'][members_df['player'] == player_name].values[0]
-        x_center, y_center = self.get_center(members_df)
-        theta_me = atan2(y_center - y_me, x_center - x_me)
-
-        return x_me, y_me, theta_me
-
-    def who_likes_whom(self, members_df, player_name, direction, line_dist):
-        likes_me = members_df[direction][members_df['player'] == player_name].values[0]
-
-        x_me, y_me, _ = self.where_am_i(members_df, player_name)
-        them = members_df[['x', 'y']][members_df['player'] == likes_me]
-        if len(them):
-            x_them, y_them = them.values[0]
-        
-            theta_us = atan2(y_them - y_me, x_them - x_me)
-
-            x_likes = x_me + line_dist * cos(theta_us)
-            y_likes = y_me + line_dist * sin(theta_us)
-
-        else:
-            theta_us = None
-            x_likes = None
-            y_likes = None
-
-        return x_likes, y_likes, theta_us
-
-    def get_scatter_sizes(self, members_df):
-        sizes = (members_df['wins'] + 1) * self.marker_sizing
-        return sizes
 
     def get_scatter_colors(self, colors_rgb, divisor=1):
         colors = [self.normalize_color(rgb, divisor) for rgb in colors_rgb]
@@ -869,17 +919,23 @@ class Plotter:
     def get_tooltip(self, plot_name, parameters={}):
         text = None
 
+        # pick expander label
         if plot_name == 'title':
             label = 'Explain the rules.'
+
+        elif plot_name == 'top_songs_round':
+            label = 'Read the description'
 
         else:
             label = 'What am I looking at?'
 
+        # build expander contents
         if plot_name == 'title':
-            title = parameters.get('title')
+            title = self.texter.clean_text(parameters.get('title'))
+            emoji = self.feeler.match_emoji(title, default='🎧')
             creator = parameters.get('creator')
             text = (f'Welcome to the MobiMusic league analyzer! These are the nerb '
-                    f'results of all the current rounds for the **{title}** league, '
+                    f'results of all the current rounds for the {emoji}**{title}**{emoji} league, '
                     f'created by 🤓**{creator}**🤓. Keep scrolling to see how players have '
                     f'placed and what it all sounds like.'
                     )
@@ -911,7 +967,9 @@ class Plotter:
             winners = parameters.get('winners')
             placements = f'{self.newline(num=1)}'.join(f'{round_title} (chosen by {chooser}):'
                                                        f'{self.newline(num=1)}{self.indent(20)}'
-                                                       f'🏆**{winner}**🏆' \
+                                                       f'{"❔" if isnull(winner) else "🏆"}'
+                                                       f'**{"TBD" if isnull(winner) else winner}**'
+                                                       f'{"❔" if isnull(winner) else "🏆"}' \
                 for round_title, chooser, winner in zip(round_titles, choosers, winners))
             text = (f'This chart shows how players finished in each round. '
                     f'{self.newline()}{placements}')
@@ -955,15 +1013,30 @@ class Plotter:
 
         elif plot_name == 'tags':
             tag_count = len(parameters.get('top_tags'))
-            top_tags = self.texter.get_plurals(parameters.get('top_tags'), markdown='💬**')
+            top_tags = self.texter.get_plurals(parameters.get('top_tags'), markdown='**')
+            exclusives = parameters.get('exclusives')
+            if exclusives:
+                tag_ex = self.texter.get_plurals(exclusives, markdown='**')
+                tag_ex_a = '' if len(tag_ex['s']) else 'a '
+                tag_ex_like = 'like ' if len(tag_ex['s']) else ''
+                add_on = (f', but this league also uses {tag_ex_a} unique '
+                          f'tag{tag_ex["s"]} {tag_ex_like}💬{tag_ex["text"]}💬'
+                          )
+            else:
+                add_on = ''
+            
             text = (f'This is a word cloud of the most popular descriptors of '
                     f'songs submitted in this league, from Spotify genres '
                     f'and Last.FM user-submitted tags. You can see the top '
-                    f'{tag_count} tag{top_tags.get("s")} {top_tags.get("be")} '
-                    f'{top_tags.get("text")}.'
+                    f'{tag_count if tag_count > 1 else ""} tag{top_tags.get("s")} {top_tags.get("be")} '
+                    f'🗨️{top_tags.get("text")}🗨️{add_on}.'
                     )
 
         elif plot_name == 'top_songs':
+            max_year = parameters.get('max_year')
+            min_year = parameters.get('min_year')
+            oldest_year = parameters.get('oldest_year')
+            average_age = parameters.get('average_age')
             text = (f'This is a mapping of how songs were ranked for each round. '
                     f'A song near the top, and in large font, received more '
                     f'points than songs below it. A song in bold means it closed-out '
@@ -973,17 +1046,21 @@ class Plotter:
                     f'release date. Songs to the left are recent releases and '
                     f'songs to the right are older.'
                     f'{self.newline()}'
-                    f'Most songs were release between {} and {}. The average age '
-                    f'of a #1 song is {} years. The oldest song was released in '
-                    f'{}.'
+                    f'Most songs were released between 📅**{min_year}** and **{max_year}**📅. '
+                    f'The average age of a #1 song is 🎂**{average_age}**🎂 '
+                    f'year{"" if average_age == 1 else "s"}. The oldest '
+                    f'song was released in ⌛**{oldest_year}**⌛.'
                     )
+
+        elif plot_name == 'top_songs_round':
+            text = parameters.get('description')
 
         elif plot_name == 'playlist':
             count = parameters.get('count')
-            duration = self.texter.get_times(parameters.get('duration'))
+            duration = self.texter.get_times(parameters.get('duration'), markdown='**')
             text = (f'This is a collection of all the tracks ever submitted '
                     f'in this league, all 🎶**{count}**🎶 of them, and it would '
-                    f'take you 🕓**{duration}**🕓 to listen to the whole thing!')
+                    f'take you 🕓{duration}🕓 to listen to the whole thing!')
 
         if text:
             tooltip = {'label': label,

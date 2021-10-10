@@ -24,13 +24,18 @@ class Streamer:
 
         self.texter = Texter()
                
-    def wrapper(self, header, tooltip):
+    def wrapper(self, header, tooltip, header2=None):
         self.header(header)
+        self.header2(header2)
         self.tooltip(tooltip)
         
     def header(self, header):
         if header:
             st.header(header)
+
+    def header2(self, header2):
+        if header2:
+            st.write(f'**{header2}**')
 
     def tooltip(self, tooltip):
         if tooltip:
@@ -41,12 +46,12 @@ class Streamer:
         st.title(text)
         self.tooltip(tooltip)
        
-    def pyplot(self, figure, header=None, tooltip=None):
-        self.wrapper(header, tooltip)
+    def pyplot(self, figure, header=None, header2=None, tooltip=None):
+        self.wrapper(header, tooltip, header2=header2)
         st.pyplot(figure)
         
-    def image(self, image, header=None, tooltip=None):
-        self.wrapper(header, tooltip)
+    def image(self, image, header=None, header2=None, tooltip=None):
+        self.wrapper(header, tooltip, header2=header2)
         st.image(image)
 
     def print(self, text, base=True):
@@ -75,8 +80,8 @@ class Streamer:
             
         self.status_bar.progress(new_pct)
 
-    def embed(self, html, height=150, header=None, tooltip=None):
-        self.wrapper(header, tooltip)
+    def embed(self, html, height=150, header=None, header2=None, tooltip=None):
+        self.wrapper(header, tooltip, header2=header2)
         st_html(html, height=height)
 
 streamer = Streamer()
