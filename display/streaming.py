@@ -78,7 +78,7 @@ class Streamer:
         self.text_print.write('')
 
     def status(self, pct, base=False):
-        if streamer.deployed:
+        if self.deployed:
             if base:
                 self.base_status = pct
                 new_pct = pct
