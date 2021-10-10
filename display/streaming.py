@@ -26,6 +26,9 @@ class Streamer:
         
             with self.sidebar.container():
                 self.text_print = self.sidebar.empty()
+
+            with self.sidebar.container():
+                self.side_image = self.sidebar.empty()
         
             self.base_status = 0.0
             self.base_text = ''
@@ -47,6 +50,12 @@ class Streamer:
         if tooltip:
             with st.expander(tooltip['label']):
                 st.write(tooltip['content'])
+
+    def set_side_image(self, image=None):
+        if image:
+            self.side_image.image(image, use_column_width=True)
+        else:
+            self.side_image = st.empty()
 
     def title(self, text, tooltip=None):
         st.title(text)

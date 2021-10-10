@@ -304,12 +304,16 @@ class Plotter:
                                 self.database.get_track_count(league_title),
                                 self.database.get_track_durations(league_title))
             
-            self.streamer.clear_printer()
+            self.streamer.print('Everything loaded! Close this sidebar to view.')
 
     def plot_welcome(self):
         image = self.boxer.get_welcome()
         self.streamer.image(image, header='Welcome to MöbiMusic!')
         self.streamer.wrapper(None, tooltip=self.librarian.get_tooltip('welcome'))
+
+        self.streamer.clear_printer()
+
+        self.streamer.set_side_image()
 
     def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5,
                    image_size=(0, 0), padding=0, text=None,
@@ -360,6 +364,8 @@ class Plotter:
                       }
         self.streamer.title(league_title,
                             tooltip=self.librarian.get_tooltip('title', parameters=parameters))
+
+        self.streamer.set_side_image(self.boxer.get_cover(league_title))
 
     def plot_members(self, league_title, members_df):
         if False: ##f'members_ax:{league_title}' in st.session_state:
@@ -765,7 +771,7 @@ class Plotter:
             for position in ['top', 'left', 'right']:
                 ax.spines[position].set_visible(False)
 
-            ax.set_xticklabels(self.split_labels(ax.get_xticklabels(), n_rounds),
+            ax.set_xticklabels(self.split_labels([t.get_text() for t in ax.get_xticklabels()], n_rounds),
                                rotation=self.rotate_labels(n_rounds))
             ax.set_xlabel('') ## None?
             ax.set_yticklabels([])
