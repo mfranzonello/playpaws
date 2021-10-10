@@ -583,6 +583,17 @@ class Database:
 
         return count
 
+    def get_track_durations(self, league_title):
+        sql = (f'SELECT SUM(t.duration) AS duration FROM '
+               f'(SELECT DISTINCT track_url FROM {self.table_name("Songs")} '
+               f'WHERE league = {self.needs_quotes(league_title)}) as s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url;'
+               )
+
+        duration = read_sql(sql, self.connection)['duration'].iloc[0]
+
+        return duration
+
     def get_theme_playlists(self, theme):
         # get playlists or track URIs to pull songs from
         if theme == 'complete':

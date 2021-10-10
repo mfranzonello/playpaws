@@ -289,7 +289,8 @@ class Plotter:
 
             self.plot_playlists(league_title,
                                 self.database.get_playlists(league_title),
-                                self.database.get_track_count(league_title))
+                                self.database.get_track_count(league_title),
+                                self.database.get_track_durations(league_title))
             
             streamer.clear_printer()
 
@@ -848,7 +849,8 @@ class Plotter:
         color = tuple(c / divisor for c in color)
         return color
 
-    def plot_playlists(self, league_title, playlists_df, track_count, width=400, height=600):
+    def plot_playlists(self, league_title, playlists_df, track_count, duration,
+                       width=400, height=600):
         streamer.status(1/self.plot_counts)
 
         playlist_uri = playlists_df.query('theme == "complete"')['uri'].iloc[0].replace('spotify:playlist:', '')
@@ -859,6 +861,7 @@ class Plotter:
                 )
 
         parameters = {'count': track_count,
+                      'duration': duration,
                       }
         streamer.embed(html, height=height, header='League Playlist',
                        tooltip=self.get_tooltip('playlist', parameters=parameters))
@@ -894,11 +897,11 @@ class Plotter:
                     f'performed in the league, the bigger the better. The color around '
                     f'a player indicates how close they are to the center of the '
                     f'league\'s music taste (a blue circle is the closest to the center '
-                    f'while a green circle is farthest.'
+                    f'while a green circle is farthest).'
                     f'{self.newline()}'
                     f'Currently, the player{leaders.get("s")} with the highest rank '
                     f'{leaders.get("be")} {leaders.get("text")} and the '
-                    f'player{leaders.get("s")} closest to the center {closest_dfc.get("be")} '
+                    f'player{closest_dfc.get("s")} closest to the center {closest_dfc.get("be")} '
                     f'{closest_dfc.get("text")}.'
                     )
         
@@ -906,7 +909,8 @@ class Plotter:
             round_titles = parameters.get('round_titles')
             choosers = parameters.get('choosers')
             winners = parameters.get('winners')
-            placements = f'{self.newline(num=1)}'.join(f'{round_title} (chosen by {chooser}): '
+            placements = f'{self.newline(num=1)}'.join(f'{round_title} (chosen by {chooser}):'
+                                                       f'{self.newline(num=1)}{self.indent(20)}'
                                                        f'🏆**{winner}**🏆' \
                 for round_title, chooser, winner in zip(round_titles, choosers, winners))
             text = (f'This chart shows how players finished in each round. '
@@ -968,12 +972,18 @@ class Plotter:
                     f'The horizontal placement of the song indicates it\'s '
                     f'release date. Songs to the left are recent releases and '
                     f'songs to the right are older.'
+                    f'{self.newline()}'
+                    f'Most songs were release between {} and {}. The average age '
+                    f'of a #1 song is {} years. The oldest song was released in '
+                    f'{}.'
                     )
 
         elif plot_name == 'playlist':
             count = parameters.get('count')
+            duration = self.texter.get_times(parameters.get('duration'))
             text = (f'This is a collection of all the tracks ever submitted '
-                    f'in this league, all 🎶**{count}**🎶 of them!')
+                    f'in this league, all 🎶**{count}**🎶 of them, and it would '
+                    f'take you 🕓**{duration}**🕓 to listen to the whole thing!')
 
         if text:
             tooltip = {'label': label,
