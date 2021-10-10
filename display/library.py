@@ -142,8 +142,8 @@ class Librarian:
                     f'songs to the right are older.'
                     f'{self.newline()}'
                     f'Most songs were released between 📅**{min_year}** and **{max_year}**📅. '
-                    f'The average age of a #1 song is 🎂**{average_age}**🎂 '
-                    f'year{"" if average_age == 1 else "s"}. The oldest '
+                    f'The average age of a #1 song is 🎂**{average_age} '
+                    f'year{"" if average_age == 1 else "s"}**🎂. The oldest '
                     f'song was released in ⌛**{oldest_year}**⌛.'
                     )
 
