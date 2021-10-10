@@ -74,6 +74,11 @@ class Boxer:
 
         return image_bytes
 
+    def get_welcome(self):
+        image_bytes = self.get_bytes(folder=self.clipart_folder, name='welcome', ext='jpg')
+
+        return image_bytes
+
 class Googler:
     def __init__(self):
         self.gis = GoogleImagesSearch(get_secret('GCP_API_KEY'), get_secret('GCP_PROJECT_CX'))

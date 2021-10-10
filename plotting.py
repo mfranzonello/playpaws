@@ -9,12 +9,13 @@ from pandas import DataFrame, isnull, to_datetime, Timestamp
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from matplotlib import font_manager
-from matplotlib.dates import date2num, num2date
+from matplotlib.dates import date2num#, num2date
 from wordcloud import WordCloud#, ImageColorGenerator
 from numpy import asarray
 import streamlit as st
 
-from words import Texter, Feeler
+from words import Texter
+from library import Librarian
 from media import Imager, Gallery
 from storage import Boxer
 from streaming import streamer
@@ -182,7 +183,7 @@ class Plotter:
 
     def __init__(self, database):
         self.texter = Texter()
-        self.feeler = Feeler()
+        self.librarian = Librarian()
         self.boxer = Boxer()
         
         # define fonts to use
@@ -263,7 +264,10 @@ class Plotter:
     def plot_results(self):
         league_title = streamer.selectbox.selectbox('Pick a league to view', ['<select>'] + self.league_titles.to_list())
 
-        if league_title != '<select>':
+        if league_title == '<select>':
+            self.plot_welcome()
+
+        else:
             streamer.print(f'Preparing plot for {league_title}')
             streamer.status(0, base=True)
             
@@ -300,6 +304,11 @@ class Plotter:
                                 self.database.get_track_durations(league_title))
             
             streamer.clear_printer()
+
+    def plot_welcome(self):
+        image = self.boxer.get_welcome()
+        streamer.image(image, header='Welcome to MöbiMusic!')
+        streamer.wrapper(None, tooltip=self.librarian.get_tooltip('welcome'))
 
     def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5,
                    image_size=(0, 0), padding=0, text=None,
@@ -349,7 +358,7 @@ class Plotter:
                       'creator': creator,
                       }
         streamer.title(league_title,
-                       tooltip=self.get_tooltip('title', parameters=parameters))
+                       tooltip=self.librarian.get_tooltip('title', parameters=parameters))
 
     def plot_members(self, league_title, members_df):
         if f'members_ax:{league_title}' in st.session_state:
@@ -399,7 +408,7 @@ class Plotter:
                       }
 
         streamer.pyplot(ax.figure, header='League Pulse',
-                        tooltip=self.get_tooltip('members', parameters=parameters))
+                        tooltip=self.librarian.get_tooltip('members', parameters=parameters))
 
     def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
         plot_size = (s_p/2)**0.5/pi/10
@@ -555,7 +564,7 @@ class Plotter:
                       'winners': creators_winners_df['winner'].values,
                       }
         streamer.pyplot(ax.figure, header='Round Finishers',
-                        tooltip=self.get_tooltip('boards', parameters=parameters))
+                        tooltip=self.librarian.get_tooltip('boards', parameters=parameters))
 
     def plot_board_player(self, ax, xs, player, board, lowest_rank):
         ys = board.where(board > 0).loc[player]
@@ -642,7 +651,7 @@ class Plotter:
                       'popular': discovery_df[discovery_df['popularity'] == discovery_df['popularity'].max()].index.values,
                       }
         streamer.pyplot(ax.figure, header='Player Scores',
-                        tooltip=self.get_tooltip('rankings', parameters=parameters))
+                        tooltip=self.librarian.get_tooltip('rankings', parameters=parameters))
 
     def plot_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size):
         ys = [y] * len(xs)
@@ -760,7 +769,7 @@ class Plotter:
             st.session_state[f'features_ax:{league_title}'] = ax
 
         streamer.pyplot(ax.figure, header='Audio Features',
-                        tooltip=self.get_tooltip('features', parameters={}))
+                        tooltip=self.librarian.get_tooltip('features', parameters={}))
 
     def convert_axes(self, ax, z, y=True):
         if y:
@@ -802,7 +811,7 @@ class Plotter:
                       'exclusives': [t[0] for t in text_ex.most_common(3)]
                       }
         streamer.image(wordcloud_image, header='Genre Cloud',
-                       tooltip=self.get_tooltip('tags', parameters=parameters))
+                       tooltip=self.librarian.get_tooltip('tags', parameters=parameters))
 
     def sum_num(self, num):
         return sum(1/(n+2) for n in range(int(num)))
@@ -859,7 +868,7 @@ class Plotter:
                           'oldest_year': results_df['release_date'].min().year,
                           }
             streamer.wrapper(header='Top Songs',
-                             tooltip=self.get_tooltip('top_songs', parameters=parameters))
+                             tooltip=self.librarian.get_tooltip('top_songs', parameters=parameters))
                 
             base = 500
             text_image_results = self.pictures.get_time_parameters(results_df,
@@ -887,7 +896,7 @@ class Plotter:
                 parameters = {'description': descriptions[descriptions['round'] == r]['description'].iloc[0],
                               }
                 streamer.pyplot(ax.figure, header2=self.texter.clean_text(r),
-                                tooltip=self.get_tooltip('top_songs_round', parameters=parameters))
+                                tooltip=self.librarian.get_tooltip('top_songs_round', parameters=parameters))
                 
             ##st.session_state[f'top_songs_ax:{league_title}'] = ax
 
@@ -914,165 +923,4 @@ class Plotter:
                       'duration': duration,
                       }
         streamer.embed(html, height=height, header='League Playlist',
-                       tooltip=self.get_tooltip('playlist', parameters=parameters))
-
-    def get_tooltip(self, plot_name, parameters={}):
-        text = None
-
-        # pick expander label
-        if plot_name == 'title':
-            label = 'Explain the rules.'
-
-        elif plot_name == 'top_songs_round':
-            label = 'Read the description'
-
-        else:
-            label = 'What am I looking at?'
-
-        # build expander contents
-        if plot_name == 'title':
-            title = self.texter.clean_text(parameters.get('title'))
-            emoji = self.feeler.match_emoji(title, default='🎧')
-            creator = parameters.get('creator')
-            text = (f'Welcome to the MobiMusic league analyzer! These are the nerb '
-                    f'results of all the current rounds for the {emoji}**{title}**{emoji} league, '
-                    f'created by 🤓**{creator}**🤓. Keep scrolling to see how players have '
-                    f'placed and what it all sounds like.'
-                    )
-
-        elif plot_name == 'members':
-            leaders = self.texter.get_plurals(parameters.get('leader'), markdown='🥇**')
-            closest_dfc = self.texter.get_plurals(parameters.get('closest_dfc'), markdown='🎯**')                         
-            text = (f'This shows the relationships between the league players. '
-                    f'Players with similar music tastes are closer together. The '
-                    f'arrows indicate who likes whom the most (a pink arrow shows '
-                    f'whom a player gives most of their votes to, and the orange '
-                    f'arrow shows whom they get the most votes from).'
-                    f'{self.newline()}'
-                    f'The size of a player node is relative to how well they\'ve '
-                    f'performed in the league, the bigger the better. The color around '
-                    f'a player indicates how close they are to the center of the '
-                    f'league\'s music taste (a blue circle is the closest to the center '
-                    f'while a green circle is farthest).'
-                    f'{self.newline()}'
-                    f'Currently, the player{leaders.get("s")} with the highest rank '
-                    f'{leaders.get("be")} {leaders.get("text")} and the '
-                    f'player{closest_dfc.get("s")} closest to the center {closest_dfc.get("be")} '
-                    f'{closest_dfc.get("text")}.'
-                    )
-        
-        elif plot_name == 'boards':
-            round_titles = parameters.get('round_titles')
-            choosers = parameters.get('choosers')
-            winners = parameters.get('winners')
-            placements = f'{self.newline(num=1)}'.join(f'{round_title} (chosen by {chooser}):'
-                                                       f'{self.newline(num=1)}{self.indent(20)}'
-                                                       f'{"❔" if isnull(winner) else "🏆"}'
-                                                       f'**{"TBD" if isnull(winner) else winner}**'
-                                                       f'{"❔" if isnull(winner) else "🏆"}' \
-                for round_title, chooser, winner in zip(round_titles, choosers, winners))
-            text = (f'This chart shows how players finished in each round. '
-                    f'{self.newline()}{placements}')
-
-        elif plot_name == 'rankings':
-            dirty = self.texter.get_plurals(parameters.get('dirty'), markdown='🙊**')
-            discovery = self.texter.get_plurals(parameters.get('discovery'), markdown='🔎**')
-            popular = self.texter.get_plurals(parameters.get('popular'), markdown='✨**')
-            text = (f'This shows each player in alphabetical order '
-                    f'and how the scored in each round. A higher number '
-                    f'indicates a better score, that is, this player got '
-                    f'more points than one with a lower score. "DNF" means '
-                    f'this player didn\'t submit a song or didn\'t vote.'
-                    f'{self.newline()}'
-                    f'"Dirtiness" is a percentage of how many songs a player '
-                    f'submitted are explicit. The dirtiest player{dirty.get("s")} '
-                    f'{dirty.get("be")} {dirty.get("text")}.'
-                    f'{self.newline()}'
-                    f'"Discovery" and "Popularity" have to do with how well '
-                    f'known a song is and who is listening to it. Songs with '
-                    f'a smaller listening base score high on the discovery '
-                    f'dimension, and a player with a higher score is '
-                    f'introducing undiscovered songs to the group. The best '
-                    f'discoverer{discovery.get("s")} {discovery.get("be")} {discovery.get("text")}. '
-                    f'Meanwhile, players with higher popularity scores are sharing songs '
-                    f'that listeners are playing more often. The player{popular.get("s")} '
-                    f'sharing the most popular tracks {popular.get("be")} {popular.get("text")}.'                    
-                    )
-
-        elif plot_name == 'features':
-            text = (f'This shows the evolution of how each round sounds.{self.newline()}'
-                    f'{self.indent()}🥁: Tempo (beats per minute){self.newline(num=1)}'
-                    f'{self.indent()}💃: Danceability (makes you move){self.newline(num=1)}'
-                    f'{self.indent()}⚡: Energy (NRG){self.newline(num=1)}'
-                    f'{self.indent()}🏟: Liveness (sounds from a stadium){self.newline(num=1)}'
-                    f'{self.indent()}💖: Valence (level of happiness){self.newline(num=1)}'
-                    f'{self.indent()}💬: Speechiness (more spoken word){self.newline(num=1)}'
-                    f'{self.indent()}🎸: Acousticness (less production){self.newline(num=1)}'
-                    f'{self.indent()}🎹: Instrumentalness (more instruments){self.newline(num=1)}'
-                    )
-
-        elif plot_name == 'tags':
-            tag_count = len(parameters.get('top_tags'))
-            top_tags = self.texter.get_plurals(parameters.get('top_tags'), markdown='**')
-            exclusives = parameters.get('exclusives')
-            if exclusives:
-                tag_ex = self.texter.get_plurals(exclusives, markdown='**')
-                tag_ex_a = '' if len(tag_ex['s']) else 'a '
-                tag_ex_like = 'like ' if len(tag_ex['s']) else ''
-                add_on = (f', but this league also uses {tag_ex_a} unique '
-                          f'tag{tag_ex["s"]} {tag_ex_like}💬{tag_ex["text"]}💬'
-                          )
-            else:
-                add_on = ''
-            
-            text = (f'This is a word cloud of the most popular descriptors of '
-                    f'songs submitted in this league, from Spotify genres '
-                    f'and Last.FM user-submitted tags. You can see the top '
-                    f'{tag_count if tag_count > 1 else ""} tag{top_tags.get("s")} {top_tags.get("be")} '
-                    f'🗨️{top_tags.get("text")}🗨️{add_on}.'
-                    )
-
-        elif plot_name == 'top_songs':
-            max_year = parameters.get('max_year')
-            min_year = parameters.get('min_year')
-            oldest_year = parameters.get('oldest_year')
-            average_age = parameters.get('average_age')
-            text = (f'This is a mapping of how songs were ranked for each round. '
-                    f'A song near the top, and in large font, received more '
-                    f'points than songs below it. A song in bold means it closed-out '
-                    f'the panel (every player voted for it).'
-                    f'{self.newline()}'
-                    f'The horizontal placement of the song indicates it\'s '
-                    f'release date. Songs to the left are recent releases and '
-                    f'songs to the right are older.'
-                    f'{self.newline()}'
-                    f'Most songs were released between 📅**{min_year}** and **{max_year}**📅. '
-                    f'The average age of a #1 song is 🎂**{average_age}**🎂 '
-                    f'year{"" if average_age == 1 else "s"}. The oldest '
-                    f'song was released in ⌛**{oldest_year}**⌛.'
-                    )
-
-        elif plot_name == 'top_songs_round':
-            text = parameters.get('description')
-
-        elif plot_name == 'playlist':
-            count = parameters.get('count')
-            duration = self.texter.get_times(parameters.get('duration'), markdown='**')
-            text = (f'This is a collection of all the tracks ever submitted '
-                    f'in this league, all 🎶**{count}**🎶 of them, and it would '
-                    f'take you 🕓{duration}🕓 to listen to the whole thing!')
-
-        if text:
-            tooltip = {'label': label,
-                       'content': text}
-
-        else:
-            tooltip = None
-
-        return tooltip
-
-    def newline(self, num=2):
-        return '  \n'*num
-
-    def indent(self, num=10):
-        return '&nbsp;'*num
+                       tooltip=self.librarian.get_tooltip('playlist', parameters=parameters))
