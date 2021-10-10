@@ -6,7 +6,7 @@ from pandas import read_sql, DataFrame, isnull
 from pandas.api.types import is_numeric_dtype
 
 from common.secret import get_secret
-from display.streaming import streamer
+from display.streaming import Streamer
 
 class Database:
     tables = {# MusicLeague data
@@ -58,24 +58,26 @@ class Database:
         use_one = ('league' in self.get_keys(table_name)) and self.tables[table_name].get('use_one_league', True)
         return use_one
    
-    def __init__(self, main_url):
+    def __init__(self, main_url, streamer=None):
         self.db = f'"{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}"'
         engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}{get_secret("BITIO_ADD_ON")}'
                          f':{get_secret("BITIO_PASSWORD")}@{get_secret("BITIO_HOST")}')
         
         self.main_url = main_url
-
+        self.streamer = streamer if streamer else Streamer(deployed=False)
+        
         self.keys = {table_name: self.tables[table_name]['keys'] for table_name in self.tables}
         self.values = {table_name: self.tables[table_name]['values'] for table_name in self.tables}
         self.columns = {table_name: self.tables[table_name]['keys'] + self.tables[table_name]['values'] for table_name in self.tables}
  
         self.connection = self.connect(engine_string)
 
-        streamer.print(f'\t...success!')
+        self.streamer.print(f'\t...success!')
         
     #@st.cache(allow_output_mutation=True)
     def connect(self, engine_string):
-        streamer.print(f'Connecting to database {self.db}...')
+        self.streamer.print(f'Connecting to database {self.db}...')
+        ##streamer.print(f'Connecting to database {self.db}...')
         
         engine = create_engine(engine_string)
         connection = engine.connect()

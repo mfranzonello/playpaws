@@ -1,5 +1,4 @@
 from datetime import datetime
-import re
 from math import ceil
 
 from spotipy import Spotify
@@ -11,7 +10,7 @@ from common.secret import get_secret
 from common.words import Texter
 from display.media import Gallery, Byter
 from display.storage import Boxer, Googler
-from display.streaming import streamer
+from display.streaming import Streamer
 
 class Spotter:
     audio_features = ['danceability',
@@ -26,16 +25,17 @@ class Spotter:
                       'valence',
                       'tempo']
 
-    def __init__(self):
+    def __init__(self, streamer=None):
         self.sp = None
 
         self.texter = Texter()
         self.byter = Byter()
         self.boxer = Boxer()
         self.googler = Googler()
+        self.streamer = streamer if streamer else Streamer(deployed=False)
 
     def connect_to_spotify(self):
-        streamer.print('Connecting to Spotify API...')
+        self.streamer.print('Connecting to Spotify API...')
 
         auth_manager = SpotifyOAuth(client_id=get_secret('SPOTIFY_CLIENT_ID'),
                                     client_secret=get_secret('SPOTIFY_CLIENT_SECRET'),
@@ -164,7 +164,7 @@ class Spotter:
         return df_update
 
     def update_db_players(self):
-        streamer.print('\t...updating user information')
+        self.streamer.print('\t...updating user information')
         players_db = self.database.get_players_update_sp()
 
         if len(players_db):
@@ -172,7 +172,7 @@ class Spotter:
             self.database.store_players(players_update)    
 
     def update_db_tracks(self):
-        streamer.print('\t...updating track information')
+        self.streamer.print('\t...updating track information')
         # get audio features information
         tracks_db = self.database.get_tracks_update_sp()
         
@@ -183,7 +183,7 @@ class Spotter:
             self.database.store_tracks(tracks_update)
 
     def update_db_artists(self):
-        streamer.print('\t...updating artist information')
+        self.streamer.print('\t...updating artist information')
         artists_db = self.database.get_artists_update_sp()
         
         if len(artists_db):
@@ -192,7 +192,7 @@ class Spotter:
             self.database.store_artists(artists_update)
 
     def update_db_albums(self):
-        streamer.print('\t...updating album information')
+        self.streamer.print('\t...updating album information')
         albums_db = self.database.get_albums_update_sp()
 
         if len(albums_db):
@@ -200,7 +200,7 @@ class Spotter:
             self.database.store_albums(albums_update)  
 
     def update_db_genres(self):
-        streamer.print('\t...updating genre information')
+        self.streamer.print('\t...updating genre information')
         genres_db = self.database.get_genres_update_sp()
 
         if len(genres_db):
@@ -208,7 +208,7 @@ class Spotter:
             self.database.store_genres(genres_update)
 
     def update_playlists(self):
-        streamer.print('\t...updating playlists')
+        self.streamer.print('\t...updating playlists')
 
         self.gallery = Gallery(self.database, crop=True)
         
@@ -425,7 +425,7 @@ class FMer:
         self.fm = None
 
     def connect_to_lastfm(self):
-        streamer.print('Connecting to LastFM API...')
+        self.streamer.print('Connecting to LastFM API...')
         self.fm = LastFMNetwork(api_key=get_secret('LASTFM_API_KEY'), api_secret=get_secret('LASTFM_API_SECRET'))
 
         
@@ -448,7 +448,7 @@ class FMer:
     def get_track_info(self, artist, title):
         track = self.fm.get_track(artist, title)
 
-        streamer.print(f'\t...{artist} - {title}')
+        self.streamer.print(f'\t...{artist} - {title}')
 
         max_tags = 5
         top_tags = track.get_top_tags()
@@ -467,7 +467,7 @@ class FMer:
         self.update_db_tracks()
 
     def update_db_tracks(self):
-        streamer.print('\t...updating track information')
+        self.streamer.print('\t...updating track information')
         tracks_update_db = self.database.get_tracks_update_fm()
 
         # strip featured artists and remix call outs from track title

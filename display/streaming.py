@@ -12,21 +12,23 @@ class Printer:
             set_option(option, None)
 
 class Streamer:
-    def __init__(self):
+    def __init__(self, deployed=True):
         self.texter = Texter()
 
-        self.sidebar = st.sidebar
+        self.deployed = deployed
+        if self.deployed:
+            self.sidebar = st.sidebar
 
-        with self.sidebar.container():
-            self.selectbox = st.empty() #selectbox('Loading app...', ['']) 
+            with self.sidebar.container():
+                self.selectbox = st.empty() #selectbox('Loading app...', ['']) 
             
-        self.status_bar = self.sidebar.progress(0)
+            self.status_bar = self.sidebar.progress(0)
         
-        with self.sidebar.container():
-            self.text_print = self.sidebar.empty()
+            with self.sidebar.container():
+                self.text_print = self.sidebar.empty()
         
-        self.base_status = 0.0
-        self.base_text = ''
+            self.base_status = 0.0
+            self.base_text = ''
                
     def wrapper(self, header, tooltip, header2=None):
         self.header(header)
@@ -59,14 +61,15 @@ class Streamer:
         st.image(image)
 
     def print(self, text, base=True):
-        if base:
-            self.base_text = text
-            new_text = text
-        else:
-            new_text = self.base_text + ' ' + text
+        if self.deployed:
+            if base:
+                self.base_text = text
+                new_text = text
+            else:
+                new_text = self.base_text + ' ' + text
         
-        # print to Streamlit
-        self.text_print.write(new_text)
+            # print to Streamlit
+            self.text_print.write(new_text)
 
         # print to cmd
         print(text)
@@ -75,18 +78,16 @@ class Streamer:
         self.text_print.write('')
 
     def status(self, pct, base=False):
-        if base:
-            self.base_status = pct
-            new_pct = pct
-        else:
-            new_pct = min(1.0, self.base_status + pct)
-            self.base_status = new_pct
+        if streamer.deployed:
+            if base:
+                self.base_status = pct
+                new_pct = pct
+            else:
+                new_pct = min(1.0, self.base_status + pct)
+                self.base_status = new_pct
             
-        self.status_bar.progress(new_pct)
+            self.status_bar.progress(new_pct)
 
     def embed(self, html, height=150, header=None, header2=None, tooltip=None):
         self.wrapper(header, tooltip, header2=header2)
         st_html(html, height=height)
-
-streamer = Streamer()
-

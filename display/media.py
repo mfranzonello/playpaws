@@ -5,7 +5,7 @@ from io import BytesIO
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
 from common.words import Texter
-from display.streaming import streamer
+from display.streaming import Streamer
 
 class Byter:
     def __init__(self):
@@ -59,6 +59,7 @@ class Byter:
 class Imager:
     def __init__(self):
         self.images = {}
+        self.streamer = Streamer(deployed=False)
 
     def get_color_image(self, color, size):
         image = self.crop_image(Image.new('RGB', size, color))
@@ -87,11 +88,13 @@ class Imager:
             cropped = None
 
         return cropped
-
+    
 class Gallery(Imager):
-    def __init__(self, database, download_all=False, crop=False):
+    def __init__(self, database, streamer=None, download_all=False, crop=False):
         super().__init__()
         self.database = database
+        self.streamer = streamer if streamer else Streamer(deployed=False)
+
         self.players_df = self.database.get_players()
 
         self.crop = crop
@@ -110,7 +113,7 @@ class Gallery(Imager):
         self.images[name] = image
    
     def download_image(self, name):
-        streamer.print(f'\t...{name}', base=False)
+        self.streamer.print(f'\t...downloading image for {name}', base=False)
 
         # download image
         src = self.players_df[self.players_df['player']==name]['src'].iloc[0]
@@ -129,7 +132,7 @@ class Gallery(Imager):
 
             except UnidentifiedImageError:
                 # image is unloadable
-                streamer.print(f'...unable to read image for {name}', base=False)
+                self.streamer.print(f'...unable to read image for {name}', base=False)
                 image = None
 
         else:
@@ -142,12 +145,12 @@ class Gallery(Imager):
     def download_images(self):
         images = {}
 
-        streamer.status(0)
-        streamer.print('Downloading profile images...')
+        self.streamer.status(0)
+        self.streamer.print('Downloading profile images...')
         for i in self.players_df.index:
             self.download_image(self.players_df['player'][i])
 
-            streamer.status(i/len(self.players_df))
+            self.streamer.status(i/len(self.players_df))
             
         return images
 
