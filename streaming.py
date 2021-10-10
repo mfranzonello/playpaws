@@ -13,16 +13,20 @@ class Printer:
 
 class Streamer:
     def __init__(self):
+        self.texter = Texter()
+
         self.sidebar = st.sidebar
         
-        self.selectbox = self.sidebar.empty() #selectbox('Loading app...', ['']) 
+        with self.sidebar.container():
+            self.selectbox = st.empty() #selectbox('Loading app...', ['']) 
+            
         self.status_bar = self.sidebar.progress(0)
-        self.base_status = 0.0
         
-        self.text_print = self.sidebar.empty()
+        with self.sidebar.container():
+            self.text_print = self.sidebar.empty()
+        
+        self.base_status = 0.0
         self.base_text = ''
-
-        self.texter = Texter()
                
     def wrapper(self, header, tooltip, header2=None):
         self.header(header)
