@@ -16,7 +16,8 @@ class Streamer:
         self.texter = Texter()
 
         self.sidebar = st.sidebar
-        
+        self.sidebar.write('TEST')
+
         with self.sidebar.container():
             self.selectbox = st.empty() #selectbox('Loading app...', ['']) 
             
