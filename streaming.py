@@ -19,7 +19,7 @@ class Streamer:
         self.status_bar = self.sidebar.progress(0)
         self.base_status = 0.0
         
-        self.text_print = self.sidebar.write('')
+        self.text_print = self.sidebar.empty()
         self.base_text = ''
 
         self.texter = Texter()
