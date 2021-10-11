@@ -49,30 +49,7 @@ class Plotter(Streamable):
         
         # define fonts to use
         self.fonts = self.librarian.get_and_set_fonts(font_manager, rcParams,
-                                                    dirname(dirname(realpath(__file__))))
-        ##self.sans_fonts = list(self.texter.sans_fonts.keys())
-
-        ##self.sans_font = list(self.texter.sans_fonts.values())[0]
-        ##self.bold_font = list(self.texter.bold_fonts.values())[0]
-        ##self.emoji_font = list(self.texter.emoji_fonts.values())[0]
-
-        ##self.image_sans_font = f'fonts/{self.sans_font}'
-        ##self.image_bold_font = f'fonts/{self.bold_font}'
-
-        ### set plotting fonts
-        ##dir_path = dirname(dirname(realpath(__file__)))
-        ##font_dir = f'{dir_path}/fonts'
-        ##font_files = font_manager.findSystemFonts(fontpaths=[font_dir])
-
-        ##for font_file in font_files:
-        ##    font_manager.fontManager.addfont(font_file)
-
-        ##self.plot_sans_font = font_manager.get_font(f'{font_dir}/{self.sans_font}').family_name
-        ##self.plot_emoji_font = font_manager.get_font(f'{font_dir}/{self.emoji_font}').family_name
-
-        ##rcParams['font.family'] = 'sans-serif'
-        ##rcParams['font.sans-serif'] = self.sans_fonts
-        
+                                                    dirname(dirname(realpath(__file__))))       
         self.league_titles = None
         self.view_player = None
         self.plot_counts = len((self.plot_members,
@@ -84,7 +61,6 @@ class Plotter(Streamable):
                                 self.plot_playlists,
                                 ))
     
-    ##@st.cache(hash_funcs=)
     def add_canvas(self):
         canvas = Canvas(self.database, self.streamer)
         return canvas
@@ -99,59 +75,70 @@ class Plotter(Streamable):
         else:
             self.league_titles = []
 
+    def prepare_dfs(self, key, function, *args):
+        df, ok = self.streamer.get_session_state(key)
+        if not ok:
+            df = function(*args)
+            self.streamer.store_session_state(key, df)
+
+        return df
+
     def plot_results(self):
         player_names = self.database.get_player_names()
         self.view_player = self.streamer.player_box.selectbox('Who are you?', player_names + [''],
                                                               index=len(player_names))
 
         if self.view_player != '':
+            self.plot_viewer()
+
             league_titles = self.database.get_player_leagues(self.view_player)
             viewable_league_titles = [l for l in league_titles if l in self.league_titles.to_list()]
             if len(viewable_league_titles) == 1:
                 league_title = viewable_league_titles[0]
-            else:
+            elif len(viewable_league_titles) > 1:
                 league_title = self.streamer.selectbox.selectbox('Pick a league to view',
                                                                  ['<select>'] + viewable_league_titles)
+            else:
+                league_title = '<select>'
 
             if league_title == '<select>':
                 pass
-                #self.plot_welcome()
 
             else:
                 self.streamer.print(f'Preparing plot for {league_title}')
                 self.streamer.status(0, base=True)
-            
-                self.plot_title(league_title,
-                                self.database.get_league_creator(league_title))
+
+                league_creator = self.prepare_dfs('league_creator', self.database.get_league_creator, league_title)
+                self.plot_title(league_title, league_creator)
            
-                self.plot_members(league_title,
-                                  self.database.get_members(league_title))
+                members_df = self.prepare_dfs('members_df', self.database.get_members, league_title)
+                self.plot_members(league_title, members_df)
 
-                self.plot_boards(league_title,
-                                 self.database.get_boards(league_title),
-                                 self.database.get_creators_and_winners(league_title))
+                boards_df = self.prepare_dfs('boards_df', self.database.get_boards, league_title)
+                creators_and_winners_df = self.prepare_dfs('creators_and_winners_df', self.database.get_creators_and_winners, league_title)
+                self.plot_boards(league_title, boards_df, creators_and_winners_df)
 
-                self.plot_rankings(league_title,
-                                   self.database.get_rankings(league_title),
-                                   self.database.get_dirtiness(league_title),
-                                   self.database.get_discovery_scores(league_title))
+                rankings_df = self.prepare_dfs('rankings_df', self.database.get_rankings, league_title)
+                dirtiness_df = self.prepare_dfs('dirtiness_df', self.database.get_dirtiness, league_title)
+                discovery_df = self.prepare_dfs('discovery_df', self.database.get_discovery_scores, league_title)
+                self.plot_rankings(league_title, rankings_df, dirtiness_df, discovery_df)
+                                   
+                features_df = self.prepare_dfs('features_df', self.database.get_audio_features, league_title)
+                self.plot_features(league_title, features_df)
+                
+                tags_df = self.prepare_dfs('tags_df', self.database.get_genres_and_tags, league_title)
+                exclusives_df = self.prepare_dfs('exclusives_df', self.database.get_exclusive_genres, league_title)
+                masks = self.prepare_dfs('masks', self.boxer.get_mask, league_title)
+                self.plot_tags(league_title, tags_df, exclusives_df, masks)
 
-                self.plot_features(league_title,
-                                   self.database.get_audio_features(league_title))
+                results_df = self.prepare_dfs('results_df', self.database.get_song_results, league_title)
+                descriptions_df = self.prepare_dfs('descriptions_df', self.database.get_round_descriptions, league_title)
+                self.plot_top_songs(league_title, results_df, descriptions_df)
 
-                self.plot_tags(league_title,
-                               self.database.get_genres_and_tags(league_title),
-                               self.database.get_exclusive_genres(league_title),
-                               self.boxer.get_mask(league_title))
-
-                self.plot_top_songs(league_title,
-                                    self.database.get_song_results(league_title),
-                                    self.database.get_round_descriptions(league_title))
-
-                self.plot_playlists(league_title,
-                                    self.database.get_playlists(league_title),
-                                    self.database.get_track_count(league_title),
-                                    self.database.get_track_durations(league_title))
+                playlists_df = self.prepare_dfs('playlists_df', self.database.get_playlists, league_title)
+                track_count = self.prepare_dfs('track_count', self.database.get_track_count, league_title)
+                track_durations = self.prepare_dfs('track_durations', self.database.get_track_durations, league_title)
+                self.plot_playlists(league_title, playlists_df, track_count, track_durations)
             
                 self.streamer.print('Everything loaded! Close this sidebar to view.')
 
@@ -203,16 +190,12 @@ class Plotter(Streamable):
         y_shifted = y + shift_distance*sin(theta + rotate*pi/2)
         return x_shifted, y_shifted
 
-    def plot_welcome(self):
-        image = self.boxer.get_welcome()
+    def plot_viewer(self):
+        image = self.canvas.get_player_image(self.view_player)
+        #image = self.boxer.get_welcome()
 
-        self.streamer.image(image, header='Welcome to MöbiMusic!', in_expander=False,
-                            tooltip=self.librarian.get_tooltip('welcome'))
+        self.streamer.image(image, in_expander=False, right_column=[self.view_player])
         ##self.streamer.wrapper(None, tooltip=self.librarian.get_tooltip('welcome'))
-
-        self.streamer.clear_printer()
-
-        self.streamer.set_side_image()
 
     def plot_title(self, league_title, creator):
         parameters = {'title': league_title,
@@ -222,14 +205,14 @@ class Plotter(Streamable):
         self.streamer.title(league_title,
                             tooltip=self.librarian.get_tooltip('title', parameters=parameters))
 
-        self.streamer.set_side_image(self.boxer.get_cover(league_title))
+        self.streamer.sidebar_image(self.boxer.get_cover(league_title))
 
     def plot_members(self, league_title, members_df):
-        if False: ##f'members_ax:{league_title}' in st.session_state:
-            ##ax = st.session_state[f'members_ax:{league_title}']
-            ##self.streamer.status(1/self.plot_counts)
-            pass
-
+        plot_key = (league_title, 'members_ax')
+        ax, ok = self.streamer.get_session_state(plot_key)
+        if ok:
+            self.streamer.status(1/self.plot_counts)
+            
         else:
             fig = plt.figure()
             ax = fig.add_axes([1, 1, 1, 1])
@@ -267,7 +250,7 @@ class Plotter(Streamable):
                         members_df['y'].max() + self.name_offset + self.font_size)
             ax.axis('off')
 
-            ##st.session_state[f'members_ax:{league_title}'] = ax
+            self.streamer.store_session_state(plot_key, ax)
 
         parameters = {'leader': members_df[members_df['wins'] == members_df['wins'].max()]['player'].values,
                       'closest_dfc': members_df[members_df['dfc'] == members_df['dfc'].min()]['player'].values,
@@ -379,11 +362,11 @@ class Plotter(Streamable):
         return sizes
 
     def plot_boards(self, league_title, board, creators_winners_df):
-        if False: ##f'boards_ax:{league_title}' in st.session_state:
-            ##ax = st.session_state[f'boards_ax:{league_title}']
-            ##self.streamer.status(1/self.plot_counts)
-            pass
-
+        plot_key = (league_title, 'boards_ax')
+        ax, ok = self.streamer.get_session_state(plot_key)
+        if ok:
+            self.streamer.status(1/self.plot_counts)
+            
         else:
             fig = plt.figure()
             ax = fig.add_axes([1, 1, 1, 1])
@@ -432,7 +415,7 @@ class Plotter(Streamable):
             ax.set_yticks(yticks)
             ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
 
-            ##st.session_state[f'boards_ax:{league_title}'] = ax
+            self.streamer.store_session_state(plot_key, ax)
 
         parameters = {'round_titles': creators_winners_df['round'].values,
                       'choosers': creators_winners_df['creator'].values,
@@ -489,11 +472,11 @@ class Plotter(Streamable):
         return x_plot, y_plot
 
     def plot_rankings(self, league_title, rankings, dirty_df, discovery_df):
-        if False: ##f'rankings_ax:{league_title}' in st.session_state:
-            ##ax = st.session_state[f'rankings_ax:{league_title}']
-            ##self.streamer.status(1/self.plot_counts)
-            pass
-
+        plot_key = (league_title, 'rankings_ax')
+        ax, ok = self.streamer.get_session_state(plot_key)
+        if ok:
+            self.streamer.status(1/self.plot_counts)
+            
         else:
             fig = plt.figure()
             ax = fig.add_axes([1, 1, 1, 1])
@@ -547,7 +530,7 @@ class Plotter(Streamable):
             ax.set_xticklabels(['scores', 'dirtiness', 'discovery', 'popularity'],
                                rotation=self.rotate_labels(n_rounds))
 
-            ##st.session_state['rankings_ax:{league_title}'] = ax
+            self.streamer.store_session_state(plot_key, ax)
 
         parameters = {'dirty': dirty_df[dirty_df == dirty_df.max()].index.values,
                       'discovery': discovery_df[discovery_df['discovery'] == discovery_df['discovery'].max()].index.values,
@@ -595,11 +578,11 @@ class Plotter(Streamable):
         return image, imgs
             
     def plot_features(self, league_title, features_df):
-        if False: ##f'features_ax:{league_title}' in st.session_state:
-            ##ax = st.session_state[f'features_ax:{league_title}']
-            ##self.streamer.status(1/self.plot_counts)
-            pass
-
+        plot_key = (league_title, 'features_ax')
+        ax, ok = self.streamer.get_session_state(plot_key)
+        if ok:
+            self.streamer.status(1/self.plot_counts)
+            
         else:
             fig = plt.figure()
             ax = fig.add_axes([1, 1, 1, 1])
@@ -670,7 +653,7 @@ class Plotter(Streamable):
             ax.set_yticklabels([])
             ax.set_yticks([])
         
-            ##st.session_state[f'features_ax:{league_title}'] = ax
+            self.streamer.store_session_state(plot_key, ax)
 
         self.streamer.pyplot(ax.figure, header='Audio Features',
                              tooltip=self.librarian.get_tooltip('features', parameters={}))
@@ -688,11 +671,12 @@ class Plotter(Streamable):
         return z_
 
     def plot_tags(self, league_title, tags_df, exclusives, mask_bytes):
-        if False: ##f'tags_ax:{league_title}' in st.session_state:
-            ##wordcloud_image = st.session_state[f'tags_ax:{league_title}']
-            ##self.streamer.status(1/self.plot_counts)
-            pass
-
+        plot_key = (league_title, 'tags_ax')
+        ax, ok = self.streamer.get_session_state(plot_key)
+        if ok:
+            wordcloud_image, parameters = ax
+            self.streamer.status(1/self.plot_counts)
+            
         else:          
             self.streamer.status(1/self.plot_counts * (1/2))
             self.streamer.print('\t...genres', base=False)
@@ -710,11 +694,10 @@ class Plotter(Streamable):
 
             self.streamer.status(1/self.plot_counts * (1/2))
 
-            ##st.session_state[f'tags_ax:{league_title}'] = wordcloud_image
-        
-        parameters = {'top_tags': [t[0] for t in text.most_common(3)],
-                      'exclusives': [t[0] for t in text_ex.most_common(3)]
-                      }
+            parameters = {'top_tags': [t[0] for t in text.most_common(3)],
+                          'exclusives': [t[0] for t in text_ex.most_common(3)]
+                          }
+            self.streamer.store_session_state(plot_key, (wordcloud_image, parameters))
         self.streamer.image(wordcloud_image, header='Genre Cloud',
                             tooltip=self.librarian.get_tooltip('tags', parameters=parameters))
 
@@ -722,11 +705,11 @@ class Plotter(Streamable):
         return sum(1/(n+2) for n in range(int(num)))
 
     def plot_top_songs(self, league_title, results_df, descriptions, max_years=10):
-        if False: #f'top_songs_ax:{league_title}' in st.session_state:
-            #ax = st.session_state[f'top_songs_ax:{league_title}']
-            ##self.streamer.status(1/self.plot_counts)
-            pass
-
+        plot_key = (league_title, 'top_songs_ax')
+        results, ok = self.streamer.get_session_state(plot_key)
+        if False:#ok:
+            self.streamer.status(1/self.plot_counts)
+            
         else:
             fig = plt.figure()
             ax = fig.add_axes([1, 1, 1, 1])
@@ -804,7 +787,8 @@ class Plotter(Streamable):
                 self.streamer.pyplot(ax.figure, header2=self.texter.clean_text(r),
                                      tooltip=self.librarian.get_tooltip('top_songs_round', parameters=parameters))
                 
-            ##st.session_state[f'top_songs_ax:{league_title}'] = ax
+            results = None
+            self.streamer.store_session_state(plot_key, results)
 
     def plot_playlists(self, league_title, playlists_df, track_count, duration,
                        width=400, height=600):

@@ -103,7 +103,6 @@ class Texter:
             for sp in splits:
                 split_t = []
                 p = 0
-                iterations = 0
 
                 while (p < len(sp)):
                     last_space = sp[p:p+limit][::-1].find(' ')

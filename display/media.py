@@ -113,31 +113,34 @@ class Gallery(Imager):
         self.images[name] = image
    
     def download_image(self, name):
-        self.streamer.print(f'\t...downloading image for {name}', base=False)
+        image_key = ('gallery', name)
+        image, ok = self.streamer.get_session_state(image_key)
+        if not ok:
+            self.streamer.print(f'\t...downloading image for {name}', base=False)
 
-        # download image
-        src = self.players_df[self.players_df['player']==name]['src'].iloc[0]
-        if src:
-            # Spotify profile image exists
-            if src[:len('http')] != 'http':
-                src = f'https://{src}'
-            fp = urlopen(src)
+            # download image
+            src = self.players_df[self.players_df['player']==name]['src'].iloc[0]
+            if src:
+                # Spotify profile image exists
+                if src[:len('http')] != 'http':
+                    src = f'https://{src}'
+                fp = urlopen(src)
 
-            try:
-                # see if image can load
-                image = Image.open(fp)
+                try:
+                    # see if image can load
+                    image = Image.open(fp)
 
-                if self.crop:
-                    image = self.crop_image(image)
+                    if self.crop:
+                        image = self.crop_image(image)
 
-            except UnidentifiedImageError:
-                # image is unloadable
-                self.streamer.print(f'...unable to read image for {name}', base=False)
+                except UnidentifiedImageError:
+                    # image is unloadable
+                    self.streamer.print(f'...unable to read image for {name}', base=False)
+                    image = None
+
+            else:
+                # no Spotify profile image exists
                 image = None
-
-        else:
-            # no Spotify profile image exists
-            image = None
 
         # store in images dictionary
         self.images[name] = image

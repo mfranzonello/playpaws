@@ -1,8 +1,20 @@
 from pandas import set_option
 import streamlit as st
 from streamlit.components.v1 import html as st_html
+from streamlit.type_util import Key
 
 from common.words import Texter
+
+def cache(**args):
+    hash_funcs = {t: lambda _: None for t in ['_thread.RLock',
+                                              '_thread.lock',
+                                              'builtins.PyCapsule',
+                                              '_io.TextIOWrapper',
+                                              'builtins.weakref',
+                                              'builtins.dict',
+                                              'streamlit.delta_generator'
+                                              ]}
+    return st.cache(hash_funcs=hash_funcs, **args)
 
 class Printer:
     def __init__(self, *options):
@@ -19,8 +31,12 @@ class Streamable:
         if streamer:
             self.streamer = streamer
 
+    def __hash__(self):
+        return hash((self.streamer.deployed))
+
 class Streamer:
     def __init__(self, deployed=True):
+        ##print(st.get_option('theme.primaryColor'))
         self.texter = Texter()
 
         self.deployed = deployed
@@ -50,6 +66,14 @@ class Streamer:
         
             self.base_status = 0.0
             self.base_text = ''
+
+    def get_session_state(self, key):
+        item = st.session_state.get(key)
+        ok = (item is not None)
+        return item, ok
+
+    def store_session_state(self, key, item):
+        st.session_state[key] = item
                
     def wrapper(self, header, tooltip, header2=None):
         self.header(header)
@@ -69,7 +93,7 @@ class Streamer:
             with st.expander(tooltip['label']):
                 st.write(tooltip['content'])
 
-    def set_side_image(self, image=None):
+    def sidebar_image(self, image=None):
         if image:
             self.side_image.image(image, use_column_width=True)
         else:
@@ -86,14 +110,28 @@ class Streamer:
         else:
             func(item)
 
+    def right_column(self, right_column, func1, item1, func2, **args):
+        if right_column:
+            col_left, col_right = st.columns(2)
+            with col_left:
+                func1(item1, **args)
+            with col_right:
+                for item2 in right_column:
+                    func2(item2)
+        
     def pyplot(self, figure, header=None, header2=None, tooltip=None, in_expander=True):
         self.wrapper(header, tooltip, header2=header2)
         self.in_expander(in_expander, st.pyplot, figure)
         
-    def image(self, image, header=None, header2=None, tooltip=None, in_expander=True):
+    def image(self, image, header=None, header2=None, tooltip=None, right_column=None,
+              in_expander=True):
         self.wrapper(header, tooltip, header2=header2)
-        self.in_expander(in_expander, st.image, image)
-
+        if right_column:
+            self.right_column(right_column, st.image, image, st.write)
+        else:
+            self.in_expander(in_expander, st.image, image)
+        
+        
     def print(self, text, base=True):
         if self.deployed:
             if base:

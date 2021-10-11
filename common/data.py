@@ -6,7 +6,7 @@ from pandas import read_sql, DataFrame, isnull
 from pandas.api.types import is_numeric_dtype
 
 from common.secret import get_secret
-from display.streaming import Streamable
+from display.streaming import Streamable, cache
 
 class Database(Streamable):
     tables = {# MusicLeague data
@@ -67,14 +67,12 @@ class Database(Streamable):
         self.values = {table_name: self.tables[table_name]['values'] for table_name in self.tables}
         self.columns = {table_name: self.tables[table_name]['keys'] + self.tables[table_name]['values'] for table_name in self.tables}
  
+        self.streamer.print(f'Connecting to database {self.db}...')
         self.connection = self.connect(engine_string)
-
         self.streamer.print(f'\t...success!')
         
-    #@st.cache(allow_output_mutation=True)
-    def connect(self, engine_string):
-        self.streamer.print(f'Connecting to database {self.db}...')
-        
+    @cache(allow_output_mutation=True)
+    def connect(self, engine_string):        
         engine = create_engine(engine_string)
         connection = engine.connect()
         return connection
@@ -1043,3 +1041,6 @@ class Database(Streamable):
         all_info_df = read_sql(sql, self.connection)
 
         return all_info_df
+
+    def get_awards(self, player_name):
+        sql_dirt = (f'SELECT ')
