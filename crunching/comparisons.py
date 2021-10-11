@@ -155,7 +155,7 @@ class Pulse:
                 self.df['win'] = self.df['battle'] > 0
 
 class Members:
-    columns = ['player', 'x', 'y', 'wins', 'dfc', 'likes', 'liked']
+    columns = ['player', 'wins', 'dfc', 'likes', 'liked'] #'x', 'y', 
 
     def __init__(self, player_names):
         self.df = DataFrame(columns=self.columns)
@@ -168,7 +168,7 @@ class Members:
                             'message': None}
 
     def __repr__(self):
-        printed = self.df.drop(columns=['x', 'y']).sort_values(['wins', 'dfc'], ascending=[False, True])
+        printed = self.df.sort_values(['wins', 'dfc'], ascending=[False, True]).dropna(axis='columns', how='all')
         return f'MEMBERS\n{printed}\n'
 
     def distdiff(self, xy, D, N, xy0=[0,0]):
@@ -181,11 +181,6 @@ class Members:
         difference = sum((N[i] * (((x[c[i][0]] - x[c[i][1]])**2 + (y[c[i][0]] - y[c[i][1]])**2)**0.5 - D[i]))**2 \
             for i in range(len(c)))**0.5
         return difference
-
-    ##def get_player_names(self):
-    ##    # return the names of all players
-    ##    #player_names = self.df['player'].to_list()
-    ##    return self.player_names
 
     def get_members(self):
         return self.df.reindex(columns=self.columns)
@@ -214,7 +209,7 @@ class Members:
 
         # update from db if exists
         if xy_ is not None:
-            self.df[['x', 'y']] = self.df.drop(columns=['x', 'y']).merge(xy_, on='player')[['x', 'y']]
+            self.df[['x', 'y']] = self.df.drop(columns=[c for c in ['x', 'y'] if c in self.df.columns]).merge(xy_, on='player')[['x', 'y']]
 
         if all(self.df[['x', 'y']].isna()):
             self.seed_xy(pulse)
@@ -256,7 +251,7 @@ class Rankings:
         self.df = self.calculate_points(songs, votes, weights)
         
         self.voted_per_round = self.get_votes_per_round(votes)
-        self.submitted_per_round = self.get_submitted_per_round()
+        self.submitted_per_round = self.get_submitted_per_round(songs)
  
         self.normalize_rankings(songs, must_vote=weights.get('must_vote', True))
         self.sort_rankings(songs)
@@ -267,15 +262,8 @@ class Rankings:
     def calculate_points(self, songs, votes, weights):
         # calculate points earned during round
         points_df = songs.df.drop(columns=['song_id', 'people']).groupby(['round', 'submitter']).sum()
-        # calculate bonus points
-        ##print(songs.df.merge(votes.df[['song_id', 'vote']], on='song_id', how='left')\
-        ##    .groupby(['round', 'submitter', 'song_id'])['vote'].sum())
-        ##print(songs.df.merge(votes.df[['song_id', 'vote']], on='song_id')\
-        ##    .groupby(['round', 'submitter', 'song_id'])['vote'].sum().eq(0))
-        ##print(songs.df.merge(votes.df[['song_id', 'vote']], on='song_id')\
-        ##    .groupby(['round', 'submitter', 'song_id'])['vote'].sum().eq(0)\
-        ##    .reset_index().groupby(['round', 'submitter'])['vote'].sum())
 
+        # calculate bonus points
         bonus_points = songs.df.merge(votes.df[['song_id', 'vote']], on='song_id', how='left')\
             .groupby(['round', 'submitter', 'song_id'])['vote'].sum().eq(0)\
             .reset_index().groupby(['round', 'submitter'])['vote'].sum().mul(-1).add(1)\
@@ -291,10 +279,11 @@ class Rankings:
 
         return voted_per_round
 
-    def get_submitted_per_round(self):
-        submitted_per_round = self.df.mask(self.df >= 0, True).reset_index()\
-            .pivot(columns='round', values='points', index='player')\
-            .reindex(columns=self.df.index.levels[0])
+    def get_submitted_per_round(self, songs):
+        submit_df = songs.df.drop(columns=['song_id', 'people']).groupby(['round', 'submitter']).sum()
+        submitted_per_round = submit_df.mask(submit_df >= 0, True).reset_index()\
+            .pivot(columns='round', values='points', index='submitter')\
+            .reindex(columns=submit_df.index.levels[0]).fillna(False)
 
         return submitted_per_round
 
@@ -324,6 +313,9 @@ class Rankings:
             .reindex(columns=self.df.index.levels[0])
 
         leaderboard = pointsboard.rank(ascending=False, method='average')
+        t1 = pointsboard.isna()
+        t2 = self.submitted_per_round
+
         dnf = -pointsboard.fillna(1).where(pointsboard.isna()).where(self.submitted_per_round).rank(method='first')
         
         board = leaderboard.add(dnf, fill_value=0)

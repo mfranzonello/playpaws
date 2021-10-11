@@ -8,10 +8,7 @@ class Analyzer:
         self.weights = database.get_weights(self.version)
 
     def analyze_all(self):
-        ##players = Players()
         league_titles = self.get_league_titles()
-
-        ##analyses = self.database.get_analyses()
 
         for league_title in league_titles:
             if self.database.check_data(league_title):
@@ -19,10 +16,6 @@ class Analyzer:
 
                 statuses = self.get_statuses(rounds_db)
                 
-                ##version_q = f'(version == {self.version})'
-                ##open_q = f'(open == [{statuses["open"]}])'
-                ##closed_q = f'(closed == [{statuses["closed"]}])'
-                ##query = analyses.query(version_q).query(open_q).query(closed_q)
                 if self.database.get_analyzed(league_title, statuses['open'], statuses['closed'], self.version):
                     print(f'Analysis for {league_title} already up to date')
 
@@ -187,27 +180,18 @@ class Analyzer:
 
         return rankings
 
-    def get_pulse(self, songs, votes, members):#, xy_=None):
+    def get_pulse(self, songs, votes, members):
         # get group pulse
         print('Getting pulse')
 
         pulse = Pulse(members)
         print('\t...likes')
         pulse.calculate_likers(songs, votes)
-        ##print('\t...similarity')
-        ##pulse.calculate_similarity(songs, votes)
         print('\t...wins')
         pulse.calculate_wins(songs, votes)
 
-        # calculate distances
-        ##print('Getting placements')
-
-        ##print('\t...coordinates')
-        ##members.update_coordinates(pulse, xy_=xy_)
         print('\t...likes')
         members.who_likes_whom(pulse)
-        ##print('\t...dfc')
-        ##members.get_dfc(songs, votes)
         print('\t...battle')
         members.battle(pulse)
 
@@ -220,8 +204,6 @@ class Analyzer:
         pulse = Pulse(members)
 
         # calculate distances
-        print('Getting placements')
-        
         print('\t...similarity')
         pulse.calculate_similarity(songs, votes)
         print('\t...coordinates')
