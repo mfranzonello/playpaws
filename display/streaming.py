@@ -27,10 +27,20 @@ class Streamer:
         if self.deployed:
             self.sidebar = st.sidebar
 
-            with self.sidebar.container():
-                self.selectbox = st.empty() #selectbox('Loading app...', ['']) 
+            with st.container():
+                col1, col2 = st.columns(2)
+                with col1:
+                    self.player_box = st.empty()
+                with col2:
+                    self.selectbox = st.empty()
+
+            with st.container():
+                self.status_bar = st.progress(0)
+        
+            #with self.sidebar.container():
+            #    self.selectbox = st.empty() #selectbox('Loading app...', ['']) 
             
-            self.status_bar = self.sidebar.progress(0)
+            ##self.status_bar = self.sidebar.progress(0)
         
             with self.sidebar.container():
                 self.text_print = self.sidebar.empty()

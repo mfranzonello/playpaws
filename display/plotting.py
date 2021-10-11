@@ -88,6 +88,7 @@ class Plotter(Streamable):
         rcParams['font.sans-serif'] = self.sans_fonts
         
         self.league_titles = None
+        self.view_player = None
         self.plot_counts = 7
 
     def translate(self, x:float, y:float, theta:float, rotate:float, shift_distance:float=0):
@@ -135,54 +136,67 @@ class Plotter(Streamable):
             self.league_titles = []
 
     def plot_results(self):
-        league_title = self.streamer.selectbox.selectbox('Pick a league to view',
-                                                         ['<select>'] + self.league_titles.to_list())
+        player_names = self.database.get_player_names()
+        self.view_player = self.streamer.player_box.selectbox('Who are you?', player_names + [''],
+                                                              index=len(player_names))
 
-        if league_title == '<select>':
-            self.plot_welcome()
+        if self.view_player != '':
+            league_titles = self.database.get_player_leagues(self.view_player)
+            viewable_league_titles = [l for l in league_titles if l in self.league_titles.to_list()]
+            if len(viewable_league_titles) == 1:
+                league_title = viewable_league_titles[0]
+            else:
+                league_title = self.streamer.selectbox.selectbox('Pick a league to view',
+                                                                 ['<select>'] + viewable_league_titles)
 
-        else:
-            self.streamer.print(f'Preparing plot for {league_title}')
-            self.streamer.status(0, base=True)
+            if league_title == '<select>':
+                pass
+                #self.plot_welcome()
+
+            else:
+                self.streamer.print(f'Preparing plot for {league_title}')
+                self.streamer.status(0, base=True)
             
-            self.plot_title(league_title,
-                            self.database.get_league_creator(league_title))
+                self.plot_title(league_title,
+                                self.database.get_league_creator(league_title))
            
-            self.plot_members(league_title,
-                              self.database.get_members(league_title))
+                self.plot_members(league_title,
+                                  self.database.get_members(league_title))
 
-            self.plot_boards(league_title,
-                             self.database.get_boards(league_title),
-                             self.database.get_creators_and_winners(league_title))
+                self.plot_boards(league_title,
+                                 self.database.get_boards(league_title),
+                                 self.database.get_creators_and_winners(league_title))
 
-            self.plot_rankings(league_title,
-                               self.database.get_rankings(league_title),
-                               self.database.get_dirtiness(league_title),
-                               self.database.get_discovery_scores(league_title))
+                self.plot_rankings(league_title,
+                                   self.database.get_rankings(league_title),
+                                   self.database.get_dirtiness(league_title),
+                                   self.database.get_discovery_scores(league_title))
 
-            self.plot_features(league_title,
-                               self.database.get_audio_features(league_title))
+                self.plot_features(league_title,
+                                   self.database.get_audio_features(league_title))
 
-            self.plot_tags(league_title,
-                           self.database.get_genres_and_tags(league_title),
-                           self.database.get_exclusive_genres(league_title),
-                           self.boxer.get_mask(league_title))
+                self.plot_tags(league_title,
+                               self.database.get_genres_and_tags(league_title),
+                               self.database.get_exclusive_genres(league_title),
+                               self.boxer.get_mask(league_title))
 
-            self.plot_top_songs(league_title,
-                                self.database.get_song_results(league_title),
-                                self.database.get_round_descriptions(league_title))
+                self.plot_top_songs(league_title,
+                                    self.database.get_song_results(league_title),
+                                    self.database.get_round_descriptions(league_title))
 
-            self.plot_playlists(league_title,
-                                self.database.get_playlists(league_title),
-                                self.database.get_track_count(league_title),
-                                self.database.get_track_durations(league_title))
+                self.plot_playlists(league_title,
+                                    self.database.get_playlists(league_title),
+                                    self.database.get_track_count(league_title),
+                                    self.database.get_track_durations(league_title))
             
-            self.streamer.print('Everything loaded! Close this sidebar to view.')
+                self.streamer.print('Everything loaded! Close this sidebar to view.')
 
     def plot_welcome(self):
         image = self.boxer.get_welcome()
-        self.streamer.image(image, header='Welcome to MöbiMusic!', in_expander=False)
-        self.streamer.wrapper(None, tooltip=self.librarian.get_tooltip('welcome'))
+
+        self.streamer.image(image, header='Welcome to MöbiMusic!', in_expander=False,
+                            tooltip=self.librarian.get_tooltip('welcome'))
+        ##self.streamer.wrapper(None, tooltip=self.librarian.get_tooltip('welcome'))
 
         self.streamer.clear_printer()
 
@@ -234,6 +248,7 @@ class Plotter(Streamable):
     def plot_title(self, league_title, creator):
         parameters = {'title': league_title,
                       'creator': creator,
+                      'viewer': self.view_player,
                       }
         self.streamer.title(league_title,
                             tooltip=self.librarian.get_tooltip('title', parameters=parameters))

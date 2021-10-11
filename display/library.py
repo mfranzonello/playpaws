@@ -11,7 +11,10 @@ class Librarian:
         text = None
 
         # pick expander label
-        if plot_name in ['welcome', 'title']:
+        if plot_name == 'welcome':
+            label = '<< Open the sidebar'
+
+        elif plot_name == 'title':
             label = 'Explain the rules.'
 
         elif plot_name == 'top_songs_round':
@@ -28,8 +31,11 @@ class Librarian:
         elif plot_name == 'title':
             title = self.texter.clean_text(parameters.get('title'))
             emoji = self.feeler.match_emoji(title, default='🎧')
+            viewer = parameters.get('viewer')
             creator = parameters.get('creator')
-            text = (f'Welcome to the MöbiMusic league analyzer! These are the nerb '
+            if creator == viewer:
+                creator = 'YOU'
+            text = (f'Welcome to the MöbiMusic league analyzer, 👋**{viewer}**👋! These are the nerb '
                     f'results of all the current rounds for the {emoji}**{title}**{emoji} league, '
                     f'created by 🤓**{creator}**🤓. Keep scrolling to see how players have '
                     f'placed and what it all sounds like.'

@@ -359,9 +359,12 @@ class Database(Streamable):
             creator = None
         return creator
 
-    def get_leagues_for_member(self, player_name):
-        sql = 'SELECT league FROM {self.table_name("Members")} WHERE player = {self.needs_quotes(player_name)}'
-
+    def get_player_leagues(self, player_name):
+        sql = (f'SELECT league FROM {self.table_name("Members")} '
+               f'WHERE player = {self.needs_quotes(player_name)} '
+               f'ORDER BY player ASC;'
+               )
+               
         league_titles = read_sql(sql, self.connection)['league'].values
 
         return league_titles
@@ -498,9 +501,13 @@ class Database(Streamable):
         players_df = self.get_table('Players')
         return players_df
 
-    def get_player_names(self, league_title):
-        members_df = self.get_members(league_title)
-        player_names = members_df['player'].to_list()
+    def get_player_names(self, league_title=None):
+        if league_title:
+            members_df = self.get_members(league_title)
+            player_names = members_df['player'].to_list()
+
+        else:
+            player_names = self.get_players()['player'].to_list()
         return player_names
 
     def get_weights(self, version):
