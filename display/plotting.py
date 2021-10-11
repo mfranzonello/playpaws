@@ -1,151 +1,23 @@
-from math import sin, cos, atan2, pi, inf, nan, isnan, ceil
+from math import sin, cos, atan2, pi, nan, isnan, ceil
 from collections import Counter
 from os.path import dirname, realpath
-from urllib.request import urlopen
 from datetime import datetime
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from pandas import DataFrame, isnull, to_datetime, Timestamp
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from matplotlib import font_manager
 from matplotlib.dates import date2num#, num2date
 from wordcloud import WordCloud#, ImageColorGenerator
-from numpy import asarray
+from numpy import unique
 
 from common.words import Texter
 from display.library import Librarian
-from display.media import Imager, Gallery
+from display.artist import Canvas
 from display.storage import Boxer
-from display.streaming import Streamer
+from display.streaming import Streamable
 
-class Pictures(Imager):
-    def __init__(self, database, streamer):
-        super().__init__()
-
-        self.gallery = Gallery(database, crop=True)
-        self.boxer = Boxer()
-        self.streamer = streamer if streamer else Streamer(deployed=None)
-        self.mobis = {}
-        
-    def get_player_image(self, player_name):
-        image = self.gallery.get_image(player_name)
-
-        if not image:
-            # no Spotify profile exists
-            if player_name not in self.mobis:
-                # get a random image of Mobi that hasn't been used already
-                mobi_byte = self.boxer.get_mobi()
-                mobi_image = Image.open(mobi_byte) if mobi_byte else None
-                self.mobis[player_name] = self.crop_image(mobi_image)
-
-            image = self.mobis[player_name]
-
-        return image
-
-    def store_player_image(self, player_name, image):
-        self.gallery.store_image(player_name, image)
-
-    def add_text(self, image, text, font, color=(255, 255, 255), boundary=[0.75, 0.8]):
-        draw = ImageDraw.Draw(image)
-
-        text_str = str(text)
-        
-        bw, bh = boundary
-        W, H = image.size
-        font_size = round(H * 0.75 * bh)
-        font_length = ImageFont.truetype(font, font_size).getmask(text_str).getbbox()[2]
-        true_font_size = int(min(1, bw * W / font_length) * font_size)
-
-        font = ImageFont.truetype(font, true_font_size)
-        
-        x0, y0, x1, y1 = draw.textbbox((0, 0), text_str, font=font)
-        w = x1 - x0
-        h = y1 + y0
-
-        position = ((W-w)/2,(H-h)/2)
-       
-        draw.text(position, text_str, color, font=font)
-
-        return image
-
-    def get_mask_array(self, image_bytes):
-        #fp = urlopen(src)
-        try:
-            image = Image.open(image_bytes) #fp)
-            mask = asarray(image)
-        except UnidentifiedImageError:
-            self.streamer.print(f'can\'t open image') # at {src}')
-            mask = None
-
-        return mask
-
-    def get_time_parameters(self, text_df, aspect, base):
-        H = int(base) #int((text_df['y_round'].max() + 1) * base)
-        W = int(aspect[0] * H / aspect[1])
-
-        ppt = 0.75
-
-        max_x = text_df['x'].max()
-
-        # remove text too small
-        text_df = text_df.replace([inf, -inf], nan).dropna(subset=['size'])
-
-        text_df['image_font'] = text_df.apply(lambda x: ImageFont.truetype(x['font_name'],
-                                                                           int(x['size'] * ppt * base / 2)), axis=1)
-        text_df['length'] = text_df.apply(lambda x: max(x['image_font'].getmask(x['text_top']).getbbox()[2],
-                                                        x['image_font'].getmask(x['text_bottom']).getbbox()[2]),
-                                          axis=1)
-        
-        text_df['total_length'] = text_df['length'].add(date2num(max_x) - date2num(text_df['x']))
-        max_x_i = text_df[text_df['total_length'] == text_df['total_length'].max()].index[0]
-
-        X = (date2num(max_x) - date2num(text_df['x'][max_x_i]))
-        x_ratio = (W - text_df['length'][max_x_i]) / X
-        D = x_ratio * X
-
-        return text_df, D, max_x, x_ratio, W, H, base
-       
-    def get_timeline_image(self, text_df, max_x, x_ratio, W, H, base,
-                           padding=0.1, min_box_size=5):
-        image = Image.new('RGB', (W, H), (255, 255, 255))
-        draw = ImageDraw.Draw(image)
-
-        for i in text_df.index:
-            x_text = int(x_ratio * (date2num(max_x) - date2num(text_df['x'][i])))
-            y_text = int(text_df['y'][i] * base)
-
-            box_src = text_df['src'][i]
-            box_size = int(text_df['size'][i] * base)
-            padded_size = int(box_size * (1 - padding))
-            box_color = text_df['color'][i]
-            pad_offset = int(box_size * padding / 2)
-
-            if padded_size:
-                if box_src and padded_size > min_box_size:
-                    src_size = tuple([padded_size] * 2)
-                    box_img = Image.open(urlopen(box_src)).resize(src_size)
-
-                    if isnan(text_df['points'][i]):
-                        # grey out an image without points
-                        ImageOps.grayscale(box_img)
-
-                    image.paste(box_img, (x_text + pad_offset, y_text + pad_offset))
-                else:
-                    draw.rectangle([x_text + pad_offset,
-                                    y_text + pad_offset,
-                                    x_text + box_size - pad_offset,
-                                    y_text + box_size - pad_offset],
-                                   fill=box_color)
-
-            draw.text((x_text + box_size, y_text), text_df['text_top'][i],
-                      fill=box_color, font=text_df['image_font'][i])
-            draw.text((x_text + box_size, y_text + box_size/2), text_df['text_bottom'][i],
-                      fill=box_color, font=text_df['image_font'][i])
-
-        return image
-    
-class Plotter:
+class Plotter(Streamable):
     color_wheel = 255
     
     dfc_colors = {'grey': (172, 172, 172),
@@ -182,6 +54,7 @@ class Plotter:
     ranking_size = 0.75
 
     def __init__(self, database, streamer):
+        super().__init__()
         self.texter = Texter()
         self.librarian = Librarian()
         self.boxer = Boxer()
@@ -247,9 +120,9 @@ class Plotter:
         return rgb
     
     ##@st.cache(hash_funcs=)
-    def add_pictures(self):
-        pictures = Pictures(self.database, self.streamer)
-        return pictures
+    def add_canvas(self):
+        canvas = Canvas(self.database, self.streamer)
+        return canvas
 
     def add_analyses(self):
         self.streamer.print('Getting analyses')
@@ -257,7 +130,7 @@ class Plotter:
 
         if len(analyses_df):
             self.league_titles = analyses_df['league']
-            self.pictures = self.add_pictures()
+            self.canvas = self.add_canvas()
         else:
             self.league_titles = []
 
@@ -321,15 +194,15 @@ class Plotter:
         flip = -1 if flipped else 1
 
         if player_name:
-            image = self.pictures.get_player_image(player_name)
+            image = self.canvas.get_player_image(player_name)
         elif color:
-            image = self.pictures.get_color_image(color, image_size)
+            image = self.canvas.get_color_image(color, image_size)
         else:
             image = None
             imgs = None
 
         if image and text:
-            image = self.pictures.add_text(image, text, self.image_sans_font)
+            image = self.canvas.add_text(image, text, self.image_sans_font)
 
         if image:
             scaling = [a / max(aspect) for a in aspect]
@@ -338,7 +211,7 @@ class Plotter:
             y_ex = (size + padding)/2 * scaling[1]
             extent = [x - x_ex, x + x_ex,
                       y - flip*y_ex, y + flip*y_ex]
-            imgs = ax.imshow(image, extent=extent, zorder=zorder) ## NOTE that nodes z-order should tie
+            imgs = ax.imshow(image, extent=extent, zorder=zorder)
 
         return image, imgs
 
@@ -386,14 +259,14 @@ class Plotter:
 
             # plot center
             x_center, y_center = self.get_center(members_df)
-            ax.scatter(x_center, y_center, marker='1', zorder=3)
+            ax.scatter(x_center, y_center, marker='1', zorder=2*len(player_names))
 
             sizes = self.get_scatter_sizes(members_df)
             colors = self.get_node_colors(members_df)
             colors_scatter = self.get_scatter_colors(colors, divisor=self.color_wheel)
        
-            for x_p, y_p, p_name, s_p, c_p, c_s in zip(x, y, player_names, sizes, colors, colors_scatter):
-                self.plot_member_nodes(ax, x_p, y_p, p_name, s_p, c_p, c_s)
+            for x_p, y_p, p_name, s_p, c_p, c_s, z in zip(x, y, player_names, sizes, colors, colors_scatter, player_names.index):
+                self.plot_member_nodes(ax, x_p, y_p, p_name, s_p, c_p, c_s, z)
             self.streamer.status(1/self.plot_counts * (1/3))
 
             # split if likes is liked
@@ -401,7 +274,8 @@ class Plotter:
             split = split['likes'] == split['liked']
 
             for i in members_df.index:
-                self.plot_member_relationships(ax, player_names[i], members_df, split)
+                self.plot_member_relationships(ax, player_names[i], members_df, split,
+                                               zorder=2*len(player_names))
             self.streamer.status(1/self.plot_counts * (1/3))
 
             ax.axis('equal')
@@ -418,11 +292,13 @@ class Plotter:
         self.streamer.pyplot(ax.figure, header='League Pulse',
                              tooltip=self.librarian.get_tooltip('members', parameters=parameters))
 
-    def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s):
+    def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s, z):
         plot_size = (s_p/2)**0.5/pi/10
-        image, _ = self.plot_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False, zorder=1)
+        image, _ = self.plot_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False,
+                                   zorder=2*z+1)
         if image:
-            _, _ = self.plot_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05, zorder=0)
+            _, _ = self.plot_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05,
+                                   zorder=2*z)
         else:
             ax.plot(x_p, y_p, s=s_p, c=c_s)
 
@@ -436,30 +312,33 @@ class Plotter:
         
         return colors
 
-    def plot_member_relationships(self, ax, me, members_df, split):
+    def plot_member_relationships(self, ax, me, members_df, split, zorder):
         # get location
         x_me, y_me, theta_me = self.where_am_i(members_df, me)
 
         # plot names
-        self.plot_member_names(ax, me, x_me, y_me, theta_me)
+        self.plot_member_names(ax, me, x_me, y_me, theta_me, zorder=zorder+2)
 
         # split if liked
         split_distance = split[me] * self.like_arrow_split
 
         # find likes
-        self.plot_member_likers(ax, members_df, me, x_me, y_me, split_distance, direction='likes', color=self.likes_color)
-        self.plot_member_likers(ax, members_df, me, x_me, y_me, split_distance, direction='liked', color=self.liked_color)
+        self.plot_member_likers(ax, members_df, me, x_me, y_me, split_distance, direction='likes',
+                                color=self.likes_color, zorder=zorder+1)
+        self.plot_member_likers(ax, members_df, me, x_me, y_me, split_distance, direction='liked',
+                                color=self.liked_color, zorder=zorder+1)
 
-    def plot_member_names(self, ax, me, x_me, y_me, theta_me):
+    def plot_member_names(self, ax, me, x_me, y_me, theta_me, zorder=0):
         x_1, y_1 = self.translate(x_me, y_me, theta_me, 0, shift_distance=-self.name_offset) ## <- name offset should be based on node size
 
         h_align = 'right' if (theta_me > -pi/2) & (theta_me < pi/2) else 'left'
         v_align = 'top' if (theta_me > 0) else 'bottom'
         display_name = self.texter.get_display_name(me)
             
-        ax.text(x_1, y_1, display_name, horizontalalignment=h_align, verticalalignment=v_align, zorder=4)
+        ax.text(x_1, y_1, display_name, horizontalalignment=h_align, verticalalignment=v_align,
+                zorder=zorder)
         
-    def plot_member_likers(self, ax, members_df, me, x_me, y_me, split_distance, direction, color):
+    def plot_member_likers(self, ax, members_df, me, x_me, y_me, split_distance, direction, color, zorder=0):
         x_like, y_like, theta_us = self.who_likes_whom(members_df, me, direction, self.like_arrow_length)
 
         if theta_us:
@@ -474,7 +353,8 @@ class Plotter:
 
             ax.arrow(*xy,
                      width=self.like_arrow_width, facecolor=color,
-                     edgecolor='none', length_includes_head=True, zorder=2)
+                     edgecolor='none', length_includes_head=True,
+                     zorder=zorder)
 
     def get_center(self, members_df):
         x_center = members_df['x'].mean()
@@ -539,8 +419,10 @@ class Plotter:
             lowest_rank = int(board.where(board > 0, 0).max().max())
             highest_dnf = int(board.where(board < 0, 0).min().min())
 
+            ties_df = DataFrame(0, columns=unique(board.values), index=xs)
+
             for player in board.index:
-                self.plot_board_player(ax, xs, player, board, lowest_rank)
+                self.plot_board_player(ax, xs, player, board, lowest_rank, ties_df) #ties_df =
             self.streamer.status(1/self.plot_counts * (1/3))
 
             round_titles = [self.texter.clean_text(c) for c in board.columns]
@@ -550,7 +432,8 @@ class Plotter:
 
             if has_dnf:
                 # plot DNF line
-                ax.plot([x_min - scaling[0]/2, x_max + scaling[0]/2], [lowest_rank + 1] * 2, '--', color='0.5')
+                ax.plot([x_min - scaling[0]/2, x_max + scaling[0]/2], [lowest_rank + 1] * 2, '--', color='0.5',
+                        zorder=0)
             self.streamer.status(1/self.plot_counts * (1/3))
 
             ax.set_xlim(x_min - scaling[0]/2, x_max + scaling[0]/2)
@@ -575,28 +458,52 @@ class Plotter:
         self.streamer.pyplot(ax.figure, header='Round Finishers',
                              tooltip=self.librarian.get_tooltip('boards', parameters=parameters))
 
-    def plot_board_player(self, ax, xs, player, board, lowest_rank):
+    def plot_board_player(self, ax, xs, player, board, lowest_rank, ties_df):
         ys = board.where(board > 0).loc[player]
         ds = [lowest_rank - d + 1 for d in board.where(board < 0).loc[player]]
+
+        ties = board.eq(board.loc[player]).sum()
 
         display_name = self.texter.get_display_name(player)
 
         color = f'C{board.index.get_loc(player)}'
-        ax.plot(xs, ys, marker='.', color=color)
-        ax.scatter(xs, ds, marker='.', color=color)
+        ax.plot(xs, ys, marker='.', color=color, zorder=0)
+        ax.scatter(xs, ds, marker='.', color=color, zorder=0)
 
-        for x, y, d in zip(xs, ys, ds):
+        for x, y, d, t in zip(xs, ys, ds, ties):
+            size = self.ranking_size# * t**0.5 / t
             if y > 0:
+                x_plot, y_plot = self.adjust_ties(x, y, t, ties_df.loc[x, y])
+                ties_df.loc[x, y] += 1
+
                 # plot finishers
-                image, _ = self.plot_image(ax, x, y, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
+                image, _ = self.plot_image(ax, x_plot, y_plot, player_name=player, size=size, flipped=True,
+                                           zorder=1)
                 if not image:
                     ax.text(x, y, display_name)
+                
 
             if d > lowest_rank + 1:
                 # plot DNFs
-                image, _ = self.plot_image(ax, x, d, player_name=player, size=self.ranking_size, flipped=True, zorder=100)#, aspect=aspect)
+                image, _ = self.plot_image(ax, x, d, player_name=player, size=size, flipped=True,
+                                           zorder=1)
                 if not image:
                     ax.text(x, d, display_name)
+
+    def adjust_ties(self, x, y, t, i, overlap=0.95):
+        if t == 1:
+            x_plot = x
+            y_plot = y
+
+        else:
+            angle = 2*pi / t
+
+            adj = pi / 4 if t == 2 else 0
+            R = self.ranking_size/2 * overlap
+            x_plot = R * cos(angle * i + adj) + x
+            y_plot = R * sin(angle * i + adj) + y
+            
+        return x_plot, y_plot
 
     def plot_rankings(self, league_title, rankings, dirty_df, discovery_df):
         if False: ##f'rankings_ax:{league_title}' in st.session_state:
@@ -806,7 +713,7 @@ class Plotter:
         else:          
             self.streamer.status(1/self.plot_counts * (1/2))
             self.streamer.print('\t...genres', base=False)
-            mask = self.pictures.get_mask_array(mask_bytes)
+            mask = self.canvas.get_mask_array(mask_bytes)
 
             text = Counter(tags_df.dropna().sum().sum())
             
@@ -887,14 +794,14 @@ class Plotter:
                                   tooltip=self.librarian.get_tooltip('top_songs', parameters=parameters))
                 
             base = 500
-            text_image_results = self.pictures.get_time_parameters(results_df,
+            text_image_results = self.canvas.get_time_parameters(results_df,
                                                                    self.subplot_aspects['top_songs'],
                                                                    base)
             text_df, D, max_x, x_ratio, W, H, base = text_image_results
 
             n_rounds = len(round_titles)
             for i, r in enumerate(round_titles):
-                image = self.pictures.get_timeline_image(text_df[text_df['round'] == r], max_x, x_ratio, W, H, base)
+                image = self.canvas.get_timeline_image(text_df[text_df['round'] == r], max_x, x_ratio, W, H, base)
 
                 ax.imshow(image)
                 W, H = image.size

@@ -11,6 +11,14 @@ class Printer:
         for option in self.options:
             set_option(option, None)
 
+class Streamable:
+    def __init__(self):
+        self.streamer = Streamer(deployed=False)
+
+    def add_streamer(self, streamer):
+        if streamer:
+            self.streamer = streamer
+
 class Streamer:
     def __init__(self, deployed=True):
         self.texter = Texter()

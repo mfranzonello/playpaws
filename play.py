@@ -17,4 +17,5 @@ def main():
     
     plot_data(database, streamer)
 
-main()
+if __name__ == '__main__':
+    main()

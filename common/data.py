@@ -6,9 +6,9 @@ from pandas import read_sql, DataFrame, isnull
 from pandas.api.types import is_numeric_dtype
 
 from common.secret import get_secret
-from display.streaming import Streamer
+from display.streaming import Streamable
 
-class Database:
+class Database(Streamable):
     tables = {# MusicLeague data
               'Leagues': {'keys': ['league'],
                           'values': ['creator', 'date', 'url']},
@@ -54,17 +54,14 @@ class Database:
                           'values': ['value']},
               }
 
-    def use_one_league(self, table_name):
-        use_one = ('league' in self.get_keys(table_name)) and self.tables[table_name].get('use_one_league', True)
-        return use_one
-   
     def __init__(self, main_url, streamer=None):
+        super().__init__()
         self.db = f'"{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}"'
         engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}{get_secret("BITIO_ADD_ON")}'
                          f':{get_secret("BITIO_PASSWORD")}@{get_secret("BITIO_HOST")}')
         
         self.main_url = main_url
-        self.streamer = streamer if streamer else Streamer(deployed=False)
+        self.add_streamer(streamer)
         
         self.keys = {table_name: self.tables[table_name]['keys'] for table_name in self.tables}
         self.values = {table_name: self.tables[table_name]['values'] for table_name in self.tables}
@@ -77,15 +74,15 @@ class Database:
     #@st.cache(allow_output_mutation=True)
     def connect(self, engine_string):
         self.streamer.print(f'Connecting to database {self.db}...')
-        ##streamer.print(f'Connecting to database {self.db}...')
         
         engine = create_engine(engine_string)
         connection = engine.connect()
         return connection
-        
-    def __hash__(self):
-        return hash(self.engine_string, self.main_url)
 
+    def use_one_league(self, table_name):
+        use_one = ('league' in self.get_keys(table_name)) and self.tables[table_name].get('use_one_league', True)
+        return use_one
+   
     def table_name(self, table_name:str) -> str:
         full_table_name = f'{self.db}."{table_name.lower()}"'
 
@@ -362,6 +359,13 @@ class Database:
             creator = None
         return creator
 
+    def get_leagues_for_member(self, player_name):
+        sql = 'SELECT league FROM {self.table_name("Members")} WHERE player = {self.needs_quotes(player_name)}'
+
+        league_titles = read_sql(sql, self.connection)['league'].values
+
+        return league_titles
+
     def check_data(self, league_title, round_title=None):
         # see if there is any data for the league or round
         wheres = f'league = {self.needs_quotes(league_title)}'
@@ -500,9 +504,9 @@ class Database:
         return player_names
 
     def get_weights(self, version):
-        sql = (f'SELECT DISTINCT ON(s.parameter) s.version, s.parameter, s.value '
-               f'FROM (SELECT * FROM {self.table_name("Weights")} '
-               f'WHERE version >= FLOOR({version}) ORDER BY version DESC) AS s;'
+        sql = (f'SELECT DISTINCT ON(parameter) version, parameter, value '
+               f'FROM {self.table_name("Weights")} WHERE version >= FLOOR({version}::real) '
+               f'ORDER BY parameter, version DESC;'
                )
 
         weights = read_sql(sql, self.connection, index_col='parameter')['value']
@@ -735,12 +739,21 @@ class Database:
         return tracks_df
 
     # analytics functions
-    def store_analysis(self, league_title, version, statuses, optimized):
+    def store_analysis(self, league_title, version, statuses=None, optimized=None):
         today = date.today()
-        analyses_df = DataFrame([[league_title, today, version,
-                                  statuses['open'], statuses['closed']], optimized],
-                                columns=['league', 'date', 'version', 'open', 'closed', 'optimized'])
+        d = {'league': [league_title],
+             'date': [today],
+             'version': [version]}
 
+        if statuses:
+            d['open'] = [statuses['open']]
+            d['closed'] = [statuses['closed']]
+
+        if optimized is not None:
+            d['optimized'] = [optimized]
+
+        analyses_df = DataFrame(d)
+        
         self.upsert_table('Analyses', analyses_df)
 
     #def store_analyses(self, results):
@@ -751,6 +764,28 @@ class Database:
                                                            'column': 'date',
                                                            'sort': 'ASC'})
         return analyses_df
+    
+    def get_analyzed(self, league_title, open_rounds, closed_rounds, version):
+        sql = (f'SELECT COUNT(*) FROM {self.table_name("Analyses")} '
+               f'WHERE (league = {self.needs_quotes(league_title)}) '
+               f'AND (open = {self.needs_quotes(open_rounds)}) '
+               f'AND (closed = {self.needs_quotes(closed_rounds)}) '
+               f'AND (version = {version}::real);'
+               )
+
+        analyzed = read_sql(sql, self.connection)['count'].iloc[0] > 0
+
+        return analyzed
+
+    def get_optimized(self, league_title):
+        sql = (f'SELECT COUNT(*) FROM {self.table_name("Analyses")} '
+               f'WHERE (league = {self.needs_quotes(league_title)}) '
+               f'AND (optimized = TRUE);'
+               )
+
+        optimized = read_sql(sql, self.connection)['count'].iloc[0] > 0
+
+        return optimized
 
     def store_rankings(self, rankings_df, league_title):
         df = rankings_df.reset_index().reindex(columns=self.store_columns('Rankings'))

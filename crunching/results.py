@@ -52,11 +52,9 @@ class Songs(Results):
 
         self.patternizer = Patternizer(self, votes, player_names)
 
-    def get_patternizer(self, votes=None, members=None, player_names=None):
+    def get_patternizer(self, votes, player_names):
         if self.patternizer is None:
-            if player_names is None:
-                player_names = members.player_names
-            self.add_patternizer(votes, player_names)
+            self.add_patternizer(votes, player_names=player_names)
 
         return self.patternizer
 

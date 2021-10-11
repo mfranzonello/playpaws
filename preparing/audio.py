@@ -10,9 +10,9 @@ from common.secret import get_secret
 from common.words import Texter
 from display.media import Gallery, Byter
 from display.storage import Boxer, Googler
-from display.streaming import Streamer
+from display.streaming import Streamable
 
-class Spotter:
+class Spotter(Streamable):
     audio_features = ['danceability',
                       'energy',
                       'key',
@@ -26,13 +26,14 @@ class Spotter:
                       'tempo']
 
     def __init__(self, streamer=None):
+        super().__init__()
         self.sp = None
 
         self.texter = Texter()
         self.byter = Byter()
         self.boxer = Boxer()
         self.googler = Googler()
-        self.streamer = streamer if streamer else Streamer(deployed=False)
+        self.add_streamer(streamer)
 
     def connect_to_spotify(self):
         self.streamer.print('Connecting to Spotify API...')
@@ -419,10 +420,11 @@ class Spotter:
         track_uris = []
         self.sp.playlist_replace_items(playlist_uri, track_uris)
 
-
-class FMer:
-    def __init__(self): #, credentials):
+class FMer(Streamable):
+    def __init__(self):
+        super().__init__()
         self.fm = None
+        self.add_steamer(streamer)
 
     def connect_to_lastfm(self):
         self.streamer.print('Connecting to LastFM API...')

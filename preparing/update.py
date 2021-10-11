@@ -1,7 +1,7 @@
-from extract import Stripper, Scraper
-from media import Texter
-from audio import Spotter, FMer
-from results import Songs, Votes, Rounds, Leagues, Players
+from common.words import Texter
+from preparing.extract import Stripper, Scraper
+from preparing.audio import Spotter, FMer
+from crunching.results import Songs, Votes, Rounds, Leagues, Players
 
 class Updater:
     def __init__(self, database):

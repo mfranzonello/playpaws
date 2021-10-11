@@ -1,5 +1,5 @@
 from itertools import permutations, combinations
-from math import pi, sin, cos
+from math import pi, sin, cos, log
 
 from scipy.optimize import minimize
 from pandas import DataFrame, Series, concat
@@ -90,7 +90,7 @@ class Pulse:
         self.df = DataFrame(data=self.player_permutations, columns=['p1', 'p2'])
 
     def __repr__(self):
-        printed = self.df.drop(columns=['win'])
+        printed = self.df.drop(columns=[w for w in ['win'] if w in self.df.columns]).dropna(axis=1, how='all')
         return f'PULSE\n{printed}\n'
 
     # calculate who likes whom
@@ -113,7 +113,7 @@ class Pulse:
     # calculate similarity
     def calculate_similarity(self, songs, votes):
         print('\t...getting patterns')
-        patternizer = songs.get_patternizer(songs, votes, player_names=self.player_names)
+        patternizer = songs.get_patternizer(votes, self.player_names)
         
         print('\t...permutations')
         for p1, p2 in self.player_combinations:
@@ -143,7 +143,7 @@ class Pulse:
         self.df['plot_distance'] = self.df['distance'].where(voted | ~outliers).where(below_UB, UB)
 
     def calculate_wins(self, songs, votes):
-        patternizer = songs.get_patternizer(songs, votes, player_names=self.player_names)
+        patternizer = songs.get_patternizer(votes, self.player_names)
         did_count = patternizer.get_counted()
         for p1, p2 in self.player_permutations:
             counted = did_count[p1] & did_count[p2]
@@ -210,7 +210,6 @@ class Members:
         distances = DataFrame(data=self.player_combinations, columns=['p1', 'p2'])
         distances['distance'] = distances.merge(pulse.df, on=['p1', 'p2'], how='left')['plot_distance']
         
-        dists = distances['distance'].fillna(0)
         needed = distances['distance'].notna() # only include if pair voted together
 
         # update from db if exists
@@ -223,14 +222,17 @@ class Members:
         xy0 = self.df[['x','y']][1:].fillna(0).melt()['value']
         print('\t...minimizing')
         xy = minimize(self.distdiff, xy0, args=(distances['distance'], needed), options={'maxiter': max_iterations})
-        print('\t\t...optimal solution found')
-        ##dist = self.distdiff(xy.x, distances['distance'], needed)
 
         self.df['x'] = [0] + xy.x.tolist()[0:int(len(xy.x)/2)]
         self.df['y'] = [0] + xy.x.tolist()[int(len(xy.x)/2):]
 
         self.coordinates['success'] = xy.success
-        self.coordiantes['message'] = xy.message
+        self.coordinates['message'] = xy.message
+
+        if xy.success:
+            print('\t\t...optimal solution found')
+        else:
+            print(xy.message)
 
     def who_likes_whom(self, pulse):
         # calculate likes and liked values
@@ -251,22 +253,52 @@ class Members:
 
 class Rankings:
     def __init__(self, songs, votes, weights={'must_vote': True}):
-        self.df = songs.df.drop(columns=['song_id', 'people']).groupby(['round', 'submitter']).sum()
-        self.df.index.rename(['round', 'player'], inplace=True)
-
-        must_vote = weights.get('must_vote', True)
-        self.voted_per_round = votes.df.groupby(['round', 'player'])[['vote']].sum() > 0
-        self.submitted_per_round = self.df.mask(self.df >= 0, True).reset_index()\
-            .pivot(columns='round', values='points', index='player')\
-            .reindex(columns=self.df.index.levels[0])
+        self.df = self.calculate_points(songs, votes, weights)
+        
+        self.voted_per_round = self.get_votes_per_round(votes)
+        self.submitted_per_round = self.get_submitted_per_round()
  
-        self.normalize_rankings(songs, votes, must_vote=must_vote)
+        self.normalize_rankings(songs, must_vote=weights.get('must_vote', True))
         self.sort_rankings(songs)
 
     def __repr__(self):
         return f'RANKINGS\n{self.df.fillna("DNF")}\n'
 
-    def normalize_rankings(self, songs, votes, must_vote=True):
+    def calculate_points(self, songs, votes, weights):
+        # calculate points earned during round
+        points_df = songs.df.drop(columns=['song_id', 'people']).groupby(['round', 'submitter']).sum()
+        # calculate bonus points
+        ##print(songs.df.merge(votes.df[['song_id', 'vote']], on='song_id', how='left')\
+        ##    .groupby(['round', 'submitter', 'song_id'])['vote'].sum())
+        ##print(songs.df.merge(votes.df[['song_id', 'vote']], on='song_id')\
+        ##    .groupby(['round', 'submitter', 'song_id'])['vote'].sum().eq(0))
+        ##print(songs.df.merge(votes.df[['song_id', 'vote']], on='song_id')\
+        ##    .groupby(['round', 'submitter', 'song_id'])['vote'].sum().eq(0)\
+        ##    .reset_index().groupby(['round', 'submitter'])['vote'].sum())
+
+        bonus_points = songs.df.merge(votes.df[['song_id', 'vote']], on='song_id', how='left')\
+            .groupby(['round', 'submitter', 'song_id'])['vote'].sum().eq(0)\
+            .reset_index().groupby(['round', 'submitter'])['vote'].sum().mul(-1).add(1)\
+            .mul(weights.get('all_songs', 0))
+
+        points_df['points'] += bonus_points
+        points_df.index.rename(['round', 'player'], inplace=True)
+
+        return points_df
+
+    def get_votes_per_round(self, votes):
+        voted_per_round = votes.df.groupby(['round', 'player'])[['vote']].sum() > 0
+
+        return voted_per_round
+
+    def get_submitted_per_round(self):
+        submitted_per_round = self.df.mask(self.df >= 0, True).reset_index()\
+            .pivot(columns='round', values='points', index='player')\
+            .reindex(columns=self.df.index.levels[0])
+
+        return submitted_per_round
+
+    def normalize_rankings(self, songs, must_vote=True):
         # suppress points where no votes and normalize score
         if must_vote:
             self.df['points'] = self.df.where(self.voted_per_round['vote'])['points']
@@ -291,9 +323,9 @@ class Rankings:
         pointsboard = self.df.reset_index().pivot(columns='round', values='points', index='player')\
             .reindex(columns=self.df.index.levels[0])
 
+        leaderboard = pointsboard.rank(ascending=False, method='average')
         dnf = -pointsboard.fillna(1).where(pointsboard.isna()).where(self.submitted_per_round).rank(method='first')
-        leaderboard = pointsboard.rank(ascending=False, method='first')
-
+        
         board = leaderboard.add(dnf, fill_value=0)
         
         return board

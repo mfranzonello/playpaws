@@ -6,19 +6,20 @@ import browser_cookie3 as browsercookie
 from bs4 import BeautifulSoup
 
 from common.words import Texter
-from display.streaming import streamer
+from display.streaming import Streamable
 
-class Scraper:
+class Scraper(Streamable):
     headers = {'X-Requested-With': 'XMLHttpRequest'}
 
     def __init__(self, stripper):
+        super().__init__()
         self.stripper = stripper
         self.main_url = stripper.main_url
-
+        
         self.cj = browsercookie.chrome(domain_name=self.main_url.replace('https://', ''))
         
     def get_html_text(self, url):
-        streamer.print(f'\t...requesting {url}')
+        self.streamer.print(f'\t...requesting {url}')
 
         if url[0] == '/':
             url = f'{self.main_url}{url}'
@@ -42,7 +43,7 @@ class Scraper:
             match = match & (results['round'][0] == round_title)
         return match
 
-class Stripper:
+class Stripper(Streamable):
     home_types = {'league': {'tag': 'div',
                              'attrs': {'class': 'league-title'},
                              }, # completed date
@@ -94,12 +95,6 @@ class Stripper:
                                     'attrs': {'class': 'status-text'},
                                     'self_only': True,
                                     },
-                    ##'round_creators': {'tag': 'span',
-                    ##                   'attrs': {'class': 'status-text'},
-                    ##                   'self_only': True,
-                    ##                   'remove': {'type': 'in',
-                    ##                              'rems': [f'{b} by ' for b in ['Chosen', 'Submitted']]},
-                    ##                   },
                     'playlists': {'tag': 'a',
                                   'attrs': {'class': 'action-link',
                                             'title': 'Listen to Playlist'},
@@ -108,7 +103,6 @@ class Stripper:
                     'player': {'tag': 'a',
                                'href': 'user/',
                                'multiple': {'name': {'title': True},
-                                            ##'img': {'src': True},
                                             'url': {'href': True,
                                                     'remove': {'type': 'in',
                                                                'rems': ['/user/']},
@@ -124,28 +118,12 @@ class Stripper:
                    'round': {'tag': 'span',
                              'attrs': {'class': 'round-title'},
                              },
-                   ##'artist': {'tag': 'span',
-                   ##           'attrs': {'class': 'vcenter artist'},
-                   ##           'remove': {'type': 'start',
-                   ##                      'rems': ['By ']},
-                   ##           },
-                   ##'artist2': {'tag': 'span',
-                   ##            'attrs': {'class': 'trackArtist'},
-                   ##            'remove': {'type': 'start',
-                   ##                       'rems': ['By ']},
-                   ##            }, 
                    'track': {'tag': 'a',
                              'attrs': {'class': 'vcenter name'},
                              'multiple': {'title': {},
                                           'url': {'href': True},
                                           },
                              },
-                   ##'track2': {'tag': 'a',
-                   ##           'attrs': {'class': 'trackName'},
-                   ##           'multiple': {'title': {},
-                   ##                        'url': {'href': True},
-                   ##                        },
-                   ##           },
                    'submitter': {'tag': 'span',
                                  'attrs': {'class': 'vcenter submitter'},
                                  'sublink': True,
@@ -179,6 +157,7 @@ class Stripper:
                    }
                                  
     def __init__(self, main_url):
+        super().__init__()
         self.result_types = {'home': Stripper.home_types,
                              'league': Stripper.league_types,
                              'round': Stripper.round_types,
@@ -291,7 +270,7 @@ class Stripper:
 
     def extract_results(self, html_text, page_type) -> tuple:
         # extract results from HTML tags
-        streamer.print(f'\t\t...extracting results')
+        self.streamer.print(f'\t\t...extracting results')
         results = self.get_results(html_text, page_type)
         
         if page_type == 'home':
