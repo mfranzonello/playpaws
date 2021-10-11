@@ -7,6 +7,35 @@ class Librarian:
         self.texter = Texter()
         self.feeler = Feeler()
 
+    def get_and_set_fonts(self, font_manager, rcParams, dir_path):
+        sans_fonts = list(self.texter.sans_fonts.keys())
+        sans_font = list(self.texter.sans_fonts.values())[0]
+        bold_font = list(self.texter.bold_fonts.values())[0]
+        emoji_font = list(self.texter.emoji_fonts.values())[0]
+
+        image_sans_font = f'fonts/{sans_font}'
+        image_bold_font = f'fonts/{bold_font}'
+
+        # set plotting fonts
+        font_dir = f'{dir_path}/fonts'
+        font_files = font_manager.findSystemFonts(fontpaths=[font_dir])
+
+        for font_file in font_files:
+            font_manager.fontManager.addfont(font_file)
+
+        plot_sans_font = font_manager.get_font(f'{font_dir}/{sans_font}').family_name
+        plot_emoji_font = font_manager.get_font(f'{font_dir}/{emoji_font}').family_name
+
+        rcParams['font.family'] = 'sans-serif'
+        rcParams['font.sans-serif'] = sans_fonts
+
+        fonts = {'image_sans': image_sans_font,
+                 'image_bold': image_bold_font,
+                 'plot_sans': plot_sans_font,
+                 'plot_emoji': plot_emoji_font}
+
+        return fonts  
+
     def get_tooltip(self, plot_name, parameters={}):
         text = None
 

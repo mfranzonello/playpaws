@@ -4,10 +4,66 @@ from urllib.request import urlopen
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
 from matplotlib.dates import date2num
 from numpy import asarray
+from pandas import DataFrame
 
 from display.media import Imager, Gallery
 from display.storage import Boxer
 from display.streaming import Streamable
+
+class Paintbrush:
+    color_wheel = 255
+    
+    colors = {'grey': (172, 172, 172),
+              'blue': (44, 165, 235),
+              'green': (86, 225, 132),
+              'red': (189, 43, 43),
+              'yellow': (255, 242, 119),
+              'purple': (192, 157, 224),
+              'peach': (224, 157, 204),
+              'dark_blue': (31, 78, 148),
+              'orange': (245, 170, 66),
+              'aqua': (85, 230, 203),
+              'pink': (225, 138, 227),
+              'gold': (145, 110, 45),
+              }
+
+    def __init__(self):
+        pass
+
+    def get_color(self, color_name):
+        return self.colors.get(color_name, (0, 0, 0))
+
+    def get_colors(self, *color_names):
+        if len(color_names) == 1:
+            colors = self.get_color(color_name[0])
+        else:
+            colors = [self.get_color(color_name) for color_name in color_names]
+        
+        return colors
+
+    def grade_colors(self, colors:list, precision:int=2):
+        # create color gradient
+        rgb_df = DataFrame(colors, columns=['R', 'G', 'B'],
+                           index=[round(x/(len(colors)-1), 2) for x in range(len(colors))])\
+                               .reindex([x/10**precision for x in range(10**precision+1)]).interpolate()
+        return rgb_df
+
+    def get_rgb(self, rgb_df:DataFrame, percent:float, fail_color=(0, 0, 0), astype=int):
+        # get color based on interpolation of a list of colors
+        if isnan(percent):
+            rgb = fail_color
+        else:
+            rgb = tuple(rgb_df.iloc[rgb_df.index.get_loc(percent, 'nearest')].astype(astype))
+
+        return rgb
+
+    def get_scatter_colors(self, colors_rgb):
+        colors = [self.normalize_color(rgb, self.color_wheel) for rgb in colors_rgb]
+        return colors
+
+    def normalize_color(self, color, divisor):
+        color = tuple(c / divisor for c in color)
+        return color
 
 class Canvas(Imager, Streamable):
     def __init__(self, database, streamer=None):

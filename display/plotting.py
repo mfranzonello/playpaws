@@ -13,27 +13,11 @@ from numpy import unique
 
 from common.words import Texter
 from display.library import Librarian
-from display.artist import Canvas
+from display.artist import Canvas, Paintbrush
 from display.storage import Boxer
 from display.streaming import Streamable
 
-class Plotter(Streamable):
-    color_wheel = 255
-    
-    dfc_colors = {'grey': (172, 172, 172),
-                  'blue': (44, 165, 235),
-                  'green': (86, 225, 132),
-                  'red': (189, 43, 43),
-                  'yellow': (255, 242, 119),
-                  'purple': (192, 157, 224),
-                  'peach': (224, 157, 204),
-                  'dark_blue': (31, 78, 148),
-                  'orange': (245, 170, 66),
-                  'aqua': (85, 230, 203),
-                  'pink': (225, 138, 227),
-                  'gold': (145, 110, 45),
-                  }
-
+class Plotter(Streamable):   
     marker_sizing = 50
 
     name_offset = 0.1
@@ -57,68 +41,48 @@ class Plotter(Streamable):
         super().__init__()
         self.texter = Texter()
         self.librarian = Librarian()
+        self.paintbrush = Paintbrush()
         self.boxer = Boxer()
 
         self.streamer = streamer
         self.database = database
         
         # define fonts to use
-        self.sans_fonts = list(self.texter.sans_fonts.keys())
-        self.emoji_fonts = list(self.texter.emoji_fonts.keys())
+        self.fonts = self.librarian.get_and_set_fonts(font_manager, rcParams,
+                                                    dirname(dirname(realpath(__file__))))
+        ##self.sans_fonts = list(self.texter.sans_fonts.keys())
 
-        self.sans_font = list(self.texter.sans_fonts.values())[0]
-        self.bold_font = list(self.texter.bold_fonts.values())[0]
-        self.emoji_font = list(self.texter.emoji_fonts.values())[0]
+        ##self.sans_font = list(self.texter.sans_fonts.values())[0]
+        ##self.bold_font = list(self.texter.bold_fonts.values())[0]
+        ##self.emoji_font = list(self.texter.emoji_fonts.values())[0]
 
-        self.image_sans_font = f'fonts/{self.sans_font}'
-        self.image_bold_font = f'fonts/{self.bold_font}'
+        ##self.image_sans_font = f'fonts/{self.sans_font}'
+        ##self.image_bold_font = f'fonts/{self.bold_font}'
 
-        # set plotting fonts
-        dir_path = dirname(dirname(realpath(__file__)))
-        font_dir = f'{dir_path}/fonts'
-        font_files = font_manager.findSystemFonts(fontpaths=[font_dir])
+        ### set plotting fonts
+        ##dir_path = dirname(dirname(realpath(__file__)))
+        ##font_dir = f'{dir_path}/fonts'
+        ##font_files = font_manager.findSystemFonts(fontpaths=[font_dir])
 
-        for font_file in font_files:
-            font_manager.fontManager.addfont(font_file)
+        ##for font_file in font_files:
+        ##    font_manager.fontManager.addfont(font_file)
 
-        self.plot_sans_font = font_manager.get_font(f'{font_dir}/{self.sans_font}').family_name
-        self.plot_emoji_font = font_manager.get_font(f'{font_dir}/{self.emoji_font}').family_name
+        ##self.plot_sans_font = font_manager.get_font(f'{font_dir}/{self.sans_font}').family_name
+        ##self.plot_emoji_font = font_manager.get_font(f'{font_dir}/{self.emoji_font}').family_name
 
-        rcParams['font.family'] = 'sans-serif'
-        rcParams['font.sans-serif'] = self.sans_fonts
+        ##rcParams['font.family'] = 'sans-serif'
+        ##rcParams['font.sans-serif'] = self.sans_fonts
         
         self.league_titles = None
         self.view_player = None
-        self.plot_counts = 7
-
-    def translate(self, x:float, y:float, theta:float, rotate:float, shift_distance:float=0):
-        x_shifted = x + shift_distance*cos(theta + rotate*pi/2)
-        y_shifted = y + shift_distance*sin(theta + rotate*pi/2)
-        return x_shifted, y_shifted
-
-    def get_dfc_colors(self, *color_names):
-        colors = [self.dfc_colors[name] for name in color_names]
-
-        if len(color_names) == 1:
-            colors = colors[0]
-
-        return colors
-
-    def grade_colors(self, colors:list, precision:int=2):
-        # create color gradient
-        rgb_df = DataFrame(colors, columns=['R', 'G', 'B'],
-                           index=[round(x/(len(colors)-1), 2) for x in range(len(colors))])\
-                               .reindex([x/10**precision for x in range(10**precision+1)]).interpolate()
-        return rgb_df
-
-    def get_rgb(self, rgb_df:DataFrame, percent:float, fail_color=(0, 0, 0), astype=int):
-        # get color based on interpolation of a list of colors
-        if isnan(percent):
-            rgb = fail_color
-        else:
-            rgb = tuple(rgb_df.iloc[rgb_df.index.get_loc(percent, 'nearest')].astype(astype))
-
-        return rgb
+        self.plot_counts = len((self.plot_members,
+                                self.plot_boards,
+                                self.plot_rankings,
+                                self.plot_features,
+                                self.plot_tags,
+                                self.plot_top_songs,
+                                self.plot_playlists,
+                                ))
     
     ##@st.cache(hash_funcs=)
     def add_canvas(self):
@@ -191,17 +155,6 @@ class Plotter(Streamable):
             
                 self.streamer.print('Everything loaded! Close this sidebar to view.')
 
-    def plot_welcome(self):
-        image = self.boxer.get_welcome()
-
-        self.streamer.image(image, header='Welcome to MöbiMusic!', in_expander=False,
-                            tooltip=self.librarian.get_tooltip('welcome'))
-        ##self.streamer.wrapper(None, tooltip=self.librarian.get_tooltip('welcome'))
-
-        self.streamer.clear_printer()
-
-        self.streamer.set_side_image()
-
     def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5,
                    image_size=(0, 0), padding=0, text=None,
                    aspect=(1, 1), flipped=False, zorder=0):
@@ -216,7 +169,7 @@ class Plotter(Streamable):
             imgs = None
 
         if image and text:
-            image = self.canvas.add_text(image, text, self.image_sans_font)
+            image = self.canvas.add_text(image, text, self.fonts['image_sans'])
 
         if image:
             scaling = [a / max(aspect) for a in aspect]
@@ -244,6 +197,22 @@ class Plotter(Streamable):
             labels = [self.texter.split_long_text(l, limit=30) for l in labels]
 
         return labels
+
+    def translate(self, x:float, y:float, theta:float, rotate:float, shift_distance:float=0):
+        x_shifted = x + shift_distance*cos(theta + rotate*pi/2)
+        y_shifted = y + shift_distance*sin(theta + rotate*pi/2)
+        return x_shifted, y_shifted
+
+    def plot_welcome(self):
+        image = self.boxer.get_welcome()
+
+        self.streamer.image(image, header='Welcome to MöbiMusic!', in_expander=False,
+                            tooltip=self.librarian.get_tooltip('welcome'))
+        ##self.streamer.wrapper(None, tooltip=self.librarian.get_tooltip('welcome'))
+
+        self.streamer.clear_printer()
+
+        self.streamer.set_side_image()
 
     def plot_title(self, league_title, creator):
         parameters = {'title': league_title,
@@ -278,7 +247,7 @@ class Plotter(Streamable):
 
             sizes = self.get_scatter_sizes(members_df)
             colors = self.get_node_colors(members_df)
-            colors_scatter = self.get_scatter_colors(colors, divisor=self.color_wheel)
+            colors_scatter = self.paintbrush.get_scatter_colors(colors)
        
             for x_p, y_p, p_name, s_p, c_p, c_s, z in zip(x, y, player_names, sizes, colors, colors_scatter, player_names.index):
                 self.plot_member_nodes(ax, x_p, y_p, p_name, s_p, c_p, c_s, z)
@@ -321,9 +290,9 @@ class Plotter(Streamable):
         max_dfc = members_df['dfc'].max()
         min_dfc = members_df['dfc'].min()
 
-        rgb_df = self.grade_colors(self.get_dfc_colors('green', 'blue'))
-        colors = [self.get_rgb(rgb_df, 1-(dfc - min_dfc)/(max_dfc - min_dfc),
-                               fail_color=self.get_dfc_colors('grey')) for dfc in members_df['dfc'].values]
+        rgb_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('green', 'blue'))
+        colors = [self.paintbrush.get_rgb(rgb_df, 1-(dfc - min_dfc)/(max_dfc - min_dfc),
+                               fail_color=self.paintbrush.get_color('grey')) for dfc in members_df['dfc'].values]
         
         return colors
 
@@ -408,7 +377,6 @@ class Plotter(Streamable):
     def get_scatter_sizes(self, members_df):
         sizes = (members_df['wins'] + 1) * self.marker_sizing
         return sizes
-
 
     def plot_boards(self, league_title, board, creators_winners_df):
         if False: ##f'boards_ax:{league_title}' in st.session_state:
@@ -542,13 +510,13 @@ class Plotter(Streamable):
             fig.set_size_inches([fig_w, fig_w / (n_rounds + 4) * len(player_names)])
 
             max_score = rankings_df.max().max()
-            rgb_df = self.grade_colors(self.get_dfc_colors('red', 'yellow', 'green', 'blue'))
+            rgb_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('red', 'yellow', 'green', 'blue'))
         
             max_dirty = max(0.5, dirty_df.max())
-            rgb_dirty_df = self.grade_colors(self.get_dfc_colors('purple', 'peach'))
+            rgb_dirty_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('purple', 'peach'))
 
             max_discovery = 1
-            rgb_discovery_df = self.grade_colors(self.get_dfc_colors('grey', 'dark_blue'))
+            rgb_discovery_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('grey', 'dark_blue'))
 
             xs = range(n_rounds)
             self.streamer.status(1/self.plot_counts * (1/3))
@@ -592,9 +560,9 @@ class Plotter(Streamable):
         ys = [y] * len(xs)
         
         scores = rankings_df.loc[player]
-        colors = [self.get_rgb(rgb_df, score/max_score, fail_color=self.get_dfc_colors('grey')) \
+        colors = [self.paintbrush.get_rgb(rgb_df, score/max_score, fail_color=self.paintbrush.get_color('grey')) \
             for score in scores]
-        colors_scatter = self.get_scatter_colors(colors, divisor=self.color_wheel)
+        colors_scatter = self.paintbrush.get_scatter_colors(colors)
 
         image, _ = self.plot_image(ax, -1, y, player_name=player, size=marker_size)
         if image:
@@ -619,7 +587,7 @@ class Plotter(Streamable):
         else:
             text = score
 
-        color = self.get_rgb(rgb_df, score/max_score)
+        color = self.paintbrush.get_rgb(rgb_df, score/max_score)
         if image_size:
             image, imgs = self.plot_image(ax, x, y, color=color, image_size=image_size, size=marker_size, text=text)
         else:
@@ -649,9 +617,9 @@ class Plotter(Streamable):
                              'acousticness': '🎸',
                              'instrumentalness': '🎹',
                              }
-            available_colors = self.get_dfc_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'gold', 'pink')
+            available_colors = self.paintbrush.get_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'gold', 'pink')
 
-            features_colors = self.get_scatter_colors(available_colors, divisor=self.color_wheel)
+            features_colors = self.paintbrush.get_scatter_colors(available_colors)
 
             n_rounds = len(features_df)
         
@@ -673,7 +641,7 @@ class Plotter(Streamable):
             for c in range(len(features_like)):
                 #c = ax.containers.index(container)
                 ax.bar_label(ax.containers[c], color=features_colors[c % len(features_colors)], labels=[list(features_like.values())[c]]*n_rounds,
-                             fontfamily=self.plot_emoji_font, horizontalalignment='center', padding=padding, size=font_size)
+                             fontfamily=self.fonts['plot_emoji'], horizontalalignment='center', padding=padding, size=font_size)
             
                     
             self.streamer.status(1/self.plot_counts * (1/3))
@@ -688,7 +656,7 @@ class Plotter(Streamable):
                     y = (features_df[solo][i] + features_df[solo][i+1])/2
                     padding_multiplier = -1 if y > 0.5 else 1
                     ax.text(x=i + 0.5, y=y + padding_multiplier * padding, s=features_solo[solo], # y=self.convert_axes(ax, (features_df[solo][i] + features_df[solo][i+1])/2)
-                            size=font_size, color=color, fontfamily=self.plot_emoji_font, horizontalalignment='center') #font=self.emoji_font
+                            size=font_size, color=color, fontfamily=self.fonts['plot_emoji'], horizontalalignment='center') #font=self.emoji_font
                 
                         
             self.streamer.status(1/self.plot_counts * (1/3))
@@ -786,13 +754,13 @@ class Plotter(Streamable):
             outlier_date = dates.where(dates > dates.mean() - dates.std()).min()
             min_date = max_date.replace(year=outlier_date.year)
 
-            rgb_df = self.grade_colors(self.get_dfc_colors('purple', 'red', 'orange', 'yellow',
-                                                            'green', 'blue', 'dark_blue'))
+            rgb_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('purple', 'red', 'orange', 'yellow',
+                                                                             'green', 'blue', 'dark_blue'))
 
             results_df['x'] = results_df.apply(lambda x: max(min_date, x['release_date']), axis=1)
-            results_df['font_name'] = results_df.apply(lambda x: self.image_bold_font if x['closed'] else self.image_sans_font, axis=1)
-            results_df['color'] = results_df.apply(lambda x: self.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max() \
-                                                if results_df[results_df['round'] == x['round']]['points'].max() else nan, self.get_dfc_colors('grey')), axis=1)
+            results_df['font_name'] = results_df.apply(lambda x: self.fonts['image_bold'] if x['closed'] else self.fonts['image_sans'], axis=1)
+            results_df['color'] = results_df.apply(lambda x: self.paintbrush.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max() \
+                                                if results_df[results_df['round'] == x['round']]['points'].max() else nan, self.paintbrush.get_color('grey')), axis=1)
         
             self.streamer.status(1/self.plot_counts * (1/4))
         
@@ -837,14 +805,6 @@ class Plotter(Streamable):
                                      tooltip=self.librarian.get_tooltip('top_songs_round', parameters=parameters))
                 
             ##st.session_state[f'top_songs_ax:{league_title}'] = ax
-
-    def get_scatter_colors(self, colors_rgb, divisor=1):
-        colors = [self.normalize_color(rgb, divisor) for rgb in colors_rgb]
-        return colors
-
-    def normalize_color(self, color, divisor):
-        color = tuple(c / divisor for c in color)
-        return color
 
     def plot_playlists(self, league_title, playlists_df, track_count, duration,
                        width=400, height=600):
