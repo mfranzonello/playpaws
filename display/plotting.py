@@ -52,6 +52,7 @@ class Plotter(Streamable):
                                                     dirname(dirname(realpath(__file__))))       
         self.league_titles = None
         self.view_player = None
+        self.view_league_titles = None
         self.plot_counts = len((self.plot_members,
                                 self.plot_boards,
                                 self.plot_rankings,
@@ -91,8 +92,8 @@ class Plotter(Streamable):
         if self.view_player != '':
             self.plot_viewer()
 
-            league_titles = self.database.get_player_leagues(self.view_player)
-            viewable_league_titles = [l for l in league_titles if l in self.league_titles.to_list()]
+            self.view_league_titles = self.database.get_player_leagues(self.view_player)
+            viewable_league_titles = [l for l in self.view_league_titles if l in self.league_titles.to_list()]
             if len(viewable_league_titles) == 1:
                 league_title = viewable_league_titles[0]
             elif len(viewable_league_titles) > 1:
@@ -111,7 +112,8 @@ class Plotter(Streamable):
                                            self.database.get_player_wins, league_title, self.view_player)
                 awards_df = self.prepare_dfs(('awards_df', league_title, self.view_player),
                                              self.database.get_awards, league_title, self.view_player)
-                self.plot_caption(viewer_df=viewer_df, wins_df=wins_df, awards_df=awards_df)
+                self.plot_caption(league_title=league_title, viewer_df=viewer_df,
+                                  wins_df=wins_df, awards_df=awards_df)
 
                 self.streamer.print(f'Preparing plot for {league_title}')
                 self.streamer.status(0, base=True)
@@ -219,12 +221,17 @@ class Plotter(Streamable):
 
         self.streamer.player_image.image(image)
 
-    def plot_caption(self, viewer_df=None, wins_df=None, awards_df=None):
+    def plot_caption(self, league_title=None, viewer_df=None, wins_df=None, awards_df=None):
         parameters = {}
-        keys = ['likes', 'liked', 'closest', 'dirtiest', 'discoverer', 'popular', 'win_rate']
-        for df in [viewer_df, wins_df, awards_df]:
+        keys = ['likes', 'liked', 'closest', 'dirtiest', 'discoverer', 'popular',
+                'win_rate', 'play_rate', 'hoarder', 'generous']
+        for df in [viewer_df, awards_df]:
             if (df is not None) and len(df):
                 parameters.update({k: df[k] for k in keys if k in df})
+        if (wins_df is not None) and len(wins_df):
+            parameters['wins'] = wins_df['round'].to_list()
+        parameters['leagues'] = [self.texter.clean_text(l) for l in self.view_league_titles if l != league_title]
+        parameters['other_leagues'] = (league_title is not None)
 
         self.streamer.player_caption.markdown(self.library.get_column(parameters))
 

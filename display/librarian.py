@@ -211,54 +211,60 @@ class Library:
         return tooltip
 
     def get_column(self, parameters={}):
+        leagues_list = []
+        leagues_in = self.texter.get_plurals(parameters['leagues'], markdown='**')['text']
+        other_leagues = 'Other ' if parameters.get('other_leagues') else ''
+        leagues_list.append(f'{other_leagues}Leagues Played In: 🎧{leagues_in}🎧')
+        leagues = self.bar_list(leagues_list, indent=False)
+
         awards_list = []
         if parameters.get('dirtiest'):
             awards_list.append(f'🙊**Most Explicit Player**🙊')
-
         if parameters.get('discoverer'):
             awards_list.append(f'🔎**Best Music Discoverer**🔎')
-
         if parameters.get('popular'):
             awards_list.append(f'✨**Most Hep Tracks**✨')
-
-        awards = f''.join(f'{self.indent()}{a}{self.newline(1)}' for a in awards_list)
-        if awards == '':
-            awards = f'{self.indent()}🤗**Participation Trophy**🤗'
+        # hoarder, generous
+        if not len(awards_list):
+            awards_list.append(f'🤗**Participation Trophy**🤗')
+        awards = self.bar_list(awards_list)
 
         pulse_list = []
         if parameters.get("likes"):
             pulse_list.append(f'Likes best: 💞**{parameters["likes"]}**💞')
-
         if parameters.get("liked"):
             pulse_list.append(f'Most liked by: 💕**{parameters["liked"]}**💕')
-
         if parameters.get("closest"):
             pulse_list.append(f'Most similar to: 👯**{parameters["closest"]}**👯')
-
-        if len(pulse_list):
-            pulse = (f'{self.bar()}' +
-                     ''.join(f'{self.indent()}{p}{self.newline(1)}' for p in pulse_list)
-                     + f'{self.newline(1)}'
-                     )
-        else:
-            pulse = ''
+        pulse = self.bar_list(pulse_list)
 
         stats_list = []
-
         if parameters.get('win_rate'):
             stats_list.append(f'Batting Average: ⚾**{parameters["win_rate"]:.3f}**⚾')
+        if parameters.get('play_rate'):
+            stats_list.append(f'Games Played: 🔥**{parameters["play_rate"]:.3f}**🔥')
+        stats = self.bar_list(stats_list)
 
-        if len(stats_list):
-            stats = (f'{self.bar()}' + 
-                     ''.join(f'{self.indent()}{s}{self.newline(1)}' for s in stats_list) +
-                     f'{self.newline(1)}'
-                     )
-        else:
-            stats = ''
+        wins_list = []
+        if parameters.get('wins'):
+            rounds_won = self.texter.get_plurals(parameters['wins'], markdown='**')
+            wins_list.append(f'Round{rounds_won["s"]} won: 🏅{rounds_won["text"]}🏅')
+        wins = self.bar_list(wins_list)
 
         text = (f'## Player Stats'
-                f'{self.bar()}'
-                f'{awards}{pulse}{stats}'
+                f'{leagues}{awards}{pulse}{stats}{wins}'
                 )
 
         return text
+
+    def bar_list(self, items_list, indent=True):
+        if len(items_list):
+            indent_me = self.indent() if indent else ''
+            items = (f'{self.bar()}' + 
+                     ''.join(f'{indent_me}{x}{self.newline(1)}' for x in items_list) +
+                     f'{self.newline(1)}'
+                     )
+        else:
+            items = ''
+
+        return items
