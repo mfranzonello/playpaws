@@ -201,7 +201,7 @@ class Feeler:
         emoji = None
         for key, value in self.library.items():
             for v in value:
-                if v.lower() in [t.lower() for t in text.split()]:
+                if v.lower() in [t.lower() for t in text.replace(',', ' ').replace('.', ' ').split()]:
                     emoji = key
                     break
             if emoji:

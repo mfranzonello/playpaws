@@ -212,9 +212,12 @@ class Library:
 
     def get_column(self, parameters={}):
         leagues_list = []
-        leagues_in = self.texter.get_plurals(parameters['leagues'], markdown='**')['text']
+        league_titles = parameters.get('leagues')
+        emojis = [self.feeler.match_emoji(t, default='🎧') for t in league_titles]
+        league_titles = [f'{e}{t}{e}' for e, t in  zip(emojis, league_titles)]
+        leagues_in = self.texter.get_plurals(league_titles, markdown='**')['text']
         other_leagues = 'Other ' if parameters.get('other_leagues') else ''
-        leagues_list.append(f'{other_leagues}Leagues Played In: 🎧{leagues_in}🎧')
+        leagues_list.append(f'{other_leagues}Leagues Played In: {leagues_in}')
         leagues = self.bar_list(leagues_list, indent=False)
 
         awards_list = []
