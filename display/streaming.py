@@ -166,7 +166,7 @@ class Streamer:
             
             self.status_bar.progress(new_pct)
 
-    def embed(self, html, height=150, header=None, header2=None, tooltip=None, in_expander=True):
+    def embed(self, html, height=150, header=None, header2=None, tooltip=None, in_expander=False):
         self.wrapper(header, tooltip, header2=header2)
         self.in_expander(in_expander, st_html, html, height=height)
         ##st_html(html, height=height)
