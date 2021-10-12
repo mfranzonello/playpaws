@@ -280,8 +280,6 @@ class Spotter(Streamable):
             track_uris = query_results['uri'].to_list()
             
             if len(track_uris):
-                if league_title == 'Compass Product Org':
-                    self.reset_playlist(playlist_uri)
                 self.update_playlist(playlist_uri, track_uris=track_uris)
 
                 add_rounds = [round_title for round_title in query_results['round'].unique() if round_title not in skip_rounds]
@@ -424,10 +422,10 @@ class Spotter(Streamable):
         self.sp.playlist_replace_items(playlist_uri, track_uris)
 
 class FMer(Streamable):
-    def __init__(self):
+    def __init__(self, streamer=None):
         super().__init__()
         self.fm = None
-        self.add_steamer(streamer)
+        self.add_streamer(streamer)
 
     def connect_to_lastfm(self):
         self.streamer.print('Connecting to LastFM API...')

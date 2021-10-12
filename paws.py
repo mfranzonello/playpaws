@@ -32,7 +32,7 @@ def main():
     analyze_data(database)
 
     # update data in database from Spotify and LastFM APIs
-    ##update_api_data(database)
+    update_api_data(database)
 
 if __name__ == '__main__':
     main()

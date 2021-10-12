@@ -72,7 +72,7 @@ class Database(Streamable):
         self.streamer.print(f'\t...success!')
         
     @cache(allow_output_mutation=True)
-    def connect(self, engine_string):        
+    def connect(self, engine_string):  
         engine = create_engine(engine_string)
         connection = engine.connect()
         return connection

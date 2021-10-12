@@ -137,7 +137,7 @@ class Texter:
 
             elif similarity > 0:
                 # more than one result and others that are close
-                texts_sublist = [m[0] for m in matches if m[1] >= matches[0][1] - similarity],
+                texts_sublist = [m[0] for m in matches if m[1] >= (matches[0][1] - similarity)]
                 closest_text = self.find_closest_match(self.abbreviate_name(text), texts_sublist,
                                                       threshold=threshold, similarity=0)
 

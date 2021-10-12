@@ -190,12 +190,16 @@ class Members:
         # find the average distance between players as R
         # place the other players at radius R angle pi / #
         # consider placing the most central player first
-        circle_players = range(len(self.player_names) - 1)
-        R = pulse.df['distance'].mean() if pulse.df['distance'].mean() > 0 else 1
+        circle_players = self.df.index[self.df[['x', 'y']].isna().sum(1).ne(0)]
 
-        angle = 2*pi / len(circle_players)
-        self.df['x'] = [0] + [R * cos(angle * i) for i in circle_players]
-        self.df['y'] = [0] + [R * sin(angle * i) for i in circle_players]
+        R = pulse.df['distance'].mean() if pulse.df['distance'].mean() > 0 else 1
+        angle = 2*pi / len(self.df)
+
+        seeded = concat([self.df.apply(lambda x: R * cos(angle * (x.name - 1)) if x.name > 0 else 0, axis=1),
+                         self.df.apply(lambda x: R * sin(angle * (x.name - 1)) if x.name > 0 else 0, axis=1)],
+                        axis=1)
+
+        self.df[['x', 'y']] = self.df.mask(self.df[['x', 'y']].isna().sum(1).ne(0), seeded)[['x', 'y']]
 
     def update_coordinates(self, pulse, xy_=None, max_iters=5000):
         # best fit player nodes
@@ -211,8 +215,8 @@ class Members:
         if xy_ is not None:
             self.df[['x', 'y']] = self.df.drop(columns=[c for c in ['x', 'y'] if c in self.df.columns]).merge(xy_, on='player')[['x', 'y']]
 
-        if all(self.df[['x', 'y']].isna()):
-            self.seed_xy(pulse)
+        ##if self.df[['x', 'y']].isna().all().all():
+        self.seed_xy(pulse)
 
         xy0 = self.melt_xy(self.df)
         print('\t...minimizing')
