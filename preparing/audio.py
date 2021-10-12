@@ -1,6 +1,7 @@
 from datetime import datetime
 from math import ceil
 
+import requests
 from spotipy import Spotify
 from spotipy.oauth2 import SpotifyOAuth
 from pylast import LastFMNetwork, NetworkError
@@ -251,7 +252,7 @@ class Spotter(Streamable):
             
         self.database.store_playlists(playlists_db, theme='complete')
 
-    def update_best_playlists(self, quantile=0.25):
+    def update_best_playlists(self, quantile=0.25): ## move best to db.weights
         rounds_db, playlists_db = self.database.get_theme_playlists(theme='best')
 
         # trim to best songs
@@ -279,6 +280,8 @@ class Spotter(Streamable):
             track_uris = query_results['uri'].to_list()
             
             if len(track_uris):
+                if league_title == 'Compass Product Org':
+                    self.reset_playlist(playlist_uri)
                 self.update_playlist(playlist_uri, track_uris=track_uris)
 
                 add_rounds = [round_title for round_title in query_results['round'].unique() if round_title not in skip_rounds]
@@ -430,7 +433,6 @@ class FMer(Streamable):
         self.streamer.print('Connecting to LastFM API...')
         self.fm = LastFMNetwork(api_key=get_secret('LASTFM_API_KEY'), api_secret=get_secret('LASTFM_API_SECRET'))
 
-        
     def clean_title(self, title):
         # remove featuring artists and pull remixes
         self.texter = Texter()
@@ -493,3 +495,37 @@ class FMer(Streamable):
                 except NetworkError:
                     print('Error: disconnected (possibly too many API calls)')
                     break
+
+class Charter(Streamable):
+    def __init__(self):
+        super().__init__()
+        self.token = None
+        self.refresh = get_secret('CHARTMETRICS_RERESH_TOKEN')
+    def connect_to_chartmetrics(self):
+        endpoint = 'https://api.chartmetric.com/api/token'
+        data = {'refreshtoken': self.refresh}
+        headers = {'Content-Type': 'application/json'}
+        
+        response = requests.post(endpoint, data=data, headers=headers)
+        if response.ok:
+            self.token = response.json()['access_token']
+            self.refresh = response.json()['refresh_token']
+
+    def auth_header(self):
+        return {'Authorization': f'Bearer {self.token}'}
+
+    def get_json(self, endpoint, data):
+        response = requests.get(endpoint, data=data, headers=self.auth_header())
+        if response.ok:
+            json = response.json()
+
+        else:
+            json = None
+        return json
+
+    def get_monthly_listeners(self, uri):
+        endpoint = 'https://api.chartmetric.com/api/artist/anr/by/social-index'
+        data = {}
+
+        json = self.get_json(endpoint, data)
+        

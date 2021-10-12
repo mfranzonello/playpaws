@@ -604,7 +604,8 @@ class Database(Streamable):
             sql = (f'SELECT s.league, s.round, t.url AS uri, r.points, d.date FROM {self.table_name("Results")} as r '
                    f'LEFT JOIN {self.table_name("Songs")} as s ON (r.league = s.league) AND (r.song_id = s.song_id) '
                    f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_url = t.url '
-                   f'LEFT JOIN {self.table_name("Rounds")} as d ON (s.league = d.league) AND (s.round = d.round);'
+                   f'LEFT JOIN {self.table_name("Rounds")} as d ON (s.league = d.league) AND (s.round = d.round) '
+                   f'WHERE d.status = {self.needs_quotes("closed")};'
                    )
 
             wheres = f'theme = {self.needs_quotes(theme)}'

@@ -1,7 +1,6 @@
 from pandas import set_option
 import streamlit as st
 from streamlit.components.v1 import html as st_html
-from streamlit.type_util import Key
 
 from common.words import Texter
 

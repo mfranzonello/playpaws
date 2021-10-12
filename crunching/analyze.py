@@ -39,6 +39,11 @@ class Analyzer:
                         self.database.store_analysis(league_title, self.version,
                                                      statuses=statuses, optimized=False)
 
+    def place_all(self):
+        league_titles = self.get_league_titles()
+
+        for league_title in league_titles:
+            if self.database.check_data(league_title):
                 # place
                 if self.database.get_optimized(league_title):
                     print(f'Placements for {league_title} already up to date')
@@ -52,7 +57,7 @@ class Analyzer:
                         self.database.store_members(members.df, league_title)
                         
                         self.database.store_analysis(league_title, self.version, optimized=members.coordinates['success'])
-
+        
     def get_statuses(self, rounds_df):
         statuses = {status: [round_title for round_title in rounds_df.query(f'status == "{status}"')['round']] \
                         for status in ['open', 'closed']}
@@ -92,7 +97,7 @@ class Analyzer:
         return analysis
 
     def place_league(self, league_title):
-        print(f'Setting up league {league_title}')
+        print(f'Placing members in league {league_title}')
         members = self.get_members(league_title)
 
         songs, votes, _ = self.get_songs_and_votes(league_title)

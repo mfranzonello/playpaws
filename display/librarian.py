@@ -218,11 +218,12 @@ class Library:
     def get_column(self, parameters={}):
         leagues_list = []
         league_titles = parameters.get('leagues')
-        emojis = [self.texter.match_emoji(t, self.emojis, default='🎧') for t in league_titles]
-        league_titles = [f'{e}{t}{e}' for e, t in  zip(emojis, league_titles)]
-        leagues_in = self.texter.get_plurals(league_titles, markdown='**')['text']
-        other_leagues = 'Other ' if parameters.get('other_leagues') else ''
-        leagues_list.append(f'{other_leagues}Leagues Played In: {leagues_in}')
+        if len(league_titles):
+            emojis = [self.texter.match_emoji(t, self.emojis, default='🎧') for t in league_titles]
+            league_titles = [f'{e}{t}{e}' for e, t in  zip(emojis, league_titles)]
+            leagues_in = self.texter.get_plurals(league_titles, markdown='**')['text']
+            other_leagues = 'Other ' if parameters.get('other_leagues') else ''
+            leagues_list.append(f'{other_leagues}Leagues Played In: {leagues_in}')
         leagues = self.bar_list(leagues_list, indent=False)
 
         awards_list = []

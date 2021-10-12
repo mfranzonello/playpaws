@@ -17,6 +17,7 @@ def analyze_data(database):
     # analyze MusicLeague data
     analyzer = Analyzer(database)
     analyzer.analyze_all()
+    analyzer.place_all()
 
 def main():
     printer = Printer('display.max_columns', 'display.max_rows')

@@ -140,7 +140,7 @@ class Pulse:
         UB = mean + std_dev
         below_UB = self.df['distance'] <= UB
        
-        self.df['plot_distance'] = self.df['distance'].where(voted | ~outliers).where(below_UB, UB)
+        self.df['plot_distance'] = self.df['distance'].where(voted | ~outliers, UB).where(below_UB, UB) ## double check non-voting logic
 
     def calculate_wins(self, songs, votes):
         patternizer = songs.get_patternizer(votes, self.player_names)
@@ -214,7 +214,7 @@ class Members:
         if all(self.df[['x', 'y']].isna()):
             self.seed_xy(pulse)
 
-        xy0 = self.df[['x','y']][1:].fillna(0).melt()['value']
+        xy0 = self.melt_xy(self.df)
         print('\t...minimizing')
         xy = minimize(self.distdiff, xy0, args=(distances['distance'], needed), options={'maxiter': max_iterations})
 
@@ -228,6 +228,16 @@ class Members:
             print('\t\t...optimal solution found')
         else:
             print(xy.message)
+
+        if xy_ is not None:
+            dist0 = self.distdiff(self.melt_xy(xy_), distances['distance'], needed)
+            dist1 = self.distdiff(self.melt_xy(self.df), distances['distance'], needed)
+            improvement = 1 - dist1/dist0
+            print(f'\t\t...improved by {improvement:.2%}')
+
+    def melt_xy(self, df):
+        xy = df[['x','y']][1:].fillna(0).melt()['value']
+        return xy
 
     def who_likes_whom(self, pulse):
         # calculate likes and liked values
