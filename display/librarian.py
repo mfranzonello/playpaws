@@ -1,6 +1,6 @@
 ﻿from pandas import isnull
 
-from common.words import Texter, Feeler
+from common.words import Texter
 
 class Library:
     emojis = {'🐾': ['paws', 'dog', 'animal'],
@@ -11,7 +11,6 @@ class Library:
 
     def __init__(self):
         self.texter = Texter()
-        self.feeler = Feeler()
 
     def get_and_set_fonts(self, font_manager, rcParams, dir_path):
         sans_fonts = list(self.texter.sans_fonts.keys())
@@ -74,7 +73,7 @@ class Library:
 
         elif plot_name == 'title':
             title = self.texter.clean_text(parameters.get('title'))
-            emoji = self.feeler.match_emoji(title, self.emojis, default='🎧')
+            emoji = self.texter.match_emoji(title, self.emojis, default='🎧')
             viewer = parameters.get('viewer')
             creator = parameters.get('creator')
             if creator == viewer:
@@ -219,7 +218,7 @@ class Library:
     def get_column(self, parameters={}):
         leagues_list = []
         league_titles = parameters.get('leagues')
-        emojis = [self.feeler.match_emoji(t, self.emojis, default='🎧') for t in league_titles]
+        emojis = [self.texter.match_emoji(t, self.emojis, default='🎧') for t in league_titles]
         league_titles = [f'{e}{t}{e}' for e, t in  zip(emojis, league_titles)]
         leagues_in = self.texter.get_plurals(league_titles, markdown='**')['text']
         other_leagues = 'Other ' if parameters.get('other_leagues') else ''

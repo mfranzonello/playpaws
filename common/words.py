@@ -138,7 +138,7 @@ class Texter:
             elif similarity > 0:
                 # more than one result and others that are close
                 texts_sublist = [m[0] for m in matches if m[1] >= matches[0][1] - similarity],
-                closest_text = self.find_closest_match(self.abbreviate_name(text), text_sublist,
+                closest_text = self.find_closest_match(self.abbreviate_name(text), texts_sublist,
                                                       threshold=threshold, similarity=0)
 
             else:
@@ -186,10 +186,6 @@ class Texter:
         duration = ', '.join(durations[:-1]) + ' and ' + durations[-1]
         
         return duration
-
-class Feeler:
-    def __init__(self):
-        pass
 
     def match_emoji(self, text, emojis, default=''):
         emoji = None
