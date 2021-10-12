@@ -188,18 +188,12 @@ class Texter:
         return duration
 
 class Feeler:
-    library = {'🐾': ['paws', 'dog', 'animal'],
-               '💿': ['mixtape', 'CD'],
-               '🧭': ['compass'],
-               '👬': ['brothers', 'men'],
-               }
-
     def __init__(self):
         pass
 
-    def match_emoji(self, text, default=''):
+    def match_emoji(self, text, emojis, default=''):
         emoji = None
-        for key, value in self.library.items():
+        for key, value in emojis.items():
             for v in value:
                 if v.lower() in [t.lower() for t in text.replace(',', ' ').replace('.', ' ').split()]:
                     emoji = key

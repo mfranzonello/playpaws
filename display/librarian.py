@@ -3,6 +3,12 @@
 from common.words import Texter, Feeler
 
 class Library:
+    emojis = {'🐾': ['paws', 'dog', 'animal'],
+              '💿': ['mixtape', 'CD'],
+              '🧭': ['compass'],
+              '👬': ['brothers', 'men'],
+              }
+
     def __init__(self):
         self.texter = Texter()
         self.feeler = Feeler()
@@ -68,7 +74,7 @@ class Library:
 
         elif plot_name == 'title':
             title = self.texter.clean_text(parameters.get('title'))
-            emoji = self.feeler.match_emoji(title, default='🎧')
+            emoji = self.feeler.match_emoji(title, self.emojis, default='🎧')
             viewer = parameters.get('viewer')
             creator = parameters.get('creator')
             if creator == viewer:
@@ -213,7 +219,7 @@ class Library:
     def get_column(self, parameters={}):
         leagues_list = []
         league_titles = parameters.get('leagues')
-        emojis = [self.feeler.match_emoji(t, default='🎧') for t in league_titles]
+        emojis = [self.feeler.match_emoji(t, self.emojis, default='🎧') for t in league_titles]
         league_titles = [f'{e}{t}{e}' for e, t in  zip(emojis, league_titles)]
         leagues_in = self.texter.get_plurals(league_titles, markdown='**')['text']
         other_leagues = 'Other ' if parameters.get('other_leagues') else ''
