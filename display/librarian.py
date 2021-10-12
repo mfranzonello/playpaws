@@ -2,7 +2,7 @@
 
 from common.words import Texter, Feeler
 
-class Librarian:
+class Library:
     def __init__(self):
         self.texter = Texter()
         self.feeler = Feeler()
@@ -35,6 +35,15 @@ class Librarian:
                  'plot_emoji': plot_emoji_font}
 
         return fonts  
+
+    def newline(self, num=2):
+        return '  \n'*num
+
+    def indent(self, num=10):
+        return '&nbsp;'*num
+
+    def bar(self):
+        return f'{self.newline(1)}---{self.newline(1)}'
 
     def get_tooltip(self, plot_name, parameters={}):
         text = None
@@ -201,8 +210,55 @@ class Librarian:
 
         return tooltip
 
-    def newline(self, num=2):
-        return '  \n'*num
+    def get_column(self, parameters={}):
+        awards_list = []
+        if parameters.get('dirtiest'):
+            awards_list.append(f'🙊**Most Explicit Player**🙊')
 
-    def indent(self, num=10):
-        return '&nbsp;'*num
+        if parameters.get('discoverer'):
+            awards_list.append(f'🔎**Best Music Discoverer**🔎')
+
+        if parameters.get('popular'):
+            awards_list.append(f'✨**Most Hep Tracks**✨')
+
+        awards = f''.join(f'{self.indent()}{a}{self.newline(1)}' for a in awards_list)
+        if awards == '':
+            awards = f'{self.indent()}🤗**Participation Trophy**🤗'
+
+        pulse_list = []
+        if parameters.get("likes"):
+            pulse_list.append(f'Likes best: 💞**{parameters["likes"]}**💞')
+
+        if parameters.get("liked"):
+            pulse_list.append(f'Most liked by: 💕**{parameters["liked"]}**💕')
+
+        if parameters.get("closest"):
+            pulse_list.append(f'Most similar to: 👯**{parameters["closest"]}**👯')
+
+        if len(pulse_list):
+            pulse = (f'{self.bar()}' +
+                     ''.join(f'{self.indent()}{p}{self.newline(1)}' for p in pulse_list)
+                     + f'{self.newline(1)}'
+                     )
+        else:
+            pulse = ''
+
+        stats_list = []
+
+        if parameters.get('win_rate'):
+            stats_list.append(f'Batting Average: ⚾**{parameters["win_rate"]:.3f}**⚾')
+
+        if len(stats_list):
+            stats = (f'{self.bar()}' + 
+                     ''.join(f'{self.indent()}{s}{self.newline(1)}' for s in stats_list) +
+                     f'{self.newline(1)}'
+                     )
+        else:
+            stats = ''
+
+        text = (f'## Player Stats'
+                f'{self.bar()}'
+                f'{awards}{pulse}{stats}'
+                )
+
+        return text

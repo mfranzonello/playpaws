@@ -879,7 +879,7 @@ class Database(Streamable):
             sql = (f'SELECT s.round, {jsons} '
                    f'FROM {self.table_name("Songs")} AS s '
                    f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
-                   f'LEFT JOIN "mfranzonello/playpaws"."rounds" AS r ON s.round = r.round '
+                   f'LEFT JOIN {self.table_name("Rounds")} AS r ON s.round = r.round '
                    f'WHERE s.league = {self.needs_quotes(league_title)} '
                    f'GROUP BY s.round, r.date ORDER BY r.date;'
                    )
@@ -1042,5 +1042,69 @@ class Database(Streamable):
 
         return all_info_df
 
-    def get_awards(self, player_name):
-        sql_dirt = (f'SELECT ')
+    def get_player_pulse(self, league_title, player_name):
+        sql = (f'SELECT p.player, p.likes, p.liked, j.closest '
+               f'FROM (SELECT player, likes, liked  '
+               f'FROM {self.table_name("Members")} '
+               f'WHERE (league = {self.needs_quotes(league_title)}) '
+               f'AND (player = {self.needs_quotes(player_name)})) as p '
+               f'CROSS JOIN (SELECT q.player AS closest FROM ( '
+               f'SELECT player, abs(dfc - '
+               f'(SELECT dfc FROM {self.table_name("Members")} '
+               f'WHERE (league = {self.needs_quotes(league_title)}) '
+               f'AND (player = {self.needs_quotes(player_name)}))) AS distance '
+               f'FROM {self.table_name("Members")} '
+               f'WHERE (league = {self.needs_quotes(league_title)}) '
+               f'AND (player != {self.needs_quotes(player_name)}) '
+               f'ORDER BY distance LIMIT 1) AS q) AS j;'
+               )
+
+        player_pulse_df = read_sql(sql, self.connection).squeeze(0)
+
+        return player_pulse_df
+
+    def get_player_wins(self, league_title, player_name):
+        sql = (f'SELECT q.wins / p.total AS win_rate FROM '
+               f'(SELECT COUNT(round)::real AS wins FROM {self.table_name("Boards")} '
+               f'WHERE (player = {self.needs_quotes(player_name)}) '
+               f'AND (league = {self.needs_quotes(league_title)}) AND (place = 1)) AS q '
+               f'CROSS JOIN '
+               f'(SELECT COUNT(round)::real AS total FROM {self.table_name("Boards")} '
+               f'WHERE (player = {self.needs_quotes(player_name)}) '
+               f'AND (league = {self.needs_quotes(league_title)})) AS p;'
+               )
+
+        player_wins_df = read_sql(sql, self.connection).squeeze(0)
+
+        return player_wins_df
+
+    def get_awards(self, league_title, player_name, base=1000):
+        sql = (f'SELECT (p.popular = {self.needs_quotes(player_name)}) AS popular, '
+               f'(q.discoverer = {self.needs_quotes(player_name)}) AS discoverer, '
+               f'(r.dirtiest = {self.needs_quotes(player_name)}) as dirtiest FROM '
+               f'(SELECT v.submitter AS popular FROM (SELECT s.submitter, '
+               f'AVG(t.popularity::real/100) AS popularity '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
+               f'WHERE s.league = {self.needs_quotes(league_title)} ' 
+               f'GROUP BY s.submitter  ORDER BY popularity DESC) AS v LIMIT 1) as p '
+               f'CROSS JOIN '
+               f'(SELECT u.submitter AS discoverer FROM (SELECT s.submitter, '
+               f'AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) AS discovery '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
+               f'WHERE s.league = {self.needs_quotes(league_title)} ' 
+               f'GROUP BY s.submitter ORDER BY discovery DESC) AS u LIMIT 1) as q '
+               f'CROSS JOIN '
+               f'(SELECT w.submitter AS dirtiest FROM (SELECT s.submitter, '
+               f'COUNT(CASE WHEN t.explicit THEN 1 END) / '
+               f'COUNT(CASE WHEN NOT t.explicit THEN 1 END)::real AS dirtiness '
+               f'FROM {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
+               f'WHERE s.league = {self.needs_quotes(league_title)} '
+               f'GROUP BY s.submitter ORDER BY dirtiness DESC) AS w LIMIT 1) AS r;'
+               )
+
+        awards_df = read_sql(sql, self.connection).squeeze(0)
+
+        return awards_df

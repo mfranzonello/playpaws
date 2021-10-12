@@ -53,6 +53,13 @@ class Streamer:
             with st.container():
                 self.status_bar = st.progress(0)
         
+            with st.container():
+                col3, col4 = st.columns(2)
+                with col3:
+                    self.player_image = st.empty()
+                with col4:
+                    self.player_caption = st.empty()
+
             #with self.sidebar.container():
             #    self.selectbox = st.empty() #selectbox('Loading app...', ['']) 
             
@@ -116,18 +123,17 @@ class Streamer:
             with col_left:
                 func1(item1, **args)
             with col_right:
-                for item2 in right_column:
-                    func2(item2)
+                func2(right_column)
         
-    def pyplot(self, figure, header=None, header2=None, tooltip=None, in_expander=True):
+    def pyplot(self, figure, header=None, header2=None, tooltip=None, in_expander=False):
         self.wrapper(header, tooltip, header2=header2)
         self.in_expander(in_expander, st.pyplot, figure)
         
     def image(self, image, header=None, header2=None, tooltip=None, right_column=None,
-              in_expander=True):
+              in_expander=False):
         self.wrapper(header, tooltip, header2=header2)
         if right_column:
-            self.right_column(right_column, st.image, image, st.write)
+            self.right_column(right_column, st.image, image, st.markdown)
         else:
             self.in_expander(in_expander, st.image, image)
         
