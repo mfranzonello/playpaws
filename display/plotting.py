@@ -98,7 +98,8 @@ class Plotter(Streamable):
                 league_title = viewable_league_titles[0]
             elif len(viewable_league_titles) > 1:
                 league_title = self.streamer.selectbox.selectbox('Pick a league to view',
-                                                                 ['<select>'] + viewable_league_titles)
+                                                                 ['<select>'] + viewable_league_titles,
+                                                                 format_func=lambda x: self.library.feel_title(x) if x != '<select>' else x)
             else:
                 league_title = '<select>'
 
@@ -236,7 +237,7 @@ class Plotter(Streamable):
     def plot_caption(self, league_title=None, viewer_df=None, wins_df=None, awards_df=None):
         parameters = {}
         keys = ['likes', 'liked', 'closest', 'dirtiest', 'discoverer', 'popular',
-                'win_rate', 'play_rate', 'hoarder', 'generous']
+                'win_rate', 'play_rate', 'generous', 'clean'] #'stingy' 'maxed_out'
         for df in [viewer_df, awards_df]:
             if (df is not None) and len(df):
                 parameters.update({k: df[k] for k in keys if k in df})

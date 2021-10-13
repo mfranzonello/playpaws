@@ -72,14 +72,13 @@ class Library:
                     'sidebar to pick a league to view.')
 
         elif plot_name == 'title':
-            title = self.texter.clean_text(parameters.get('title'))
-            emoji = self.texter.match_emoji(title, self.emojis, default='🎧')
+            title = self.feel_title(parameters.get('title'), markdown='**')
             viewer = parameters.get('viewer')
             creator = parameters.get('creator')
             if creator == viewer:
                 creator = 'YOU'
             text = (f'Welcome to the MöbiMusic league analyzer, 👋**{viewer}**👋! These are the nerb '
-                    f'results of all the current rounds for the {emoji}**{title}**{emoji} league, '
+                    f'results of all the current rounds for the {title} league, '
                     f'created by 🤓**{creator}**🤓. Keep scrolling to see how players have '
                     f'placed and what it all sounds like.'
                     )
@@ -219,9 +218,8 @@ class Library:
         leagues_list = []
         league_titles = parameters.get('leagues')
         if len(league_titles):
-            emojis = [self.texter.match_emoji(t, self.emojis, default='🎧') for t in league_titles]
-            league_titles = [f'{e}{t}{e}' for e, t in  zip(emojis, league_titles)]
-            leagues_in = self.texter.get_plurals(league_titles, markdown='**')['text']
+            league_titles = [self.feel_title(t, markdown='**') for t in league_titles]
+            leagues_in = self.texter.get_plurals(league_titles)['text']
             other_leagues = 'Other ' if parameters.get('other_leagues') else ''
             leagues_list.append(f'{other_leagues}Leagues Played In: {leagues_in}')
         leagues = self.bar_list(leagues_list, indent=False)
@@ -229,11 +227,15 @@ class Library:
         awards_list = []
         if parameters.get('dirtiest'):
             awards_list.append(f'🙊**Most Explicit Player**🙊')
+        if parameters.get('clean'):
+            awards_list.append(f'🧼**Squeaky Clean Lyrics**🧼')
         if parameters.get('discoverer'):
             awards_list.append(f'🔎**Best Music Discoverer**🔎')
         if parameters.get('popular'):
             awards_list.append(f'✨**Most Hep Tracks**✨')
-        # hoarder, generous
+        if parameters.get('generous'):
+            awards_list.append(f'🗳**Equal Opportunity Voter**🗳')
+        # stingy, maxed_out
         if not len(awards_list):
             awards_list.append(f'🤗**Participation Trophy**🤗')
         awards = self.bar_list(awards_list)
@@ -278,3 +280,10 @@ class Library:
             items = ''
 
         return items
+
+    def feel_title(self, text, default='🎧', markdown=''):
+        clean_text = self.texter.clean_text(text)
+        emoji = self.texter.match_emoji(text, self.emojis, default=default)
+        title = f'{emoji}{markdown}{clean_text}{markdown}{emoji}'
+
+        return title
