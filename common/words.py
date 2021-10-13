@@ -14,6 +14,7 @@ class Texter:
                                 u'\U0001F926-\U0001F937'
                                 u'\U00010000-\U0010FFFF'
                                 u'\U000023E9-\U000023F3' # play, pause
+                                u'\U00002049' # ?!
                                 ']+', flags=re.UNICODE)
 
     sans_fonts = {'Segoe UI': 'segoeui.ttf'}

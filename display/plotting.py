@@ -640,17 +640,11 @@ class Plotter(Streamable):
             
             self.streamer.status(1/self.plot_counts * (1/3))
             self.streamer.print('\t...features', base=False)
-            features_solo = {#'duration': '⏲',
-                             'tempo': '🥁',
-                             }
-            features_like = {'danceability': '💃',
-                             'energy': '⚡',
-                             'liveness': '🏟',
-                             'valence': '💖',
-                             'speechiness': '💬',
-                             'acousticness': '🎸',
-                             'instrumentalness': '🎹',
-                             }
+            features_solo = {f: self.library.feel(f) for f in ['tempo']}                             
+            features_like = {f: self.library.feel(f) for f in ['danceability', 'energy',
+                                                               'liveness', 'valence',
+                                                               'speechiness', 'acousticness',
+                                                               'instrumentalness']}
             available_colors = self.paintbrush.get_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'copper', 'pink')
 
             features_colors = self.paintbrush.get_scatter_colors(available_colors)
