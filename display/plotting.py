@@ -735,7 +735,7 @@ class Plotter(Streamable):
 
             text = Counter(tags_df.dropna().sum().sum())
             
-            wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)
+            wordcloud = WordCloud(mode='RGBA', background_color=None, mask=mask).generate_from_frequencies(text)
             wordcloud_image = wordcloud.to_array()
   
             text_ex = text.copy()
