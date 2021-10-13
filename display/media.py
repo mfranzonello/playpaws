@@ -78,7 +78,7 @@ class Imager:
                 bottom = (H + wh)/2
                 image = image.crop((left, top, right, bottom))
 
-            mask = Image.new('L', image.size, 0)
+            mask = Image.new('L', (W+1, H+1), 0)
             drawing = ImageDraw.Draw(mask)
             drawing.ellipse((0, 0) + image.size, fill=255)
             cropped = ImageOps.fit(image, mask.size, centering=(0.5, 0.5))

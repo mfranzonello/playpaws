@@ -24,7 +24,11 @@ class Paintbrush:
               'orange': (245, 170, 66),
               'aqua': (85, 230, 203),
               'pink': (225, 138, 227),
-              'gold': (145, 110, 45),
+              'copper': (145, 110, 45),
+              'gold': (212, 175, 55),
+              'silver': (192, 192, 192),
+              'bronze': (205, 127, 50),
+              'gunmetal_grey': (99, 96, 89),
               }
 
     def __init__(self):
@@ -35,11 +39,15 @@ class Paintbrush:
 
     def get_colors(self, *color_names):
         if len(color_names) == 1:
-            colors = self.get_color(color_name[0])
+            colors = self.get_color(color_names[0])
         else:
             colors = [self.get_color(color_name) for color_name in color_names]
         
         return colors
+
+    def lighten_color(self, color, pct=0):
+        color = tuple(int(max(0, min(self.color_wheel, c + pct * self.color_wheel))) for c in color)
+        return color
 
     def grade_colors(self, colors:list, precision:int=2):
         # create color gradient
@@ -114,6 +122,28 @@ class Canvas(Imager, Streamable):
 
         return image
 
+    def add_border(self, image, color=(0,0,0), padding=0):
+        W, H = image.size
+        border_size = (int(W * (1 + padding/2)), int(H * (1 + padding/2)))
+        border = self.get_color_image(color, border_size)
+        w, h = border.size
+        border.paste(image, ((w-W)//2, (h-H)//2), image)
+        border = border.resize(image.size)
+        return border
+
+    def add_badge(self, image, text, font, pct=0.25, color=(0,0,0), border_color=(0,0,0), padding=0):
+        W, H = image.size
+        badge_size = (int(W * pct), int(H * pct))
+        w, h = badge_size
+        badge = self.get_color_image(color, badge_size)
+        badge = self.add_text(badge, text, font)
+        badge = self.add_border(badge, color=border_color, padding=padding)
+
+        # place badge on image
+        image.paste(badge, (W - w - 1, H - h - 1), badge)
+
+        return image
+        
     def get_mask_array(self, image_bytes):
         #fp = urlopen(src)
         try:

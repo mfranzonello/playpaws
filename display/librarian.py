@@ -249,14 +249,15 @@ class Library:
 
         stats_list = []
         if parameters.get('win_rate'):
-            stats_list.append(f'Batting Average: ⚾**{parameters["win_rate"]:.3f}**⚾')
+            stats_list.append(f'Batting Average: 🔥**{parameters["win_rate"]:.3f}**🔥')
         if parameters.get('play_rate'):
-            stats_list.append(f'Games Played: 🔥**{parameters["play_rate"]:.3f}**🔥')
+            stats_list.append(f'Games Played: ⚾**{parameters["play_rate"]:.3f}**⚾')
         stats = self.bar_list(stats_list)
 
         wins_list = []
         if parameters.get('wins'):
-            rounds_won = self.texter.get_plurals(parameters['wins'], markdown='**')
+            round_titles = [self.texter.clean_text(t) for t in parameters['wins']]
+            rounds_won = self.texter.get_plurals(round_titles, markdown='**')
             wins_list.append(f'Round{rounds_won["s"]} won: 🏅{rounds_won["text"]}🏅')
         wins = self.bar_list(wins_list)
 

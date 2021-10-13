@@ -201,3 +201,30 @@ class Texter:
             emoji = default
 
         return emoji
+
+    def get_ordinal(self, num, include=True):
+        p = 1 if num >= 0 else -1
+        n = abs(num)
+        digit = int(n - n//10*10) * p
+        two_digits = int(n - n//100*100) * p
+
+        print('HERE A')
+        if (digit == 1) and (two_digits != 11):
+            print('HERE B')
+            ordinal = 'st'
+        elif (digit == 2) and (two_digits != 12):
+            print('HERE C')
+            oridnal = 'nd'
+        elif (digit == 3) and (two_digits != 13):
+            print('HERE D')
+            ordinal = 'rd'
+        else:
+            print('HERE E')
+            ordinal = 'th'
+
+        print('HERE F')
+        if include:
+            print('HERE G')
+            ordinal = f'{num}{ordinal}'
+
+        return ordinal

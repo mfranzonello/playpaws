@@ -1061,35 +1061,36 @@ class Database(Streamable):
 
     def get_awards(self, league_title, player_name, base=1000):
         ## Note that Discoverer, Dirtiest, etc should be based on MAX/MIN and not LIMIT 1
-        sql = (f'SELECT (p.popular = {self.needs_quotes(player_name)}) AS popular, '
-               f'(q.discoverer = {self.needs_quotes(player_name)}) AS discoverer, '
-               f'(r.dirtiest = {self.needs_quotes(player_name)}) as dirtiest, '
-               f'j.win_rate, k.play_rate '
+        sql = (f'SELECT (p.popular = 1) AS popular, (q.discoverer = 1) AS discoverer, '
+               f'(r.dirtiest = 1) as dirtiest, j.win_rate, k.play_rate '
                
                f'FROM '
-               f'(SELECT v.submitter AS popular FROM (SELECT s.submitter, '
-               f'AVG(t.popularity::real/100) AS popularity '
+               f'(SELECT v.popular FROM (SELECT s.submitter, RANK() OVER '
+               f'(ORDER BY AVG(t.popularity::real/100)) AS popular '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
                f'WHERE s.league = {self.needs_quotes(league_title)} ' 
-               f'GROUP BY s.submitter  ORDER BY popularity DESC) AS v LIMIT 1) as p '
+               f'GROUP BY s.submitter) AS v '
+               f'WHERE v.submitter = {self.needs_quotes(player_name)}) as p '
 
-               f'CROSS JOIN '
-               f'(SELECT u.submitter AS discoverer FROM (SELECT s.submitter, '
-               f'AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) AS discovery '
+               f'CROSS JOIN'
+               f'(SELECT u.discoverer FROM (SELECT s.submitter, RANK() OVER '
+               f'(ORDER BY AVG(1/LOG({base}, GREATEST({base}, t.scrobbles)))) AS discoverer '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
                f'WHERE s.league = {self.needs_quotes(league_title)} ' 
-               f'GROUP BY s.submitter ORDER BY discovery DESC) AS u LIMIT 1) as q '
+               f'GROUP BY s.submitter) AS u '
+               f'WHERE u.submitter = {self.needs_quotes(player_name)}) as q '
 
                f'CROSS JOIN '
-               f'(SELECT w.submitter AS dirtiest FROM (SELECT s.submitter, '
-               f'COUNT(CASE WHEN t.explicit THEN 1 END) / '
-               f'COUNT(CASE WHEN NOT t.explicit THEN 1 END)::real AS dirtiness '
+               f'(SELECT w.dirtiest FROM (SELECT s.submitter, RANK() OVER '
+               f'(ORDER BY COUNT(CASE WHEN t.explicit THEN 1 END) / '
+               f'COUNT(CASE WHEN NOT t.explicit THEN 1 END)::real) AS dirtiest '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
                f'WHERE s.league = {self.needs_quotes(league_title)} '
-               f'GROUP BY s.submitter ORDER BY dirtiness DESC) AS w LIMIT 1) AS r '
+               f'GROUP BY s.submitter) AS w '
+               f'WHERE w.submitter = {self.needs_quotes(player_name)}) AS r '
 
                f'CROSS JOIN '
                f'(SELECT q.wins / p.total AS win_rate FROM '
@@ -1115,3 +1116,15 @@ class Database(Streamable):
         awards_df = read_sql(sql, self.connection).squeeze(0)
 
         return awards_df
+
+    def get_badge(self, league_title, player_name):
+        sql = (f'SELECT q.badge FROM '
+               f'(SELECT player, RANK() OVER (ORDER BY wins DESC) AS badge '
+               f'FROM {self.table_name("Members")} '
+               f'WHERE league = {self.needs_quotes(league_title)}) AS q '
+               f'WHERE q.player = {self.needs_quotes(player_name)};'
+               )
+
+        badge = read_sql(sql, self.connection).squeeze()
+
+        return badge

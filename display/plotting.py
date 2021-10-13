@@ -90,7 +90,7 @@ class Plotter(Streamable):
                                                               index=len(player_names))
 
         if self.view_player != '':
-            self.plot_viewer()
+            
 
             self.view_league_titles = self.database.get_player_leagues(self.view_player)
             viewable_league_titles = [l for l in self.view_league_titles if l in self.league_titles.to_list()]
@@ -103,9 +103,11 @@ class Plotter(Streamable):
                 league_title = '<select>'
 
             if league_title == '<select>':
+                self.plot_viewer()
                 self.plot_caption()
 
             else:
+                self.plot_viewer(badge=self.database.get_badge(league_title, self.view_player))
                 viewer_df = self.prepare_dfs(('viewer_df', league_title, self.view_player),
                                              self.database.get_player_pulse, league_title, self.view_player)
                 wins_df = self.prepare_dfs(('player_wins_df', league_title, self.view_player),
@@ -216,8 +218,18 @@ class Plotter(Streamable):
         y_shifted = y + shift_distance*sin(theta + rotate*pi/2)
         return x_shifted, y_shifted
 
-    def plot_viewer(self):
+    def plot_viewer(self, badge=None):
         image = self.canvas.get_player_image(self.view_player)
+        image = self.canvas.add_border(image, color=self.paintbrush.get_color('dark_blue'), padding=0.2)
+
+        if badge:
+            medal_metals = ['gold', 'silver', 'bronze', 'gunmetal_grey']
+            place = max(1, min(len(medal_metals), badge))
+            border_color = [self.paintbrush.get_color(c) for c in medal_metals][place - 1]
+
+            image = self.canvas.add_badge(image, self.texter.get_ordinal(badge), self.fonts['image_sans'],
+                                          pct=0.4, color=self.paintbrush.lighten_color(border_color, 0.1),
+                                          border_color=border_color, padding=0.3)
 
         self.streamer.player_image.image(image)
 
@@ -638,7 +650,7 @@ class Plotter(Streamable):
                              'acousticness': '🎸',
                              'instrumentalness': '🎹',
                              }
-            available_colors = self.paintbrush.get_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'gold', 'pink')
+            available_colors = self.paintbrush.get_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'copper', 'pink')
 
             features_colors = self.paintbrush.get_scatter_colors(available_colors)
 
