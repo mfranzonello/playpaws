@@ -98,7 +98,8 @@ class Plotter(Streamable):
                 league_title = viewable_league_titles[0]
             elif len(viewable_league_titles) > 1:
                 league_title = self.streamer.selectbox.selectbox('Pick a league to view',
-                                                                 ['<select>'] + viewable_league_titles)
+                                                                 ['<select>'] + viewable_league_titles,
+                                                                 format_func=lambda x: self.library.feel_title(x) if x != '<select>' else x)
             else:
                 league_title = '<select>'
 
@@ -237,7 +238,7 @@ class Plotter(Streamable):
     def plot_caption(self, league_title=None, viewer_df=None, wins_df=None, awards_df=None):
         parameters = {}
         keys = ['likes', 'liked', 'closest', 'dirtiest', 'discoverer', 'popular',
-                'win_rate', 'play_rate', 'hoarder', 'generous']
+                'win_rate', 'play_rate', 'generous', 'clean'] #'stingy' 'maxed_out'
         for df in [viewer_df, awards_df]:
             if (df is not None) and len(df):
                 parameters.update({k: df[k] for k in keys if k in df})
@@ -640,17 +641,11 @@ class Plotter(Streamable):
             
             self.streamer.status(1/self.plot_counts * (1/3))
             self.streamer.print('\t...features', base=False)
-            features_solo = {#'duration': '⏲',
-                             'tempo': '🥁',
-                             }
-            features_like = {'danceability': '💃',
-                             'energy': '⚡',
-                             'liveness': '🏟',
-                             'valence': '💖',
-                             'speechiness': '💬',
-                             'acousticness': '🎸',
-                             'instrumentalness': '🎹',
-                             }
+            features_solo = {f: self.library.feel(f) for f in ['tempo']}                             
+            features_like = {f: self.library.feel(f) for f in ['danceability', 'energy',
+                                                               'liveness', 'valence',
+                                                               'speechiness', 'acousticness',
+                                                               'instrumentalness']}
             available_colors = self.paintbrush.get_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'copper', 'pink')
 
             features_colors = self.paintbrush.get_scatter_colors(available_colors)
@@ -735,7 +730,7 @@ class Plotter(Streamable):
 
             text = Counter(tags_df.dropna().sum().sum())
             
-            wordcloud = WordCloud(background_color='white', mask=mask).generate_from_frequencies(text)
+            wordcloud = WordCloud(mode='RGBA', background_color=None, mask=mask).generate_from_frequencies(text)
             wordcloud_image = wordcloud.to_array()
   
             text_ex = text.copy()

@@ -1,8 +1,51 @@
 ﻿from pandas import isnull
+from pandas.core.dtypes import missing
 
 from common.words import Texter
 
 class Library:
+    # one-to-one emoji
+    emoji = {'dirtiest': '🙊',
+             'clean': '🧼',
+             'discoverer': '🔎',
+             'popular': '🕶',
+             'generous': '🗳',
+             'participant': '🤗',
+             'likes': '💞',
+             'liked': '💕',
+             'closest': '👯',
+             'win_rate': '🔥',
+             'play_rate': '⚾',
+             'wins': '🏅',
+             'viewer': '👋',
+             'creator': '🤓',
+             'leader': '🥇',
+             'closest_dfc': '🎯',
+             'tbd': '❔',
+             'winner': '🏆',
+             
+             'tag': '🗨️',
+             'tag_ex': '💬',
+             'release_date': '📅',
+             'release_age': '🎂',
+             'release_old': '⌛',
+             'track_count': '🎶',
+             'track_duration': '🕓',
+
+             'tempo': '🥁',
+             'danceability': '💃',
+             'energy': '⚡',
+             'liveness': '🏟',
+             'valence': '💖',
+             'speechiness': '🗣',
+             'acousticness': '🎸',
+             'instrumentalness': '🎹',
+             'duration': '⏲',
+             
+             'round_title': '🎧',
+             }
+                  
+    # one-to-many emoji
     emojis = {'🐾': ['paws', 'dog', 'animal'],
               '💿': ['mixtape', 'CD'],
               '🧭': ['compass'],
@@ -72,21 +115,20 @@ class Library:
                     'sidebar to pick a league to view.')
 
         elif plot_name == 'title':
-            title = self.texter.clean_text(parameters.get('title'))
-            emoji = self.texter.match_emoji(title, self.emojis, default='🎧')
+            title = self.feel_title(parameters.get('title'), markdown='**')
             viewer = parameters.get('viewer')
             creator = parameters.get('creator')
             if creator == viewer:
                 creator = 'YOU'
-            text = (f'Welcome to the MöbiMusic league analyzer, 👋**{viewer}**👋! These are the nerb '
-                    f'results of all the current rounds for the {emoji}**{title}**{emoji} league, '
-                    f'created by 🤓**{creator}**🤓. Keep scrolling to see how players have '
+            text = (f'Welcome to the MöbiMusic league analyzer, {self.feel("viewer")}**{viewer}**{self.feel("viewer")}! These are the nerb '
+                    f'results of all the current rounds for the {title} league, '
+                    f'created by {self.feel("creator")}**{creator}**{self.feel("creator")}. Keep scrolling to see how players have '
                     f'placed and what it all sounds like.'
                     )
 
         elif plot_name == 'members':
-            leaders = self.texter.get_plurals(parameters.get('leader'), markdown='🥇**')
-            closest_dfc = self.texter.get_plurals(parameters.get('closest_dfc'), markdown='🎯**')                         
+            leaders = self.texter.get_plurals(parameters.get('leader'), markdown=f'{self.feel("leader")}**')
+            closest_dfc = self.texter.get_plurals(parameters.get('closest_dfc'), markdown=f'{self.feel("closest_dfc")}**')                         
             text = (f'This shows the relationships between the league players. '
                     f'Players with similar music tastes are closer together. The '
                     f'arrows indicate who likes whom the most (a pink arrow shows '
@@ -111,17 +153,17 @@ class Library:
             winners = parameters.get('winners')
             placements = f'{self.newline(num=1)}'.join(f'{round_title} (chosen by {chooser}):'
                                                        f'{self.newline(num=1)}{self.indent(20)}'
-                                                       f'{"❔" if isnull(winner) else "🏆"}'
+                                                       f'{self.feel("tbd") if isnull(winner) else self.feel("winner")}'
                                                        f'**{"TBD" if isnull(winner) else winner}**'
-                                                       f'{"❔" if isnull(winner) else "🏆"}' \
+                                                       f'{self.feel("tbd") if isnull(winner) else self.feel("winner")}' \
                 for round_title, chooser, winner in zip(round_titles, choosers, winners))
             text = (f'This chart shows how players finished in each round. '
                     f'{self.newline()}{placements}')
 
         elif plot_name == 'rankings':
-            dirty = self.texter.get_plurals(parameters.get('dirty'), markdown='🙊**')
-            discovery = self.texter.get_plurals(parameters.get('discovery'), markdown='🔎**')
-            popular = self.texter.get_plurals(parameters.get('popular'), markdown='✨**')
+            dirty = self.texter.get_plurals(parameters.get('dirty'), markdown=f'self.feel("dirtiest")**')
+            discovery = self.texter.get_plurals(parameters.get('discovery'), markdown=f'self.feel("discoverer")**')
+            popular = self.texter.get_plurals(parameters.get('popular'), markdown=f'self.feel("popular")**')
             text = (f'This shows each player in alphabetical order '
                     f'and how the scored in each round. A higher number '
                     f'indicates a better score, that is, this player got '
@@ -145,14 +187,14 @@ class Library:
 
         elif plot_name == 'features':
             text = (f'This shows the evolution of how each round sounds.{self.newline()}'
-                    f'{self.indent()}🥁: Tempo (beats per minute){self.newline(num=1)}'
-                    f'{self.indent()}💃: Danceability (makes you move){self.newline(num=1)}'
-                    f'{self.indent()}⚡: Energy (NRG){self.newline(num=1)}'
-                    f'{self.indent()}🏟: Liveness (sounds from a stadium){self.newline(num=1)}'
-                    f'{self.indent()}💖: Valence (level of happiness){self.newline(num=1)}'
-                    f'{self.indent()}💬: Speechiness (more spoken word){self.newline(num=1)}'
-                    f'{self.indent()}🎸: Acousticness (less production){self.newline(num=1)}'
-                    f'{self.indent()}🎹: Instrumentalness (more instruments){self.newline(num=1)}'
+                    f'{self.indent()}{self.feel("tempo")}: Tempo (beats per minute){self.newline(num=1)}'
+                    f'{self.indent()}{self.feel("danceability")}: Danceability (makes you move){self.newline(num=1)}'
+                    f'{self.indent()}{self.feel("energy")}: Energy (NRG){self.newline(num=1)}'
+                    f'{self.indent()}{self.feel("liveness")}: Liveness (sounds from a stadium){self.newline(num=1)}'
+                    f'{self.indent()}{self.feel("valence")}: Valence (level of happiness){self.newline(num=1)}'
+                    f'{self.indent()}{self.feel("speechiness")}: Speechiness (more spoken word){self.newline(num=1)}'
+                    f'{self.indent()}{self.feel("acousticness")}: Acousticness (less production){self.newline(num=1)}'
+                    f'{self.indent()}{self.feel("instrumentalness")}: Instrumentalness (more instruments){self.newline(num=1)}'
                     )
 
         elif plot_name == 'tags':
@@ -164,7 +206,7 @@ class Library:
                 tag_ex_a = '' if len(tag_ex['s']) else 'a '
                 tag_ex_like = 'like ' if len(tag_ex['s']) else ''
                 add_on = (f', but this league also uses {tag_ex_a} unique '
-                          f'tag{tag_ex["s"]} {tag_ex_like}💬{tag_ex["text"]}💬'
+                          f'tag{tag_ex["s"]} {tag_ex_like}{self.feel("tag_ex")}{tag_ex["text"]}{self.feel("tag_ex")}'
                           )
             else:
                 add_on = ''
@@ -173,7 +215,7 @@ class Library:
                     f'songs submitted in this league, from Spotify genres '
                     f'and Last.FM tags. You can see the top '
                     f'{tag_count if tag_count > 1 else ""} tag{top_tags.get("s")} {top_tags.get("be")} '
-                    f'🗨️{top_tags.get("text")}🗨️{add_on}.'
+                    f'{self.feel("tag")}{top_tags.get("text")}{self.feel("tag")}{add_on}.'
                     )
 
         elif plot_name == 'top_songs':
@@ -190,10 +232,11 @@ class Library:
                     f'release date. Songs to the left are recent releases and '
                     f'songs to the right are older.'
                     f'{self.newline()}'
-                    f'Most songs were released between 📅**{min_year}** and **{max_year}**📅. '
-                    f'The average age of a #1 song is 🎂**{average_age} '
-                    f'year{"" if average_age == 1 else "s"}**🎂. The oldest '
-                    f'song was released in ⌛**{oldest_year}**⌛.'
+                    f'Most songs were released between {self.feel("release_date")}**{min_year}** '
+                    f'and **{max_year}**{self.feel("release_date")}. '
+                    f'The average age of a #1 song is {self.feel("release_age")}**{average_age} '
+                    f'year{"" if average_age == 1 else "s"}**{self.feel("release_age")}. The oldest '
+                    f'song was released in {self.feel("release_old")}**{oldest_year}**{self.feel("release_old")}.'
                     )
 
         elif plot_name == 'top_songs_round':
@@ -203,8 +246,8 @@ class Library:
             count = parameters.get('count')
             duration = self.texter.get_times(parameters.get('duration'), markdown='**')
             text = (f'This is a collection of all the tracks ever submitted '
-                    f'in this league, all 🎶**{count}**🎶 of them, and it would '
-                    f'take you 🕓{duration}🕓 to listen to the whole thing!')
+                    f'in this league, all {self.feel("track_count")}**{count}**{self.feel("track_count")} of them, and it would '
+                    f'take you {self.feel("track_duration")}{duration}{self.feel("track_duration")} to listen to the whole thing!')
 
         if text:
             tooltip = {'label': label,
@@ -219,46 +262,49 @@ class Library:
         leagues_list = []
         league_titles = parameters.get('leagues')
         if len(league_titles):
-            emojis = [self.texter.match_emoji(t, self.emojis, default='🎧') for t in league_titles]
-            league_titles = [f'{e}{t}{e}' for e, t in  zip(emojis, league_titles)]
-            leagues_in = self.texter.get_plurals(league_titles, markdown='**')['text']
+            league_titles = [self.feel_title(t, markdown='**') for t in league_titles]
+            leagues_in = self.texter.get_plurals(league_titles)['text']
             other_leagues = 'Other ' if parameters.get('other_leagues') else ''
             leagues_list.append(f'{other_leagues}Leagues Played In: {leagues_in}')
         leagues = self.bar_list(leagues_list, indent=False)
 
         awards_list = []
         if parameters.get('dirtiest'):
-            awards_list.append(f'🙊**Most Explicit Player**🙊')
+            awards_list.append(f'{self.feel("dirtiest")}**Most Explicit Player**{self.feel("dirtiest")}')
+        if parameters.get('clean'):
+            awards_list.append(f'{self.feel("clean")}**Squeaky Clean Lyrics**{self.feel("clean")}')
         if parameters.get('discoverer'):
-            awards_list.append(f'🔎**Best Music Discoverer**🔎')
+            awards_list.append(f'{self.feel("discoverer")}**Best Music Discoverer**{self.feel("discoverer")}')
         if parameters.get('popular'):
-            awards_list.append(f'✨**Most Hep Tracks**✨')
-        # hoarder, generous
+            awards_list.append(f'{self.feel("popular")}**Most Hep Tracks**{self.feel("popular")}')
+        if parameters.get('generous'):
+            awards_list.append(f'{self.feel("generous")}**Equal Opportunity Voter**{self.feel("generous")}')
+        # stingy, maxed_out
         if not len(awards_list):
-            awards_list.append(f'🤗**Participation Trophy**🤗')
+            awards_list.append(f'{self.feel("participant")}**Participation Trophy**{self.feel("participant")}')
         awards = self.bar_list(awards_list)
 
         pulse_list = []
-        if parameters.get("likes"):
-            pulse_list.append(f'Likes best: 💞**{parameters["likes"]}**💞')
-        if parameters.get("liked"):
-            pulse_list.append(f'Most liked by: 💕**{parameters["liked"]}**💕')
-        if parameters.get("closest"):
-            pulse_list.append(f'Most similar to: 👯**{parameters["closest"]}**👯')
+        if parameters.get('likes'):
+            pulse_list.append(f'Likes best: {self.feel("likes")}**{parameters["likes"]}**{self.feel("likes")}')
+        if parameters.get('liked'):
+            pulse_list.append(f'Most liked by: {self.feel("liked")}**{parameters["liked"]}**{self.feel("liked")}')
+        if parameters.get('closest'):
+            pulse_list.append(f'Most similar to: {self.feel("closest")}**{parameters["closest"]}**{self.feel("closest")}')
         pulse = self.bar_list(pulse_list)
 
         stats_list = []
         if parameters.get('win_rate'):
-            stats_list.append(f'Batting Average: 🔥**{parameters["win_rate"]:.3f}**🔥')
+            stats_list.append(f'Batting Average: {self.feel("win_rate")}**{parameters["win_rate"]:.3f}**{self.feel("win_rate")}')
         if parameters.get('play_rate'):
-            stats_list.append(f'Games Played: ⚾**{parameters["play_rate"]:.3f}**⚾')
+            stats_list.append(f'Games Played: {self.feel("play_rate")}**{parameters["play_rate"]:.3f}**{self.feel("play_rate")}')
         stats = self.bar_list(stats_list)
 
         wins_list = []
         if parameters.get('wins'):
             round_titles = [self.texter.clean_text(t) for t in parameters['wins']]
             rounds_won = self.texter.get_plurals(round_titles, markdown='**')
-            wins_list.append(f'Round{rounds_won["s"]} won: 🏅{rounds_won["text"]}🏅')
+            wins_list.append(f'Round{rounds_won["s"]} won: {self.feel("wins")}{rounds_won["text"]}{self.feel("wins")}')
         wins = self.bar_list(wins_list)
 
         text = (f'## Player Stats'
@@ -278,3 +324,13 @@ class Library:
             items = ''
 
         return items
+
+    def feel_title(self, text, default=emoji['round_title'], markdown=''):
+        clean_text = self.texter.clean_text(text)
+        emoji = self.texter.match_emoji(text, self.emojis, default=default)
+        title = f'{emoji}{markdown}{clean_text}{markdown}{emoji}'
+
+        return title
+
+    def feel(self, text, default=''):
+        return self.emoji.get(text, default)
