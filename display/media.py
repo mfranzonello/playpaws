@@ -11,6 +11,14 @@ class Byter:
     def __init__(self):
         pass
 
+    def bit_me(self, image, size=None):
+        if size:
+            image = image.resize(size)
+        file_object = BytesIO()
+        image.save(file_object, 'PNG')
+
+        return file_object
+
     def byte_me(self, image_src, extension='JPEG', size=(300, 300),
                 overlay=None, overlay_pct=0.5):
         """Convert image and overlay to bytes object"""
@@ -24,8 +32,9 @@ class Byter:
         else:
             image = image_src
 
-        # convert to 300 x 300
-        image = image.resize(size)
+        if size:
+            # convert to specific size
+            image = image.resize(size)
 
         # check if there is an overlay
         if overlay:
@@ -50,9 +59,13 @@ class Byter:
             w_1, h_1 = overlay_resize.size
             image.paste(overlay_resize, ((W-w_1)//2, (H-h_1)//2), overlay_resize)
 
+        if image.mode == 'RGBA':
+            image = Image.Image.convert(image, 'RGB')
+
         buffered = BytesIO()
         image.save(buffered, format=extension)
         image_b64 = b64encode(buffered.getvalue())
+        buffered.seek(0)
 
         return image_b64
 
@@ -78,12 +91,12 @@ class Imager:
                 bottom = (H + wh)/2
                 image = image.crop((left, top, right, bottom))
 
-            mask = Image.new('L', (W+1, H+1), 0)
+            mask = Image.new('L', (W, H), 0)
             drawing = ImageDraw.Draw(mask)
-            drawing.ellipse((0, 0) + image.size, fill=255)
+            drawing.ellipse((0, 0) + (W, H), fill=255)
             cropped = ImageOps.fit(image, mask.size, centering=(0.5, 0.5))
             cropped.putalpha(mask)
-
+            
         else:
             cropped = None
 

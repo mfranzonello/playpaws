@@ -1,5 +1,7 @@
 import re
 from dateutil.parser import parse
+from io import BytesIO
+from zipfile import ZipFile
 
 import requests
 import browser_cookie3 as browsercookie
@@ -9,7 +11,8 @@ from common.words import Texter
 from display.streaming import Streamable
 
 class Scraper(Streamable):
-    headers = {'X-Requested-With': 'XMLHttpRequest'}
+    headers_get = {'X-Requested-With': 'XMLHttpRequest'}
+    headers_post
 
     def __init__(self, stripper):
         super().__init__()
@@ -19,29 +22,36 @@ class Scraper(Streamable):
         self.cj = browsercookie.chrome(domain_name=self.main_url.replace('https://', ''))
         
     def get_html_text(self, url):
-        self.streamer.print(f'\t...requesting {url}')
+        return self.get_content(url, 'text')
+
+    def get_zip_file(self, url):
+        return self.get_content(url, 'zip')
+    
+    def get_content(self, url, response_type):
+        self.streamer.print(f'\t...requesting {response_type} for {url}')
 
         if url[0] == '/':
             url = f'{self.main_url}{url}'
+        if response_type == 'zip':
+            url = f'{url}/data'
 
-        response = requests.get(url, cookies=self.cj, headers=self.headers, timeout=10)
+        if response_type == 'text':
+            method = requests.get
+            headers = self.headers_get
+        elif response_type == 'zip':
+            method = requests.post
+            headers = self.headers_post
+
+        response = method(url, cookies=self.cj, headers=headers, timeout=10)
         if response.ok:
-            html_text = response.text
-
+            if response_type == 'text':
+                item = response.text
+            elif response_type == 'zip':
+                item = ZipFile(BytesIO(response.content))
         else:
-            html_text = None
-        
-        return html_text
+            item = None
 
-    def check_url(self, url, league_title, round_title=None):
-        # check if correct url
-        page_type = 'round' if (round_title is not None) else 'league'
-        html_text = self.get_html_text(url)
-        results = self.stripper.get_results(html_text, page_type)
-        match = (results['league'][0] == league_title)
-        if round_title is not None:
-            match = match & (results['round'][0] == round_title)
-        return match
+        return item
 
 class Stripper(Streamable):
     home_types = {'league': {'tag': 'div',
@@ -384,3 +394,4 @@ class Stripper(Streamable):
                 num += count*2    
 
         return league_title, round_title, submitters, song_ids, player_names, vote_counts, point_totals, track_urls, users #voter_totals
+
