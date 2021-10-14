@@ -114,7 +114,7 @@ class Streamer:
             with st.expander(label='', expanded=True):
                 func(item, **args)
         else:
-            func(item)
+            func(item, **args)
 
     def right_column(self, right_column, func1, item1, func2, **args):
         if right_column:

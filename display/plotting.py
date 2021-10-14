@@ -173,7 +173,8 @@ class Plotter(Streamable):
 
     def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5,
                    image_size=(0, 0), padding=0, text=None,
-                   aspect=(1, 1), flipped=False, zorder=0):
+                   aspect=(1, 1), flipped=False, zorder=0,
+                   border_color=None, border_padding=0.2):
         flip = -1 if flipped else 1
 
         if player_name:
@@ -186,6 +187,9 @@ class Plotter(Streamable):
 
         if image and text:
             image = self.canvas.add_text(image, text, self.fonts['image_sans'])
+
+        if image and border_color:
+            image = self.canvas.add_border(image, color=border_color, padding=border_padding)
 
         if image:
             scaling = [a / max(aspect) for a in aspect]
@@ -414,7 +418,7 @@ class Plotter(Streamable):
         return sizes
 
     def plot_boards(self, league_title, board, creators_winners_df):
-        plot_key = (league_title, 'boards_ax')
+        plot_key = (league_title, 'boards_ax', self.view_player)
         ax, ok = self.streamer.get_session_state(plot_key)
         if ok:
             self.streamer.status(1/self.plot_counts)
@@ -425,6 +429,7 @@ class Plotter(Streamable):
 
             self.streamer.status(1/self.plot_counts * (1/3))
             self.streamer.print('\t...rankings', base=False)
+
             n_rounds = len(board.columns)
             n_players = len(board.index)
             aspect = (n_rounds - 1, n_players - 1)
@@ -440,7 +445,7 @@ class Plotter(Streamable):
             ties_df = DataFrame(0, columns=unique(board.values), index=xs)
 
             for player in board.index:
-                self.plot_board_player(ax, xs, player, board, lowest_rank, ties_df) #ties_df =
+                self.plot_board_player(ax, xs, player, board, lowest_rank, ties_df)
             self.streamer.status(1/self.plot_counts * (1/3))
 
             round_titles = [self.texter.clean_text(c) for c in board.columns]
@@ -484,8 +489,17 @@ class Plotter(Streamable):
 
         display_name = self.texter.get_display_name(player)
 
-        color = f'C{board.index.get_loc(player)}'
-        ax.plot(xs, ys, marker='.', color=color, zorder=0)
+                # plot finishers
+        if player == self.view_player:
+            border_color = self.paintbrush.get_color('blue', lighten=0.2)
+            color = self.paintbrush.normalize_color(border_color)
+            linewidth = 2.25
+        else:
+            border_color = None
+            color = f'C{board.index.get_loc(player)}'
+            linewidth = None
+            
+        ax.plot(xs, ys, marker='.', color=color, zorder=0, linewidth=linewidth)
         ax.scatter(xs, ds, marker='.', color=color, zorder=0)
 
         for x, y, d, t in zip(xs, ys, ds, ties):
@@ -494,9 +508,9 @@ class Plotter(Streamable):
                 x_plot, y_plot = self.adjust_ties(x, y, t, ties_df.loc[x, y])
                 ties_df.loc[x, y] += 1
 
-                # plot finishers
                 image, _ = self.plot_image(ax, x_plot, y_plot, player_name=player, size=size, flipped=True,
-                                           zorder=1)
+                                           zorder=1, border_color=border_color)
+
                 if not image:
                     ax.text(x, y, display_name)
                 
@@ -524,7 +538,7 @@ class Plotter(Streamable):
         return x_plot, y_plot
 
     def plot_rankings(self, league_title, rankings, dirty_df, discovery_df):
-        plot_key = (league_title, 'rankings_ax')
+        plot_key = (league_title, 'rankings_ax', self.view_player)
         ax, ok = self.streamer.get_session_state(plot_key)
         if ok:
             self.streamer.status(1/self.plot_counts)
@@ -554,11 +568,18 @@ class Plotter(Streamable):
             rgb_discovery_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('grey', 'dark_blue'))
 
             xs = range(n_rounds)
+            x_min = -1.5
+            x_max = len(xs) + 2 + 0.5
             self.streamer.status(1/self.plot_counts * (1/3))
             for player in player_names:
                 y = player_names.get_loc(player)
                 marker_size = 0.9
                 image_size = self.plot_player_scores(ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size)
+
+                # plot area behind view player
+                if player == self.view_player:
+                    color = self.paintbrush.get_color('blue', lighten=0.2, normalize=True)
+                    ax.fill_between([x_min, x_max], y-0.5, y+0.5, color=color, zorder=0)
 
                 # plot dirtiness
                 self.plot_player_score(ax, len(xs), y, dirty_df[player], max_dirty, rgb_dirty_df,
@@ -581,6 +602,7 @@ class Plotter(Streamable):
             ax.set_xticks([(n_rounds-1)/2] + [n_rounds + i for i in range(3)])
             ax.set_xticklabels(['scores', 'dirtiness', 'discovery', 'popularity'],
                                rotation=self.rotate_labels(n_rounds))
+            ax.set_xlim([x_min, x_max])
 
             self.streamer.store_session_state(plot_key, ax)
 

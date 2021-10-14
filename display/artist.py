@@ -33,11 +33,29 @@ class Paintbrush:
               'gunmetal_grey': (99, 96, 89),
               }
 
+    tableau_colors = {'c0': (31, 119, 180),
+                      'c1': (255, 127, 14),
+                      'c2': (44, 160, 44),
+                      'c3': (214, 39, 40),
+                      'c4': (148, 103, 189),
+                      'c5': (140, 86, 75),
+                      'c6': (227, 119, 194),
+                      'c7': (127, 127, 127),
+                      'c8': (188, 189, 34),
+                      'c9': (23, 190, 207),
+                      }
+
     def __init__(self):
         self.byter = Byter()
 
-    def get_color(self, color_name):
-        return self.colors.get(color_name, (0, 0, 0))
+    def get_color(self, color_name, normalize=False, lighten=None):
+        color = self.colors.get(color_name, (0, 0, 0))
+        if lighten:
+            color = self.lighten_color(color, lighten)
+        if normalize:
+            color = self.normalize_color(color)
+        
+        return color
 
     def get_colors(self, *color_names):
         if len(color_names) == 1:
@@ -46,6 +64,9 @@ class Paintbrush:
             colors = [self.get_color(color_name) for color_name in color_names]
         
         return colors
+
+    def get_plot_color(self, color_name):
+        return self.tableau_colors.get(color_name.lower(), (0, 0, 0))
 
     def lighten_color(self, color, pct=0):
         color = tuple(int(max(0, min(self.color_wheel, c + pct * self.color_wheel))) for c in color)
@@ -71,7 +92,7 @@ class Paintbrush:
         colors = [self.normalize_color(rgb, self.color_wheel) for rgb in colors_rgb]
         return colors
 
-    def normalize_color(self, color, divisor):
+    def normalize_color(self, color, divisor=color_wheel):
         color = tuple(c / divisor for c in color)
         return color
 
@@ -79,8 +100,6 @@ class Paintbrush:
         cf = ColorThief(self.byter.bit_me(image))
         full_palette = cf.get_palette(color_count=color_count, quality=1)
         palette = sorted(full_palette, key=self.is_prominent, reverse=True)
-        print(full_palette)
-        print(palette)
 
         return palette
 
@@ -122,6 +141,7 @@ class Canvas(Imager, Streamable):
         self.boxer = Boxer()
         self.add_streamer(streamer)
         self.mobis = {}
+        self.paintbrush = Paintbrush()
         
     def get_player_image(self, player_name):
         image = self.gallery.get_image(player_name)
@@ -167,6 +187,10 @@ class Canvas(Imager, Streamable):
     def add_border(self, image, color=(0,0,0), padding=0):
         W, H = image.size
         border_size = (int(W * (1 + padding/2)), int(H * (1 + padding/2)))
+
+        if color == 'palette':
+            color = self.paintbrush.get_palette(image)[0]
+
         border = self.get_color_image(color, border_size)
         w, h = border.size
         border.paste(image, ((w-W)//2, (h-H)//2), image)
