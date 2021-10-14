@@ -79,34 +79,39 @@ class Paintbrush:
         cf = ColorThief(self.byter.bit_me(image))
         full_palette = cf.get_palette(color_count=color_count, quality=1)
         palette = sorted(full_palette, key=self.is_prominent, reverse=True)
+        print(full_palette)
+        print(palette)
 
         return palette
 
     def is_prominent(self, rgb):
         # rank based on order (appearance), darkness (value below), greyness (RGB are all close) and melanin (skin colors)
-        prominent = not any(f(rgb) for f in [self.is_dark, self.is_grey, self.is_skin])
+        prominent = (1- self.is_dark(rgb)) * (1- self.is_light(rgb)) * sum([1-self.is_grey(rgb), 1-self.is_skin(rgb)]) / 2 #not any(f(rgb) for f in [self.is_dark, self.is_grey, self.is_skin])
 
         return prominent
+
+    def is_light(self, rgb, threshold=250):
+        light = min(rgb) >= threshold
+
+        return light
 
     def is_dark(self, rgb, threshold=100):
         dark = max(rgb) < threshold
 
         return dark
 
-    def is_grey(self, rgb, threshhold=16):
+    def is_grey(self, rgb, threshhold=40):
         r, g, b = rgb
-        grey = sum([(r-g)**2 + (r-b)**2 + (g-b)**2])**0.5 < threshhold**3
+        grey = sum([(r-g)**2 + (r-b)**2 + (g-b)**2])**0.5 < threshhold
 
         return grey
 
-    def is_skin(self, rgb, skin_tone=(232, 190, 172), r_weight=2, g_weight=4, b_weight=3, threshold=16):
+    def is_skin(self, rgb, skin_tone=(232, 190, 172), r_weight=2, g_weight=4, b_weight=3, threshold=100):
         # find the distance between two colors
-        max_delta = 255
-        scaling = sum(w * max_delta**2 for w in [r_weight, g_weight, b_weight])**0.5
-
+        weights = [r_weight, g_weight, b_weight]
+        
         # use euclidian 
-        skin = sum(w * (c0 - c1)**2 for w, c0, c1 in zip([[r_weight, g_weight, b_weight],
-                                                           rgb, skin_tone]))**0.5 / scaling < threshold**3
+        skin = sum(w * (c0 - c1)**2 for w, c0, c1 in zip(weights, rgb, skin_tone))**0.5 < threshold
         
         return skin
 

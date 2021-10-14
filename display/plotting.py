@@ -222,7 +222,7 @@ class Plotter(Streamable):
     def plot_viewer(self, badge=None):
         image = self.canvas.get_player_image(self.view_player)
         palette = self.paintbrush.get_palette(image)
-        image = self.canvas.add_border(image, color=palette[2], padding=0.2)
+        image = self.canvas.add_border(image, color=palette[0], padding=0.2)
 
         if badge:
             medal_metals = ['gold', 'silver', 'bronze', 'gunmetal_grey']
