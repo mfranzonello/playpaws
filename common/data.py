@@ -900,17 +900,25 @@ class Database(Streamable):
 
         return discoveries_df
 
-    def get_genres_and_tags(self, league_title):
+    def get_genres_and_tags(self, league_title, player_name=None):
+        if player_name:
+            wheres = f' AND s.submitter = {self.needs_quotes(player_name)}'
+        else:
+            wheres = ''
+
         sql = (f'SELECT a.genres, t.top_tags AS tags '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t '
                f'ON s.track_url = t.url '
                f'LEFT JOIN {self.table_name("Artists")} AS a '
                f'ON t.artist_uri ? a.uri '
-               f'WHERE s.league = {self.needs_quotes(league_title)};'
+               f'WHERE s.league = {self.needs_quotes(league_title)}{wheres};'
                )
 
         genres_df = read_sql(sql, self.connection)
+        
+        if player_name:
+            genres_df = set(genres_df.sum().sum())
 
         return genres_df
 
@@ -950,7 +958,7 @@ class Database(Streamable):
         return exclusives
 
     def get_song_results(self, league_title):
-        sql = (f'SELECT s.round, s.song_id, '
+        sql = (f'SELECT s.round, s.song_id, s.submitter, '
                f't.title, ttt.artist, b.release_date, b.src, r.closed, r.points, d.status '
                f'FROM {self.table_name("Results")} AS r '
                f'LEFT JOIN {self.table_name("Songs")} AS s '

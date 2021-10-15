@@ -31,6 +31,7 @@ class Paintbrush:
               'silver': (192, 192, 192),
               'bronze': (205, 127, 50),
               'gunmetal_grey': (99, 96, 89),
+              'dark_grey': (75, 75, 75),
               }
 
     tableau_colors = {'c0': (31, 119, 180),
@@ -143,6 +144,8 @@ class Canvas(Imager, Streamable):
         self.mobis = {}
         self.paintbrush = Paintbrush()
         
+        self.ppt = 0.75
+
     def get_player_image(self, player_name):
         image = self.gallery.get_image(player_name)
 
@@ -222,66 +225,97 @@ class Canvas(Imager, Streamable):
         return mask
 
     def get_time_parameters(self, text_df, aspect, base):
-        H = int(base) #int((text_df['y_round'].max() + 1) * base)
-        W = int(aspect[0] * H / aspect[1])
-
-        ppt = 0.75
-
-        max_x = text_df['x'].max()
-
+        h = base
+        w = aspect[0] * h / aspect[1]
+        
         # remove text too small
         text_df = text_df.replace([inf, -inf], nan).dropna(subset=['size'])
-
-        text_df['image_font'] = text_df.apply(lambda x: ImageFont.truetype(x['font_name'],
-                                                                           int(x['size'] * ppt * base / 2)), axis=1)
-        text_df['length'] = text_df.apply(lambda x: max(x['image_font'].getmask(x['text_top']).getbbox()[2],
-                                                        x['image_font'].getmask(x['text_bottom']).getbbox()[2]),
-                                          axis=1)
         
-        text_df['total_length'] = text_df['length'].add(date2num(max_x) - date2num(text_df['x']))
-        max_x_i = text_df[text_df['total_length'] == text_df['total_length'].max()].index[0]
-
-        X = (date2num(max_x) - date2num(text_df['x'][max_x_i]))
-        x_ratio = (W - text_df['length'][max_x_i]) / X
-        D = x_ratio * X
-
-        return text_df, D, max_x, x_ratio, W, H, base
+        # normalize x location
+        text_df['x'] = text_df['x'].apply(date2num)
+        
+        x_max = text_df['x'].max()
+        x_min = text_df['x'].min()
+        text_df['x'] = text_df.apply(lambda x: (x['x'] - x_max)/(x_min - x_max) * w, axis=1)
        
-    def get_timeline_image(self, text_df, max_x, x_ratio, W, H, base,
+        # find length of text
+        text_df['image_font'] = text_df.apply(lambda x: ImageFont.truetype(x['font_name'],
+                                                                           int(x['size'] * self.ppt * base / 2)),
+                                              axis=1)
+        text_df['length_top'] = text_df.apply(lambda x: x['image_font'].getmask(x['text_top']).getbbox()[2],
+                                              axis=1)
+        text_df['length_bottom'] = text_df.apply(lambda x: x['image_font'].getmask(x['text_bottom']).getbbox()[2],
+                                                 axis=1)
+        text_df['length'] = text_df[['length_top', 'length_bottom']].max(1)
+        text_df['height'] = text_df.apply(lambda x: x['image_font'].getmetrics()[0] \
+                                                    - x['image_font'].font.getsize(x['text_bottom'])[1][1],
+                                          axis=1)
+        text_df['left'] = text_df.apply(lambda x: x['x'] - base * x['size']/2,
+                                        axis=1)
+        text_df['right'] = text_df.apply(lambda x: x['x'] + base * x['size']/2,
+                                         axis=1)
+
+        # add flag where text is too long
+        text_df['flip'] = text_df['length'].add(text_df['x']).gt(w)
+
+        left = text_df['left'].min()
+        right = text_df['right'].max()
+
+        # adjust width for box on the edge
+        W = int(-left + right)
+        H = int(h)
+        x0 = -left
+        x1 = right - w
+        return text_df, W, H, x0, x1
+
+    def get_timeline_image(self, text_df, W, H, x0, base, highlight_color,
                            padding=0.1, min_box_size=5):
-        image = Image.new('RGB', (W, H), (255, 255, 255))
+        image = Image.new('RGBA', (W, H), (255, 255, 255, 0))
         draw = ImageDraw.Draw(image)
 
         for i in text_df.index:
-            x_text = int(x_ratio * (date2num(max_x) - date2num(text_df['x'][i])))
-            y_text = int(text_df['y'][i] * base)
+            x = text_df['x'][i] + x0
+            y = text_df['y'][i] * base
 
             box_src = text_df['src'][i]
-            box_size = int(text_df['size'][i] * base)
-            padded_size = int(box_size * (1 - padding))
+            box_size = text_df['size'][i] * base
+            padded_size = box_size * (1 - padding)
             box_color = text_df['color'][i]
-            pad_offset = int(box_size * padding / 2)
+            pad_offset = box_size * padding / 2
 
             if padded_size:
                 if box_src and padded_size > min_box_size:
-                    src_size = tuple([padded_size] * 2)
+                    src_size = tuple([int(padded_size)] * 2)
                     box_img = Image.open(urlopen(box_src)).resize(src_size)
 
                     if isnan(text_df['points'][i]):
                         # grey out an image without points
                         ImageOps.grayscale(box_img)
-
-                    image.paste(box_img, (x_text + pad_offset, y_text + pad_offset))
+                        
+                    image.paste(box_img, (int(x - box_size/2 + pad_offset), int(y + pad_offset)))
                 else:
-                    draw.rectangle([x_text + pad_offset,
-                                    y_text + pad_offset,
-                                    x_text + box_size - pad_offset,
-                                    y_text + box_size - pad_offset],
+                    draw.rectangle([int(x - box_size/2 + pad_offset),
+                                    int(y + pad_offset),
+                                    int(x + box_size/2 - pad_offset),
+                                    int(y + box_size - pad_offset)],
                                    fill=box_color)
+                if text_df['highlight'][i]:
+                    draw.rectangle([int(x - box_size/2 + pad_offset), int(y + pad_offset),
+                                    int(x + box_size/2 - pad_offset), int(y + box_size - pad_offset)],
+                                   outline=highlight_color, width=int(pad_offset))
 
-            draw.text((x_text + box_size, y_text), text_df['text_top'][i],
+            x_text = (x + box_size/2) if (not text_df['flip'][i]) else (x - box_size/2 - text_df['length'][i])
+            draw.text((int(x_text), int(y)), text_df['text_top'][i],
                       fill=box_color, font=text_df['image_font'][i])
-            draw.text((x_text + box_size, y_text + box_size/2), text_df['text_bottom'][i],
+            draw.text((int(x_text), int(y + box_size/2)), text_df['text_bottom'][i], #- text_df['height'][i]/2 * self.ppt
                       fill=box_color, font=text_df['image_font'][i])
+            if text_df['highlight'][i]:
+                y_line = y - pad_offset/2
+                draw.rectangle([int(x_text), int(y_line + box_size/2),
+                                int(x_text + text_df['length_top'][i]), int(y_line + box_size/2) - max(1, int(pad_offset/3))],
+                                fill=box_color)
+                draw.rectangle([int(x_text), int(y_line + box_size),
+                                int(x_text + text_df['length_bottom'][i]), int(y_line + box_size) - max(1, int(pad_offset/3))],
+                                fill=box_color)
 
         return image

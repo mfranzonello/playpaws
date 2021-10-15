@@ -40,6 +40,10 @@ class Streamer:
 
         self.deployed = deployed
         if self.deployed:
+            st.set_page_config(page_title='MobiMusic',
+                               page_icon='headphones',
+                               )
+
             self.sidebar = st.sidebar
 
             with st.container():
@@ -58,11 +62,6 @@ class Streamer:
                     self.player_image = st.empty()
                 with col4:
                     self.player_caption = st.empty()
-
-            #with self.sidebar.container():
-            #    self.selectbox = st.empty() #selectbox('Loading app...', ['']) 
-            
-            ##self.status_bar = self.sidebar.progress(0)
         
             with self.sidebar.container():
                 self.text_print = self.sidebar.empty()
@@ -97,7 +96,7 @@ class Streamer:
     def tooltip(self, tooltip):
         if tooltip:
             with st.expander(tooltip['label']):
-                st.write(tooltip['content'])
+                st.markdown(tooltip['content'], unsafe_allow_html=True)
 
     def sidebar_image(self, image=None):
         if image:
@@ -124,9 +123,13 @@ class Streamer:
             with col_right:
                 func2(right_column)
         
+    def plotly(self, figure, header=None, header2=None, tooltip=None, in_expander=False):
+        self.wrapper(header, tooltip, header2=header2)
+        self.in_expander(in_expander, st.ploty_chart, figure, transparent=True)
+
     def pyplot(self, figure, header=None, header2=None, tooltip=None, in_expander=False):
         self.wrapper(header, tooltip, header2=header2)
-        self.in_expander(in_expander, st.pyplot, figure)
+        self.in_expander(in_expander, st.pyplot, figure, transparent=True)
         
     def image(self, image, header=None, header2=None, tooltip=None, right_column=None,
               in_expander=False):

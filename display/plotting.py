@@ -2,13 +2,14 @@ from math import sin, cos, atan2, pi, nan, isnan, ceil
 from collections import Counter
 from os.path import dirname, realpath
 from datetime import datetime
+from random import choice as rand_choice
 
 from pandas import DataFrame, isnull, to_datetime, Timestamp
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from matplotlib import font_manager
 from matplotlib.dates import date2num#, num2date
-from wordcloud import WordCloud#, ImageColorGenerator
+from wordcloud import WordCloud
 from numpy import unique
 
 from common.words import Texter
@@ -49,7 +50,15 @@ class Plotter(Streamable):
         
         # define fonts to use
         self.fonts = self.library.get_and_set_fonts(font_manager, rcParams,
-                                                    dirname(dirname(realpath(__file__))))       
+                                                    dirname(dirname(realpath(__file__))),
+                                                    plot_color=self.paintbrush.get_color('dark_grey', normalize=True))       
+        self.highlight_color = self.paintbrush.get_color('blue', lighten=0.2)
+        self.fail_color = self.paintbrush.get_color('grey')
+        
+        lighten_pcts = [p/100 for p in range(-30, 30+10, 10)]
+        self.pass_colors = [self.paintbrush.lighten_color(self.highlight_color, p) for p in lighten_pcts]
+        self.fail_colors = [self.paintbrush.lighten_color(self.fail_color, p) for p in lighten_pcts]                                       
+
         self.league_titles = None
         self.view_player = None
         self.view_league_titles = None
@@ -76,10 +85,10 @@ class Plotter(Streamable):
         else:
             self.league_titles = []
 
-    def prepare_dfs(self, key, function, *args):
+    def prepare_dfs(self, key, function, *args, **kwargs):
         df, ok = self.streamer.get_session_state(key)
         if not ok:
-            df = function(*args)
+            df = function(*args, **kwargs)
             self.streamer.store_session_state(key, df)
 
         return df
@@ -151,9 +160,11 @@ class Plotter(Streamable):
                                            self.database.get_genres_and_tags, league_title)
                 exclusives_df = self.prepare_dfs(('exclusives_df', league_title),
                                                  self.database.get_exclusive_genres, league_title)
+                player_tags_df = self.prepare_dfs(('player_tags_df', league_title, self.view_player),
+                                                  self.database.get_genres_and_tags, league_title, player_name=self.view_player)
                 masks = self.prepare_dfs(('masks', league_title),
                                          self.boxer.get_mask, league_title)
-                self.plot_tags(league_title, tags_df, exclusives_df, masks)
+                self.plot_tags(league_title, tags_df, exclusives_df, player_tags_df, masks)
 
                 results_df = self.prepare_dfs(('results_df', league_title),
                                               self.database.get_song_results, league_title)
@@ -265,8 +276,9 @@ class Plotter(Streamable):
 
     def plot_members(self, league_title, members_df):
         plot_key = (league_title, 'members_ax')
-        ax, ok = self.streamer.get_session_state(plot_key)
+        stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
+            ax, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:
@@ -306,12 +318,11 @@ class Plotter(Streamable):
                         members_df['y'].max() + self.name_offset + self.font_size)
             ax.axis('off')
 
-            self.streamer.store_session_state(plot_key, ax)
-
-        parameters = {'leader': members_df[members_df['wins'] == members_df['wins'].max()]['player'].values,
-                      'closest_dfc': members_df[members_df['dfc'] == members_df['dfc'].min()]['player'].values,
-                      }
-
+            parameters = {'leader': members_df[members_df['wins'] == members_df['wins'].max()]['player'].values,
+                          'closest_dfc': members_df[members_df['dfc'] == members_df['dfc'].min()]['player'].values,
+                          }
+            self.streamer.store_session_state(plot_key, (ax, parameters))
+            
         self.streamer.pyplot(ax.figure, header='League Pulse', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('members', parameters=parameters))
 
@@ -419,8 +430,9 @@ class Plotter(Streamable):
 
     def plot_boards(self, league_title, board, creators_winners_df):
         plot_key = (league_title, 'boards_ax', self.view_player)
-        ax, ok = self.streamer.get_session_state(plot_key)
+        stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
+            ax, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:
@@ -472,12 +484,12 @@ class Plotter(Streamable):
             ax.set_yticks(yticks)
             ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
 
-            self.streamer.store_session_state(plot_key, ax)
+            parameters = {'round_titles': creators_winners_df['round'].values,
+                          'choosers': creators_winners_df['creator'].values,
+                          'winners': creators_winners_df['winner'].values,
+                          }
+            self.streamer.store_session_state(plot_key, (ax, parameters))
 
-        parameters = {'round_titles': creators_winners_df['round'].values,
-                      'choosers': creators_winners_df['creator'].values,
-                      'winners': creators_winners_df['winner'].values,
-                      }
         self.streamer.pyplot(ax.figure, header='Round Finishers', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('boards', parameters=parameters))
 
@@ -491,7 +503,7 @@ class Plotter(Streamable):
 
                 # plot finishers
         if player == self.view_player:
-            border_color = self.paintbrush.get_color('blue', lighten=0.2)
+            border_color = self.highlight_color
             color = self.paintbrush.normalize_color(border_color)
             linewidth = 2.25
         else:
@@ -499,7 +511,7 @@ class Plotter(Streamable):
             color = f'C{board.index.get_loc(player)}'
             linewidth = None
             
-        ax.plot(xs, ys, marker='.', color=color, zorder=0, linewidth=linewidth)
+        ax.plot(xs, ys, marker='.', color=color, zorder=1 if player==self.view_player else 0, linewidth=linewidth)
         ax.scatter(xs, ds, marker='.', color=color, zorder=0)
 
         for x, y, d, t in zip(xs, ys, ds, ties):
@@ -509,7 +521,7 @@ class Plotter(Streamable):
                 ties_df.loc[x, y] += 1
 
                 image, _ = self.plot_image(ax, x_plot, y_plot, player_name=player, size=size, flipped=True,
-                                           zorder=1, border_color=border_color)
+                                           zorder=3 if player==self.view_player else 2, border_color=border_color)
 
                 if not image:
                     ax.text(x, y, display_name)
@@ -539,8 +551,9 @@ class Plotter(Streamable):
 
     def plot_rankings(self, league_title, rankings, dirty_df, discovery_df):
         plot_key = (league_title, 'rankings_ax', self.view_player)
-        ax, ok = self.streamer.get_session_state(plot_key)
+        stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
+            ax, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:
@@ -578,7 +591,7 @@ class Plotter(Streamable):
 
                 # plot area behind view player
                 if player == self.view_player:
-                    color = self.paintbrush.get_color('blue', lighten=0.2, normalize=True)
+                    color = self.paintbrush.normalize_color(self.highlight_color)
                     ax.fill_between([x_min, x_max], y-0.5, y+0.5, color=color, zorder=0)
 
                 # plot dirtiness
@@ -593,7 +606,6 @@ class Plotter(Streamable):
             self.streamer.status(1/self.plot_counts * (1/3))
             
             ax.axis('equal')
-            #ax.axis('off')
             ax.spines['left'].set_visible(False)
             ax.spines['right'].set_visible(False)
             ax.set_yticklabels([])
@@ -603,13 +615,13 @@ class Plotter(Streamable):
             ax.set_xticklabels(['scores', 'dirtiness', 'discovery', 'popularity'],
                                rotation=self.rotate_labels(n_rounds))
             ax.set_xlim([x_min, x_max])
+            
+            parameters = {'dirty': dirty_df[dirty_df == dirty_df.max()].index.values,
+                          'discovery': discovery_df[discovery_df['discovery'] == discovery_df['discovery'].max()].index.values,
+                          'popular': discovery_df[discovery_df['popularity'] == discovery_df['popularity'].max()].index.values,
+                          }
+            self.streamer.store_session_state(plot_key, (ax, parameters))
 
-            self.streamer.store_session_state(plot_key, ax)
-
-        parameters = {'dirty': dirty_df[dirty_df == dirty_df.max()].index.values,
-                      'discovery': discovery_df[discovery_df['discovery'] == discovery_df['discovery'].max()].index.values,
-                      'popular': discovery_df[discovery_df['popularity'] == discovery_df['popularity'].max()].index.values,
-                      }
         self.streamer.pyplot(ax.figure, header='Player Scores', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('rankings', parameters=parameters))
 
@@ -653,8 +665,9 @@ class Plotter(Streamable):
             
     def plot_features(self, league_title, features_df):
         plot_key = (league_title, 'features_ax')
-        ax, ok = self.streamer.get_session_state(plot_key)
+        stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
+            ax, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:
@@ -720,11 +733,12 @@ class Plotter(Streamable):
             ax.set_xlabel('') ## None?
             ax.set_yticklabels([])
             ax.set_yticks([])
-        
-            self.streamer.store_session_state(plot_key, ax)
+            
+            parameters = {}
+            self.streamer.store_session_state(plot_key, (ax, parameters))
 
         self.streamer.pyplot(ax.figure, header='Audio Features', #in_expander=fig.get_size_inches()[1] > 6,
-                             tooltip=self.library.get_tooltip('features', parameters={}))
+                             tooltip=self.library.get_tooltip('features', parameters=parameters))
 
     def convert_axes(self, ax, z, y=True):
         if y:
@@ -738,11 +752,11 @@ class Plotter(Streamable):
 
         return z_
 
-    def plot_tags(self, league_title, tags_df, exclusives, mask_bytes):
-        plot_key = (league_title, 'tags_ax')
-        ax, ok = self.streamer.get_session_state(plot_key)
+    def plot_tags(self, league_title, tags_df, exclusives, player_tags_df, mask_bytes):
+        plot_key = (league_title, 'tags_ax', self.view_player)
+        stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
-            wordcloud_image, parameters = ax
+            wordcloud_image, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:          
@@ -752,7 +766,10 @@ class Plotter(Streamable):
 
             text = Counter(tags_df.dropna().sum().sum())
             
-            wordcloud = WordCloud(mode='RGBA', background_color=None, mask=mask).generate_from_frequencies(text)
+            self.player_tags = player_tags_df
+            wordcloud = WordCloud(mode='RGBA', background_color=None, mask=mask)\
+                .generate_from_frequencies(text)\
+                .recolor(color_func=self.word_color)
             wordcloud_image = wordcloud.to_array()
   
             text_ex = text.copy()
@@ -763,27 +780,31 @@ class Plotter(Streamable):
             self.streamer.status(1/self.plot_counts * (1/2))
 
             parameters = {'top_tags': [t[0] for t in text.most_common(3)],
-                          'exclusives': [t[0] for t in text_ex.most_common(3)]
+                          'exclusives': [t[0] for t in text_ex.most_common(3)],
+                          'highlight': self.highlight_color,
                           }
             self.streamer.store_session_state(plot_key, (wordcloud_image, parameters))
+
         self.streamer.image(wordcloud_image, header='Genre Cloud',
                             tooltip=self.library.get_tooltip('tags', parameters=parameters))
 
-    def sum_num(self, num):
-        return sum(1/(n+2) for n in range(int(num)))
-
-    def plot_top_songs(self, league_title, results_df, descriptions, max_years=10):
+    def word_color(self, word, font_size, position, orientation, random_state=None,
+                    **kwargs):
+        color = rand_choice(self.pass_colors if (word in self.player_tags) else self.fail_colors)
+        
+        return color
+    
+    def plot_top_songs(self, league_title, results_df, descriptions, max_years=10, base=500):
+        self.streamer.print('\t...songs', base=False)
         plot_key = (league_title, 'top_songs_ax')
-        results, ok = self.streamer.get_session_state(plot_key)
-        if False:#ok:
+        stored, ok = self.streamer.get_session_state(plot_key)
+        if ok:
+            n_rounds, n_years, years_range, text_df, W, H, x0, x1, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:
-            fig = plt.figure()
-            ax = fig.add_axes([1, 1, 1, 1])
-            
             self.streamer.status(1/self.plot_counts * (1/4))
-            self.streamer.print('\t...songs', base=False)
+            
             round_titles = list(results_df['round'].unique())
 
             results_df.index = range(len(results_df))
@@ -812,51 +833,67 @@ class Plotter(Streamable):
             results_df['font_name'] = results_df.apply(lambda x: self.fonts['image_bold'] if x['closed'] else self.fonts['image_sans'], axis=1)
             results_df['color'] = results_df.apply(lambda x: self.paintbrush.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max() \
                                                 if results_df[results_df['round'] == x['round']]['points'].max() else nan, self.paintbrush.get_color('grey')), axis=1)
-        
+            results_df['highlight'] = results_df['submitter'] == self.view_player
+
             self.streamer.status(1/self.plot_counts * (1/4))
         
             n_years = max_date.year - min_date.year
             years_range = range(0, n_years, max(1, ceil(n_years/max_years)))
 
             average_year = results_df.groupby('round').first()['release_date'].apply(Timestamp).mean().year
+
+            text_image_results = self.canvas.get_time_parameters(results_df,
+                                                        self.subplot_aspects['top_songs'],
+                                                        base)
+            text_df, W, H, x0, x1 = text_image_results
+            
+            n_rounds = len(round_titles)
+
             parameters = {'max_year': max_date.year,
                           'min_year': min_date.year,
                           'average_age': datetime.today().year - average_year,
                           'oldest_year': results_df['release_date'].min().year,
                           }
-            self.streamer.wrapper(header='Top Songs',
-                                  tooltip=self.library.get_tooltip('top_songs', parameters=parameters))
+            self.streamer.store_session_state(plot_key, (n_rounds, n_years, years_range, text_df,
+                                                         W, H, x0, x1, parameters))
+        self.streamer.wrapper(header='Top Songs',
+                                tooltip=self.library.get_tooltip('top_songs', parameters=parameters))
                 
-            base = 500
-            text_image_results = self.canvas.get_time_parameters(results_df,
-                                                                   self.subplot_aspects['top_songs'],
-                                                                   base)
-            text_df, D, max_x, x_ratio, W, H, base = text_image_results
+        for r in round_titles:
+            plot_key_i = (league_title, 'top_songs_ax', r)
+            stored, ok = self.streamer.get_session_state(plot_key_i)
+            if ok:
+                print(stored)
+                ax, parameters_i = stored
+                self.streamer.status(1/self.plot_counts * (1/n_rounds))
 
-            n_rounds = len(round_titles)
-            for i, r in enumerate(round_titles):
-                image = self.canvas.get_timeline_image(text_df[text_df['round'] == r], max_x, x_ratio, W, H, base)
+            else:
+                fig = plt.figure()
+                ax = fig.add_axes([1, 1, 1, 1])
+            
+                image = self.canvas.get_timeline_image(text_df[text_df['round'] == r], W, H, x0,
+                                                        base, self.highlight_color)
 
                 ax.imshow(image)
-                W, H = image.size
-            
+                
                 ax.set_yticks([])
                 ax.set_yticklabels([])
 
-                ax.set_xticks([D / n_years * d for d in years_range] + [(W + D) / 2])
+                ax.set_xticks([x0 + (W - x0 - x1) / n_years * y for y in years_range] + [W - x1])
                 ax.set_xticklabels([max_date.year - i for i in years_range] + [f'< {max_date.year - max(years_range)}'])
-        
-                ##ax.set_title(self.texter.clean_text(r), loc='left', fontweight='bold') #, horizontalalignment='left')
                 
                 self.streamer.status(1/self.plot_counts * (1/n_rounds))
 
-                parameters = {'description': descriptions[descriptions['round'] == r]['description'].iloc[0],
-                              }
-                self.streamer.pyplot(ax.figure, header2=self.texter.clean_text(r), #in_expander=fig.get_size_inches()[1] > 6,
-                                     tooltip=self.library.get_tooltip('top_songs_round', parameters=parameters))
+                parameters_i = {'description': descriptions[descriptions['round'] == r]['description'].iloc[0],
+                                }
+                self.streamer.store_session_state(plot_key_i, (ax, parameters_i))
+                    
+            self.streamer.pyplot(ax.figure, header2=self.texter.clean_text(r), #in_expander=fig.get_size_inches()[1] > 6,
+                                    tooltip=self.library.get_tooltip('top_songs_round', parameters=parameters_i))
                 
-            results = None
-            self.streamer.store_session_state(plot_key, results)
+    def sum_num(self, num):
+        return sum(1/(n+2) for n in range(int(num)))
+
 
     def plot_playlists(self, league_title, playlists_df, track_count, duration,
                        width=400, height=600):

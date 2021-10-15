@@ -1,4 +1,5 @@
-﻿from pandas import isnull
+﻿import matplotlib
+from pandas import isnull
 from pandas.core.dtypes import missing
 
 from common.words import Texter
@@ -55,7 +56,7 @@ class Library:
     def __init__(self):
         self.texter = Texter()
 
-    def get_and_set_fonts(self, font_manager, rcParams, dir_path):
+    def get_and_set_fonts(self, font_manager, rcParams, dir_path, plot_color):
         sans_fonts = list(self.texter.sans_fonts.keys())
         sans_font = list(self.texter.sans_fonts.values())[0]
         bold_font = list(self.texter.bold_fonts.values())[0]
@@ -76,6 +77,11 @@ class Library:
 
         rcParams['font.family'] = 'sans-serif'
         rcParams['font.sans-serif'] = sans_fonts
+
+        rcParams['text.color'] = plot_color
+        rcParams['axes.labelcolor'] = plot_color
+        rcParams['xtick.color'] = plot_color
+        rcParams['ytick.color'] = plot_color
 
         fonts = {'image_sans': image_sans_font,
                  'image_bold': image_bold_font,
@@ -215,7 +221,8 @@ class Library:
                     f'songs submitted in this league, from Spotify genres '
                     f'and Last.FM tags. You can see the top '
                     f'{tag_count if tag_count > 1 else ""} tag{top_tags.get("s")} {top_tags.get("be")} '
-                    f'{self.feel("tag")}{top_tags.get("text")}{self.feel("tag")}{add_on}.'
+                    f'{self.feel("tag")}{top_tags.get("text")}{self.feel("tag")}{add_on}. Your tags are '
+                    f'in <font color="rgb{parameters["highlight"]}">blue</font>.'
                     )
 
         elif plot_name == 'top_songs':
