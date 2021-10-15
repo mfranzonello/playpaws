@@ -171,7 +171,7 @@ class Spotter(Streamable):
 
         if len(players_db):
             players_update = self.get_updates(players_db, self.get_user_elements, key='username')
-            players_update['flagged'] = players_update['src'] is None
+            players_update['flagged'] = players_update['src'].isna()
             self.database.store_players(players_update)    
 
     def update_db_tracks(self):
