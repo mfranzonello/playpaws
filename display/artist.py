@@ -1,9 +1,8 @@
+from colorsys import rgb_to_hsv
 from math import inf, nan, isnan
 from urllib.request import urlopen
 
-import colorthief
 from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
-from matplotlib.dates import date2num
 from numpy import asarray
 from pandas import DataFrame
 from colorthief import ColorThief
@@ -49,13 +48,18 @@ class Paintbrush:
     def __init__(self):
         self.byter = Byter()
 
-    def get_color(self, color_name, normalize=False, lighten=None):
+    def get_color(self, color_name, normalize=False, hsv=False, hx=False, lighten=None):
         color = self.colors.get(color_name, (0, 0, 0))
         if lighten:
             color = self.lighten_color(color, lighten)
+
         if normalize:
             color = self.normalize_color(color)
-        
+        elif hsv:
+            color = self.hsv_color(color)
+        elif hx:
+            color = self.hex_color(color)
+
         return color
 
     def get_colors(self, *color_names):
@@ -95,6 +99,14 @@ class Paintbrush:
 
     def normalize_color(self, color, divisor=color_wheel):
         color = tuple(c / divisor for c in color)
+        return color
+
+    def hsv_color(self, color):
+        color = rgb_to_hsv(*(c/self.color_wheel for c in color))
+        return color
+
+    def hex_color(self, color):
+        color = '#' + ''.join('{c:02x}' for c in color)
         return color
 
     def get_palette(self, image, color_count=30):
@@ -231,9 +243,7 @@ class Canvas(Imager, Streamable):
         # remove text too small
         text_df = text_df.replace([inf, -inf], nan).dropna(subset=['size'])
         
-        # normalize x location
-        text_df['x'] = text_df['x'].apply(date2num)
-        
+        # normalize x location    
         x_max = text_df['x'].max()
         x_min = text_df['x'].min()
         text_df['x'] = text_df.apply(lambda x: (x['x'] - x_max)/(x_min - x_max) * w, axis=1)

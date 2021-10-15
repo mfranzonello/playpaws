@@ -1,5 +1,4 @@
-﻿import matplotlib
-from pandas import isnull
+﻿from pandas import isnull
 from pandas.core.dtypes import missing
 
 from common.words import Texter
@@ -222,7 +221,7 @@ class Library:
                     f'and Last.FM tags. You can see the top '
                     f'{tag_count if tag_count > 1 else ""} tag{top_tags.get("s")} {top_tags.get("be")} '
                     f'{self.feel("tag")}{top_tags.get("text")}{self.feel("tag")}{add_on}. Your tags are '
-                    f'in <font color="rgb{parameters["highlight"]}">blue</font>.'
+                    f'in <font color="{parameters["highlight"]}">blue</font>.'
                     )
 
         elif plot_name == 'top_songs':

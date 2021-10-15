@@ -8,7 +8,7 @@ from pandas import DataFrame, isnull, to_datetime, Timestamp
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 from matplotlib import font_manager
-from matplotlib.dates import date2num#, num2date
+from matplotlib.dates import date2num
 from wordcloud import WordCloud
 from numpy import unique
 
@@ -781,7 +781,7 @@ class Plotter(Streamable):
 
             parameters = {'top_tags': [t[0] for t in text.most_common(3)],
                           'exclusives': [t[0] for t in text_ex.most_common(3)],
-                          'highlight': self.highlight_color,
+                          'highlight': self.paintbrush.hex_color(self.highlight_color),
                           }
             self.streamer.store_session_state(plot_key, (wordcloud_image, parameters))
 
@@ -829,7 +829,7 @@ class Plotter(Streamable):
             rgb_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('purple', 'red', 'orange', 'yellow',
                                                                              'green', 'blue', 'dark_blue'))
 
-            results_df['x'] = results_df.apply(lambda x: max(min_date, x['release_date']), axis=1)
+            results_df['x'] = results_df.apply(lambda x: date2num(max(min_date, x['release_date'])), axis=1)
             results_df['font_name'] = results_df.apply(lambda x: self.fonts['image_bold'] if x['closed'] else self.fonts['image_sans'], axis=1)
             results_df['color'] = results_df.apply(lambda x: self.paintbrush.get_rgb(rgb_df, x['points'] / results_df[results_df['round'] == x['round']]['points'].max() \
                                                 if results_df[results_df['round'] == x['round']]['points'].max() else nan, self.paintbrush.get_color('grey')), axis=1)
