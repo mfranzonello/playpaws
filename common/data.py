@@ -646,10 +646,17 @@ class Database(Streamable):
 
         self.upsert_table('Playlists', df)
 
+    def flag_player_image(self, player_name):
+        sql = (f'UPDATE {self.table_name("Players")} SET flagged = TRUE '
+               f'WHERE player = {self.needs_quotes(player_name)};'
+               )
+
+        self.execute_sql(sql)
+
     def get_players_update_sp(self):
         wheres = ' OR '.join(f'({v} IS NULL)' for v in ['src', 'uri', 'followers'])
         sql = (f'SELECT username FROM {self.table_name("Players")} '
-               f'WHERE {wheres};')
+               f'WHERE {wheres} OR (flagged);')
 
         players_df = read_sql(sql, self.connection)
 

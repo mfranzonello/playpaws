@@ -1,4 +1,5 @@
 from urllib.request import urlopen
+from urllib.error import HTTPError
 from base64 import b64encode
 from io import BytesIO
 
@@ -137,11 +138,10 @@ class Gallery(Imager):
                 # Spotify profile image exists
                 if src[:len('http')] != 'http':
                     src = f'https://{src}'
-                fp = urlopen(src)
 
                 try:
                     # see if image can load
-                    image = Image.open(fp)
+                    image = Image.open(urlopen(src))
 
                     if self.crop:
                         image = self.crop_image(image)
@@ -149,6 +149,12 @@ class Gallery(Imager):
                 except UnidentifiedImageError:
                     # image is unloadable
                     self.streamer.print(f'...unable to read image for {name}', base=False)
+                    image = None
+
+                except HTTPError:
+                    #  image is unreachable
+                    self.streamer.print(f'...image is expired for {name}', base=False)
+                    self.database.flag_player_image(name)
                     image = None
 
             else:
