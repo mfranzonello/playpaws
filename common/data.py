@@ -13,7 +13,7 @@ class Database(Streamable):
               'Leagues': {'keys': ['league'],
                           'values': ['creator', 'date', 'url']},
               'Players': {'keys': ['username'],
-                          'values': ['player', 'src', 'uri', 'followers']},
+                          'values': ['player', 'src', 'uri', 'followers', 'flagged']},
               'Rounds': {'keys': ['league', 'round'],
                          'values': ['creator', 'date', 'status', 'url', 'playlist_url', 'description', 'capture']},
               'Songs': {'keys': ['league', 'song_id'],

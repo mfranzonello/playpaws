@@ -12,7 +12,7 @@ from display.streaming import Streamable
 
 class Scraper(Streamable):
     headers_get = {'X-Requested-With': 'XMLHttpRequest'}
-    headers_post
+    headers_post = {'authority': 'musicleague.app'}
 
     def __init__(self, stripper):
         super().__init__()
