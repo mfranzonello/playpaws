@@ -273,14 +273,14 @@ class Canvas(Imager, Streamable):
         image = Image.new('RGBA', (W, H), (255, 255, 255, 0))
         draw = ImageDraw.Draw(image)
 
-        for i in text_df.index:
-            x = text_df['x'][i] + x0
-            y = text_df['y'][i] * base
+        for i, text_row in text_df.iterrows():
+            x = text_row['x'] + x0
+            y = text_row['y'] * base
 
-            box_src = text_df['src'][i]
-            box_size = text_df['size'][i] * base
+            box_src = text_row['src']
+            box_size = text_row['size'] * base
             padded_size = box_size * (1 - padding)
-            box_color = text_df['color'][i]
+            box_color = text_row['color']
             pad_offset = box_size * padding / 2
 
             if padded_size:
@@ -288,34 +288,43 @@ class Canvas(Imager, Streamable):
                     src_size = tuple([int(padded_size)] * 2)
                     box_img = Image.open(urlopen(box_src)).resize(src_size)
 
-                    if isnan(text_df['points'][i]):
+                    if isnan(text_row['points']):
                         # grey out an image without points
                         ImageOps.grayscale(box_img)
                         
-                    image.paste(box_img, (int(x - box_size/2 + pad_offset), int(y + pad_offset)))
+                    x_box = x if (not text_row['flip']) else W
+                    x_adj = box_size/2 if (not text_row['flip']) else box_size
+                    image.paste(box_img, (int(x_box - x_adj + pad_offset), int(y + pad_offset)))
+                    
                 else:
-                    draw.rectangle([int(x - box_size/2 + pad_offset),
+                    draw.rectangle([int(x_box - x_adj + pad_offset),
                                     int(y + pad_offset),
-                                    int(x + box_size/2 - pad_offset),
+                                    int(x_box + x_adj - pad_offset),
                                     int(y + box_size - pad_offset)],
                                    fill=box_color)
-                if text_df['highlight'][i]:
+                if text_row['highlight']:
                     draw.rectangle([int(x - box_size/2 + pad_offset), int(y + pad_offset),
                                     int(x + box_size/2 - pad_offset), int(y + box_size - pad_offset)],
                                    outline=highlight_color, width=int(pad_offset))
 
-            x_text = (x + box_size/2) if (not text_df['flip'][i]) else (x - box_size/2 - text_df['length'][i])
-            draw.text((int(x_text), int(y)), text_df['text_top'][i],
-                      fill=box_color, font=text_df['image_font'][i])
-            draw.text((int(x_text), int(y + box_size/2)), text_df['text_bottom'][i], #- text_df['height'][i]/2 * self.ppt
-                      fill=box_color, font=text_df['image_font'][i])
-            if text_df['highlight'][i]:
+            if not text_row['flip']:
+                x_text_top = x + box_size/2
+                x_text_bottom = x + box_size/2
+            else:
+                x_text_top = W - box_size - text_row['length_top']
+                x_text_bottom = W - box_size - text_row['length_bottom']
+            
+            draw.text((int(x_text_top), int(y)), text_row['text_top'],
+                      fill=box_color, font=text_row['image_font'])
+            draw.text((int(x_text_bottom), int(y + box_size/2)), text_row['text_bottom'], #- text_row['height']/2 * self.ppt
+                      fill=box_color, font=text_row['image_font'])
+            if text_row['highlight']:
                 y_line = y - pad_offset/2
-                draw.rectangle([int(x_text), int(y_line + box_size/2),
-                                int(x_text + text_df['length_top'][i]), int(y_line + box_size/2) - max(1, int(pad_offset/3))],
+                draw.rectangle([int(x_text_top), int(y_line + box_size/2),
+                                int(x_text_top + text_row['length_top']), int(y_line + box_size/2) - max(1, int(pad_offset/3))],
                                 fill=box_color)
-                draw.rectangle([int(x_text), int(y_line + box_size),
-                                int(x_text + text_df['length_bottom'][i]), int(y_line + box_size) - max(1, int(pad_offset/3))],
+                draw.rectangle([int(x_text_bottom), int(y_line + box_size),
+                                int(x_text_bottom + text_row['length_bottom']), int(y_line + box_size) - max(1, int(pad_offset/3))],
                                 fill=box_color)
 
         return image

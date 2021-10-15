@@ -799,7 +799,7 @@ class Plotter(Streamable):
         plot_key = (league_title, 'top_songs_ax')
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
-            n_rounds, n_years, years_range, text_df, W, H, x0, x1, parameters = stored
+            round_titles, n_rounds, n_years, years_range, text_df, W, H, x0, x1, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:
@@ -854,7 +854,7 @@ class Plotter(Streamable):
                           'average_age': datetime.today().year - average_year,
                           'oldest_year': results_df['release_date'].min().year,
                           }
-            self.streamer.store_session_state(plot_key, (n_rounds, n_years, years_range, text_df,
+            self.streamer.store_session_state(plot_key, (round_titles, n_rounds, n_years, years_range, text_df,
                                                          W, H, x0, x1, parameters))
         self.streamer.wrapper(header='Top Songs',
                                 tooltip=self.library.get_tooltip('top_songs', parameters=parameters))
