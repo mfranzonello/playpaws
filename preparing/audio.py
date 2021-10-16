@@ -2,7 +2,7 @@ from datetime import datetime
 from math import ceil
 
 import requests
-from spotipy import Spotify
+from spotipy import Spotify, SpotifyClientCredentials
 from spotipy.oauth2 import SpotifyOAuth
 from pylast import LastFMNetwork, NetworkError
 from pandas import DataFrame, isnull
@@ -36,15 +36,34 @@ class Spotter(Streamable):
         self.googler = Googler()
         self.add_streamer(streamer)
 
-    def connect_to_spotify(self):
+    def connect_to_spotify(self, auth=False):
         self.streamer.print('Connecting to Spotify API...')
 
-        auth_manager = SpotifyOAuth(client_id=get_secret('SPOTIFY_CLIENT_ID'),
-                                    client_secret=get_secret('SPOTIFY_CLIENT_SECRET'),
-                                    redirect_uri=get_secret('SPOTIFY_REDIRECT_URL'),
-                                    scope='playlist-modify-public ugc-image-upload user-read-private user-read-email')
-
-        self.sp = Spotify(auth_manager=auth_manager)
+        client_credentials_manager = None
+        auth_manager = None
+        ##s = requests.Session()
+        ##response = s.post('https://accounts.spotify.com/api/token',
+        ##                  data={'grant_type': 'authorization_code',
+        ##                        'code': get_secret('SPOTIFY_GRANT_CODE'),
+        ##                        'client_id': get_secret('SPOTIFY_CLIENT_ID'),
+        ##                        'client_secret': get_secret('SPOTIFY_CLIENT_SECRET'),
+        ##                        'redirect_uri': get_secret('SPOTIFY_REDIRECT_URL'),
+        ##                        })
+        ##if response.ok:
+        ##    print('Success!') 
+        if auth:
+            auth_manager = SpotifyOAuth(client_id=get_secret('SPOTIFY_CLIENT_ID'),
+                                        client_secret=get_secret('SPOTIFY_CLIENT_SECRET'),
+                                        redirect_uri=get_secret('SPOTIFY_REDIRECT_URL'),
+                                        #requests_session=s,
+                                        open_browser=False,
+                                        scope='playlist-modify-public ugc-image-upload user-read-private user-read-email')
+        else:
+            client_credentials_manager = SpotifyClientCredentials(client_id=get_secret('SPOTIFY_CLIENT_ID'),
+                                                                  client_secret=get_secret('SPOTIFY_CLIENT_SECRET'))
+            
+        self.sp = Spotify(client_credentials_manager=client_credentials_manager,
+                          auth_manager=auth_manager)
 
     def get_track_elements(self, uri):
         results = self.sp.track(uri)
@@ -144,6 +163,11 @@ class Spotter(Streamable):
         self.update_db_albums()
         self.update_db_genres()
 
+    def update_spotify(self, database):
+        self.database = database
+        
+        self.connect_to_spotify(auth=True)
+        
         self.update_playlists()
            
     def append_updates(self, df, updates_list, key='uri', updates_only=False):

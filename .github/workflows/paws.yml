@@ -13,6 +13,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    environment: playpaws
 
     steps:
     - uses: actions/checkout@v2
@@ -37,3 +38,4 @@ jobs:
     - name: Update database and outputs
       run: |
         python paws.py
+

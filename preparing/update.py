@@ -190,3 +190,6 @@ class Musician:
 
     def update_lastfm(self):
         self.fmer.update_database(self.database)
+
+    def update_playlists(self):
+        self.spotter.connect_to_spotify(auth=True)
