@@ -124,7 +124,7 @@ class Pulse:
 
         print('\t...normalizing')
         # normalize results
-        self.df['distance'] = self.df['distance'] / self.df['distance'].min()
+        self.df['distance'] = self.df['distance'] / self.df[self.df['distance'].ne(0)]['distance'].min()
 
         # remove non-voters if outliers and keep voters within range
         voters = (votes.df.groupby('player').count()['vote'] > 0)
@@ -190,8 +190,6 @@ class Members:
         # find the average distance between players as R
         # place the other players at radius R angle pi / #
         # consider placing the most central player first
-        circle_players = self.df.index[self.df[['x', 'y']].isna().sum(1).ne(0)]
-
         R = pulse.df['distance'].mean() if pulse.df['distance'].mean() > 0 else 1
         angle = 2*pi / len(self.df)
 
