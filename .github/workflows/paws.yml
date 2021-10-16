@@ -27,15 +27,42 @@ jobs:
         python -m pip install --upgrade pip
         pip install flake8 pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    #- name: Lint with flake8
+    #  run: |
+    #    # stop the build if there are Python syntax errors or undefined names
+    #    flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+    #    # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+    #    flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
     #- name: Test with pytest
     #  run: |
     #    pytest
     - name: Update database and outputs
+      env:
+         BITIO_ADD_ON: $BITIO_ADD_ON
+         BITIO_DBNAME: $BITIO_DBNAME
+         BITIO_HOST: $BITIO_HOST
+         BITIO_LANGUAGE: $BITO_LANGUAGE
+         BITIO_PASSWORD: $BITIO_PASSWORD
+         BITIO_STRING: $BITIO_STRING
+         BITIO_USERNAME: $BITIO_USERNAME
+
+         DROPBOX_APP_KEY: $DROPBOX_APP_KEY
+         DROPBOX_APP_SECRET: $DROPBOX_APP_SECRET
+         DROPBOX_TOKEN: $DROPBOX_TOKEN
+
+         LASTFM_API_KEY: $LASTFM_API_KEY
+         LASTFM_API_SECRET: $LASTFM_API_SECRET
+
+         SPOTIFY_CLIENT_ID: $SPOTIFY_CLIENT_ID
+         SPOTIFY_CLIENT_SECRET: $SPOTIFY_CLIENT_SECRET
+         SPOTIFY_REDIRECT_URL: $SPOTIFY_REDIRECT_URL
+         SPOTIFY_USER_ID: $SPOTIFY_USER_ID
+
+         GCP_API_KEY: $GCP_API_KEY
+         GCP_PROJECT_ID: $GCP_PROJECT_ID
+         GCP_PROJECT_CX: $GCP_PROJECT_CX
+
+         ML_COOKIE_NAME: $ML_COOKIE_NAME
+         
       run: |
         python paws.py
