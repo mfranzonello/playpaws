@@ -43,7 +43,7 @@ jobs:
         SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
         SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
         SPOTIFY_REDIRECT_URL: ${{ secrets.SPOTIFY_REDIRECT_URL }}
-        SPOTIFY_USER_ID: ${{ SPOTIFY_USER_ID }}
+        SPOTIFY_USER_ID: ${{ secrets.SPOTIFY_USER_ID }}
 
         GCP_API_KEY: ${{ secrets.GCP_API_KEY }}
         GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
