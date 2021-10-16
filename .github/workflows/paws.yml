@@ -51,7 +51,7 @@ jobs:
 
         ML_COOKIE_NAME: ${{ secrets.ML_COOKIE_NAME }}
       run: |
-        echo "The dbname is $BITIO_HOST"
+        echo $BITIO_HOST
         python -m pip install --upgrade pip
         pip install flake8 pytest
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
