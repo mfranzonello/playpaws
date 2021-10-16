@@ -37,7 +37,7 @@ jobs:
     - name: Update database and outputs
       run: |
         python paws.py
-      env: |
+      env:
         BITIO_ADD_ON: _demo_db_connection
         BITIO_DBNAME: playpaws
         BITIO_HOST: db.bit.io
