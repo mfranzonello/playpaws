@@ -252,21 +252,21 @@ class Plotter(Streamable):
                                           pct=0.4, color=self.paintbrush.lighten_color(border_color, 0.1),
                                           border_color=border_color, padding=0.3)
 
-        self.streamer.player_image.image(image)
+        
+        html = None
+        if playlists_df is not None:
+            theme = f'favorite - {self.view_player}'
+            playlist_uri = playlists_df.query('theme == @theme')['uri'].squeeze()
+            if len(playlist_uri):
+                playlist_uri = playlist_uri.replace('spotify:playlist:', '')
 
-        ##if playlists_df is not None:
-        ##    theme = f'favorite - {self.view_player}'
-        ##    playlist_uri = playlists_df.query('theme == @theme')['uri'].squeeze()
-        ##    if len(playlist_uri):
-        ##        playlist_uri = playlist_uri.replace('spotify:playlist:', '')
+                width = 380; height = 80
+                html = (f'<iframe src="https://open.spotify.com/embed/playlist/{playlist_uri}" '
+                        f'width="{width}" height="{height}" '
+                        f'frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>'
+                        )
 
-        ##        width = 80; height = 80
-        ##        html = (f'<iframe src="https://open.spotify.com/embed/playlist/{playlist_uri}" '
-        ##                f'width="{width}" height="{height}" '
-        ##                f'frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>'
-        ##                )
-
-        ##        self.streamer.embed(html, height=height)
+        self.streamer.viewer(image, footer=html, footer_height=height)
 
     def plot_caption(self, league_title=None, viewer_df=None, wins_df=None, awards_df=None):
         parameters = {}

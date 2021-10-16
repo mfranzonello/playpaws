@@ -7,6 +7,7 @@ import requests
 import browser_cookie3 as browsercookie
 from bs4 import BeautifulSoup
 
+from common.secret import get_secret, set_secret
 from common.words import Texter
 from display.streaming import Streamable
 
@@ -19,8 +20,17 @@ class Scraper(Streamable):
         self.stripper = stripper
         self.main_url = stripper.main_url
         
-        self.cj = browsercookie.chrome(domain_name=self.main_url.replace('https://', ''))
+        #self.cj = browsercookie.chrome(domain_name=self.main_url.replace('https://', ''))
+        self.cj = {get_secret('ML_COOKIE_NAME'): get_secret('ML_COOKIE_VALUE')}
         
+    def reset_cookie(self):
+        domain_name = self.main_url.replace('https://', '')
+        cj = browsercookie.chrome(domain_name=domain_name)
+        cookie_name = list(cj._cookies[f'.{domain_name}']['/'].keys())[0]
+        cookie_value = cj._cookies[f'.{domain_name}']['/'][cookie_name].value
+        set_secret('ML_COOKIE_NAME', cookie_name)
+        set_secret('ML_COOKIE_VALUE', cookie_value)
+
     def get_html_text(self, url):
         return self.get_content(url, 'text')
 
@@ -33,7 +43,7 @@ class Scraper(Streamable):
         if url[0] == '/':
             url = f'{self.main_url}{url}'
         if response_type == 'zip':
-            url = f'{url}/data'
+            url = f'{url}/data'.replace('//', '/')
 
         if response_type == 'text':
             method = requests.get

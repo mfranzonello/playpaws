@@ -62,7 +62,7 @@ class Texter:
             if parentheses == 'all':
                 parentheses = [[start, end] for start in punctuation_s for end in punctuation_e]
             elif parentheses == 'all_start':
-                [[start, ''] for end in punctuation_s]
+                [[start, ''] for start in punctuation_s]
             elif parentheses == 'all_end':
                 parentheses = [['', end] for end in punctuation_e]
 

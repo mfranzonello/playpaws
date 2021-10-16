@@ -60,6 +60,7 @@ class Streamer:
                 col3, col4 = st.columns(2)
                 with col3:
                     self.player_image = st.empty()
+                    self.player_footer = st.empty()
                 with col4:
                     self.player_caption = st.empty()
         
@@ -97,7 +98,7 @@ class Streamer:
         if tooltip:
             with st.expander(tooltip['label']):
                 st.markdown(tooltip['content'], unsafe_allow_html=True)
-
+                
     def sidebar_image(self, image=None):
         if image:
             self.side_image.image(image, use_column_width=True)
@@ -131,6 +132,11 @@ class Streamer:
         self.wrapper(header, tooltip, header2=header2)
         self.in_expander(in_expander, st.pyplot, figure, transparent=True)
         
+    def viewer(self, image, footer=None, footer_height=None):
+        self.player_image.image(image)
+        ##if footer:
+        ##    self.player_footer.st_html(footer, height=footer_height)
+
     def image(self, image, header=None, header2=None, tooltip=None, right_column=None,
               in_expander=False):
         self.wrapper(header, tooltip, header2=header2)
@@ -138,7 +144,6 @@ class Streamer:
             self.right_column(right_column, st.image, image, st.markdown)
         else:
             self.in_expander(in_expander, st.image, image)
-        
         
     def print(self, text, base=True):
         if self.deployed:
