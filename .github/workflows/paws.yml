@@ -65,4 +65,5 @@ jobs:
          ML_COOKIE_NAME: $ML_COOKIE_NAME
          
       run: |
+        echo "The spotify_client_id is $SPOTIFY_CLIENT_ID"
         python paws.py
