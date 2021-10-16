@@ -64,5 +64,6 @@ jobs:
         GCP_PROJECT_CX: ${{ secrets.GCP_PROJECT_CX }}
 
         ML_COOKIE_NAME: ${{ secrets.ML_COOKIE_NAME }}
+        ML_COOKIE_VALUE: ${{ secrets.ML_COOKIE_VALUE }}
       run: |
         python paws.py
