@@ -29,20 +29,21 @@ class Texter:
         return cleaned_text
 
     def get_display_name(self, name:str) -> str:
-        if ' ' in name:
-            display_name = name[:name.index(' ')]
-        elif '.' in name:
-            display_name = name[:name.index('.')]
-        else:
-            display_name = name
-        return display_name.title()
+        display_name = self.get_display_name_full(name).split()[0]
+        return display_name
 
     def get_display_name_full(self, name):
-        if (name == name.lower()) and ('.' in name) and (' ' not in name):
-            display_name = name.replace('.', ' ')
+        punctuation = ['.', '_']
+        if (name == name.lower()) and any(p in name for p in punctuation) and (' ' not in name):
+            for p in punctuation:
+                display_name = name.replace(p, ' ')
         else:
             display_name = name
-        return display_name.title()
+
+        if not any(str(n) in name for n in range(10)):
+            display_name = display_name.title()
+
+        return display_name
 
     def slashable(self, char):
         slash_chars = ['[', '(', ']', ')', '.', '\\', '-']
