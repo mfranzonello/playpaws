@@ -5,15 +5,15 @@ from streamlit.components.v1 import html as st_html
 from common.words import Texter
 
 def cache(**args):
-    hash_funcs = {t: lambda _: None for t in ['_thread.RLock',
-                                              '_thread.lock',
-                                              'builtins.PyCapsule',
-                                              '_io.TextIOWrapper',
-                                              'builtins.weakref',
-                                              'builtins.dict',
-                                              'streamlit.delta_generator'
-                                              ]}
-    return st.cache(hash_funcs=hash_funcs, **args)
+    ##hash_funcs = {t: lambda _: None for t in ['_thread.RLock',
+    ##                                          '_thread.lock',
+    ##                                          'builtins.PyCapsule',
+    ##                                          '_io.TextIOWrapper',
+    ##                                          'builtins.weakref',
+    ##                                          'builtins.dict',
+    ##                                          'streamlit.delta_generator'
+    ##                                          ]}
+    return st.cache(**args) #hash_funcs=hash_funcs, 
 
 class Printer:
     def __init__(self, *options):

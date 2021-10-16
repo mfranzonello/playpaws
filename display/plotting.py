@@ -1,4 +1,4 @@
-from math import sin, cos, atan2, pi, nan, isnan, ceil
+from math import sin, cos, atan2, pi, nan, ceil
 from collections import Counter
 from os.path import dirname, realpath
 from datetime import datetime
@@ -6,8 +6,7 @@ from random import choice as rand_choice
 
 from pandas import DataFrame, isnull, to_datetime, Timestamp
 import matplotlib.pyplot as plt
-from matplotlib import rcParams
-from matplotlib import font_manager
+from matplotlib import rcParams, font_manager
 from matplotlib.dates import date2num
 from wordcloud import WordCloud
 from numpy import unique

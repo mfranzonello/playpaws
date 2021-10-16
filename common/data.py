@@ -8,6 +8,18 @@ from pandas.api.types import is_numeric_dtype
 from common.secret import get_secret
 from display.streaming import Streamable, cache
 
+class Engineer:
+    def __init__(self):
+        self.db = f'"{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}"'
+        self.engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}{get_secret("BITIO_ADD_ON")}'
+                              f':{get_secret("BITIO_PASSWORD")}@{get_secret("BITIO_HOST")}')
+
+    @cache(allow_output_mutation=True)
+    def connect(self):  
+        engine = create_engine(self.engine_string)
+        connection = engine.connect()
+        return connection
+
 class Database(Streamable):
     tables = {# MusicLeague data
               'Leagues': {'keys': ['league'],
@@ -57,8 +69,8 @@ class Database(Streamable):
     def __init__(self, main_url, streamer=None):
         super().__init__()
         self.db = f'"{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}"'
-        engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}{get_secret("BITIO_ADD_ON")}'
-                         f':{get_secret("BITIO_PASSWORD")}@{get_secret("BITIO_HOST")}')
+        ##engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}{get_secret("BITIO_ADD_ON")}'
+        ##                 f':{get_secret("BITIO_PASSWORD")}@{get_secret("BITIO_HOST")}')
         
         self.main_url = main_url
         self.add_streamer(streamer)
@@ -68,15 +80,11 @@ class Database(Streamable):
         self.columns = {table_name: self.tables[table_name]['keys'] + self.tables[table_name]['values'] for table_name in self.tables}
  
         self.streamer.print(f'Connecting to database {self.db}...')
-        self.connection = self.connect(engine_string)
+
+        engineer = Engineer()
+        self.connection = engineer.connect()
         self.streamer.print(f'\t...success!')
         
-    @cache(allow_output_mutation=True)
-    def connect(self, engine_string):  
-        engine = create_engine(engine_string)
-        connection = engine.connect()
-        return connection
-
     def use_one_league(self, table_name):
         use_one = ('league' in self.get_keys(table_name)) and self.tables[table_name].get('use_one_league', True)
         return use_one
