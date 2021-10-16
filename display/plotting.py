@@ -116,7 +116,12 @@ class Plotter(Streamable):
                 self.plot_caption()
 
             else:
-                self.plot_viewer(badge=self.database.get_badge(league_title, self.view_player))
+                badge = self.prepare_dfs(('badge', league_title, self.view_player),
+                                         self.database.get_badge, league_title, self.view_player)
+                playlists_df = self.prepare_dfs(('playlists_df', league_title),
+                                                self.database.get_playlists, league_title)
+                self.plot_viewer(badge=badge, playlists_df=playlists_df)
+
                 viewer_df = self.prepare_dfs(('viewer_df', league_title, self.view_player),
                                              self.database.get_player_pulse, league_title, self.view_player)
                 wins_df = self.prepare_dfs(('player_wins_df', league_title, self.view_player),
@@ -133,10 +138,6 @@ class Plotter(Streamable):
                                                   self.database.get_league_creator, league_title)
                 self.plot_title(league_title, league_creator)
            
-                members_df = self.prepare_dfs(('members_df', league_title),
-                                              self.database.get_members, league_title)
-                self.plot_members(league_title, members_df)
-
                 boards_df = self.prepare_dfs(('boards_df', league_title),
                                              self.database.get_boards, league_title)
                 creators_and_winners_df = self.prepare_dfs(('creators_and_winners_df', league_title),
@@ -151,6 +152,10 @@ class Plotter(Streamable):
                                                 self.database.get_discovery_scores, league_title)
                 self.plot_rankings(league_title, rankings_df, dirtiness_df, discovery_df)
                                    
+                members_df = self.prepare_dfs(('members_df', league_title),
+                                              self.database.get_members, league_title)
+                self.plot_members(league_title, members_df)
+
                 features_df = self.prepare_dfs(('features_df', league_title),
                                                self.database.get_audio_features, league_title)
                 self.plot_features(league_title, features_df)
@@ -171,8 +176,8 @@ class Plotter(Streamable):
                                                    self.database.get_round_descriptions, league_title)
                 self.plot_top_songs(league_title, results_df, descriptions_df)
 
-                playlists_df = self.prepare_dfs(('playlists_df', league_title),
-                                                self.database.get_playlists, league_title)
+                ##playlists_df = self.prepare_dfs(('playlists_df', league_title),
+                ##                                self.database.get_playlists, league_title)
                 track_count = self.prepare_dfs(('track_count', league_title),
                                                self.database.get_track_count, league_title)
                 track_durations = self.prepare_dfs(('track_durations', league_title),
@@ -181,10 +186,10 @@ class Plotter(Streamable):
             
                 self.streamer.print('Everything loaded! Close this sidebar to view.')
 
-    def plot_image(self, ax, x, y, player_name=None, color=None, size=0.5,
-                   image_size=(0, 0), padding=0, text=None,
-                   aspect=(1, 1), flipped=False, zorder=0,
-                   border_color=None, border_padding=0.2):
+    def place_image(self, ax, x, y, player_name=None, color=None, size=0.5,
+                    image_size=(0, 0), padding=0, text=None,
+                    aspect=(1, 1), flipped=False, zorder=0,
+                    border_color=None, border_padding=0.2):
         flip = -1 if flipped else 1
 
         if player_name:
@@ -233,7 +238,7 @@ class Plotter(Streamable):
         y_shifted = y + shift_distance*sin(theta + rotate*pi/2)
         return x_shifted, y_shifted
 
-    def plot_viewer(self, badge=None):
+    def plot_viewer(self, badge=None, playlists_df=None):
         image = self.canvas.get_player_image(self.view_player)
         palette = self.paintbrush.get_palette(image)
         image = self.canvas.add_border(image, color=palette[0], padding=0.2)
@@ -248,6 +253,20 @@ class Plotter(Streamable):
                                           border_color=border_color, padding=0.3)
 
         self.streamer.player_image.image(image)
+
+        ##if playlists_df is not None:
+        ##    theme = f'favorite - {self.view_player}'
+        ##    playlist_uri = playlists_df.query('theme == @theme')['uri'].squeeze()
+        ##    if len(playlist_uri):
+        ##        playlist_uri = playlist_uri.replace('spotify:playlist:', '')
+
+        ##        width = 80; height = 80
+        ##        html = (f'<iframe src="https://open.spotify.com/embed/playlist/{playlist_uri}" '
+        ##                f'width="{width}" height="{height}" '
+        ##                f'frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>'
+        ##                )
+
+        ##        self.streamer.embed(html, height=height)
 
     def plot_caption(self, league_title=None, viewer_df=None, wins_df=None, awards_df=None):
         parameters = {}
@@ -300,7 +319,7 @@ class Plotter(Streamable):
             colors_scatter = self.paintbrush.get_scatter_colors(colors)
        
             for x_p, y_p, p_name, s_p, c_p, c_s, z in zip(x, y, player_names, sizes, colors, colors_scatter, player_names.index):
-                self.plot_member_nodes(ax, x_p, y_p, p_name, s_p, c_p, c_s, z)
+                self.place_member_nodes(ax, x_p, y_p, p_name, s_p, c_p, c_s, z)
             self.streamer.status(1/self.plot_counts * (1/3))
 
             # split if likes is liked
@@ -308,8 +327,8 @@ class Plotter(Streamable):
             split = split['likes'] == split['liked']
 
             for i in members_df.index:
-                self.plot_member_relationships(ax, player_names[i], members_df, split,
-                                               zorder=2*len(player_names))
+                self.place_member_relationships(ax, player_names[i], members_df, split,
+                                                zorder=2*len(player_names))
             self.streamer.status(1/self.plot_counts * (1/3))
 
             ax.axis('equal')
@@ -325,13 +344,13 @@ class Plotter(Streamable):
         self.streamer.pyplot(ax.figure, header='League Pulse', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('members', parameters=parameters))
 
-    def plot_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s, z):
+    def place_member_nodes(self, ax, x_p, y_p, p_name, s_p, c_p, c_s, z):
         plot_size = (s_p/2)**0.5/pi/10
-        image, _ = self.plot_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False,
-                                   zorder=2*z+1)
+        image, _ = self.place_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False,
+                                    zorder=2*z+1)
         if image:
-            _, _ = self.plot_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05,
-                                   zorder=2*z)
+            _, _ = self.place_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05,
+                                    zorder=2*z)
         else:
             ax.plot(x_p, y_p, s=s_p, c=c_s)
 
@@ -345,23 +364,23 @@ class Plotter(Streamable):
         
         return colors
 
-    def plot_member_relationships(self, ax, me, members_df, split, zorder):
+    def place_member_relationships(self, ax, me, members_df, split, zorder):
         # get location
         x_me, y_me, theta_me = self.where_am_i(members_df, me)
 
         # plot names
-        self.plot_member_names(ax, me, x_me, y_me, theta_me, zorder=zorder+2)
+        self.place_member_names(ax, me, x_me, y_me, theta_me, zorder=zorder+2)
 
         # split if liked
         split_distance = split[me] * self.like_arrow_split
 
         # find likes
-        self.plot_member_likers(ax, members_df, me, x_me, y_me, split_distance, direction='likes',
-                                color=self.likes_color, zorder=zorder+1)
-        self.plot_member_likers(ax, members_df, me, x_me, y_me, split_distance, direction='liked',
-                                color=self.liked_color, zorder=zorder+1)
+        self.place_member_likers(ax, members_df, me, x_me, y_me, split_distance, direction='likes',
+                                 color=self.likes_color, zorder=zorder+1)
+        self.place_member_likers(ax, members_df, me, x_me, y_me, split_distance, direction='liked',
+                                 color=self.liked_color, zorder=zorder+1)
 
-    def plot_member_names(self, ax, me, x_me, y_me, theta_me, zorder=0):
+    def place_member_names(self, ax, me, x_me, y_me, theta_me, zorder=0):
         x_1, y_1 = self.translate(x_me, y_me, theta_me, 0, shift_distance=-self.name_offset) ## <- name offset should be based on node size
 
         h_align = 'right' if (theta_me > -pi/2) & (theta_me < pi/2) else 'left'
@@ -371,7 +390,7 @@ class Plotter(Streamable):
         ax.text(x_1, y_1, display_name, horizontalalignment=h_align, verticalalignment=v_align,
                 zorder=zorder)
         
-    def plot_member_likers(self, ax, members_df, me, x_me, y_me, split_distance, direction, color, zorder=0):
+    def place_member_likers(self, ax, members_df, me, x_me, y_me, split_distance, direction, color, zorder=0):
         x_like, y_like, theta_us = self.who_likes_whom(members_df, me, direction, self.like_arrow_length)
 
         if theta_us:
@@ -456,7 +475,7 @@ class Plotter(Streamable):
             ties_df = DataFrame(0, columns=unique(board.values), index=xs)
 
             for player in board.index:
-                self.plot_board_player(ax, xs, player, board, lowest_rank, ties_df)
+                self.place_board_player(ax, xs, player, board, lowest_rank, ties_df)
             self.streamer.status(1/self.plot_counts * (1/3))
 
             round_titles = [self.texter.clean_text(c) for c in board.columns]
@@ -492,7 +511,7 @@ class Plotter(Streamable):
         self.streamer.pyplot(ax.figure, header='Round Finishers', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('boards', parameters=parameters))
 
-    def plot_board_player(self, ax, xs, player, board, lowest_rank, ties_df):
+    def place_board_player(self, ax, xs, player, board, lowest_rank, ties_df):
         ys = board.where(board > 0).loc[player]
         ds = [lowest_rank - d + 1 for d in board.where(board < 0).loc[player]]
 
@@ -519,8 +538,8 @@ class Plotter(Streamable):
                 x_plot, y_plot = self.adjust_ties(x, y, t, ties_df.loc[x, y])
                 ties_df.loc[x, y] += 1
 
-                image, _ = self.plot_image(ax, x_plot, y_plot, player_name=player, size=size, flipped=True,
-                                           zorder=3 if player==self.view_player else 2, border_color=border_color)
+                image, _ = self.place_image(ax, x_plot, y_plot, player_name=player, size=size, flipped=True,
+                                            zorder=3 if player==self.view_player else 2, border_color=border_color)
 
                 if not image:
                     ax.text(x, y, display_name)
@@ -528,8 +547,8 @@ class Plotter(Streamable):
 
             if d > lowest_rank + 1:
                 # plot DNFs
-                image, _ = self.plot_image(ax, x, d, player_name=player, size=size, flipped=True,
-                                           zorder=1)
+                image, _ = self.place_image(ax, x, d, player_name=player, size=size, flipped=True,
+                                            zorder=1)
                 if not image:
                     ax.text(x, d, display_name)
 
@@ -586,7 +605,7 @@ class Plotter(Streamable):
             for player in player_names:
                 y = player_names.get_loc(player)
                 marker_size = 0.9
-                image_size = self.plot_player_scores(ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size)
+                image_size = self.place_player_scores(ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size)
 
                 # plot area behind view player
                 if player == self.view_player:
@@ -594,14 +613,14 @@ class Plotter(Streamable):
                     ax.fill_between([x_min, x_max], y-0.5, y+0.5, color=color, zorder=0)
 
                 # plot dirtiness
-                self.plot_player_score(ax, len(xs), y, dirty_df[player], max_dirty, rgb_dirty_df,
-                                       marker_size, image_size, percent=True)
+                self.place_player_score(ax, len(xs), y, dirty_df[player], max_dirty, rgb_dirty_df,
+                                        marker_size, image_size, percent=True)
 
                 # plot discovery
-                self.plot_player_score(ax, len(xs)+1, y, discovery_df['discovery'][player], max_discovery, rgb_discovery_df,
-                                       marker_size, image_size, percent=True)
-                self.plot_player_score(ax, len(xs)+2, y, discovery_df['popularity'][player], max_discovery, rgb_discovery_df,
-                                       marker_size, image_size, percent=True)
+                self.place_player_score(ax, len(xs)+1, y, discovery_df['discovery'][player], max_discovery, rgb_discovery_df,
+                                        marker_size, image_size, percent=True)
+                self.place_player_score(ax, len(xs)+2, y, discovery_df['popularity'][player], max_discovery, rgb_discovery_df,
+                                        marker_size, image_size, percent=True)
             self.streamer.status(1/self.plot_counts * (1/3))
             
             ax.axis('equal')
@@ -624,7 +643,7 @@ class Plotter(Streamable):
         self.streamer.pyplot(ax.figure, header='Player Scores', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('rankings', parameters=parameters))
 
-    def plot_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size):
+    def place_player_scores(self, ax, player, xs, y, rankings_df, max_score, rgb_df, marker_size):
         ys = [y] * len(xs)
         
         scores = rankings_df.loc[player]
@@ -632,11 +651,11 @@ class Plotter(Streamable):
             for score in scores]
         colors_scatter = self.paintbrush.get_scatter_colors(colors)
 
-        image, _ = self.plot_image(ax, -1, y, player_name=player, size=marker_size)
+        image, _ = self.place_image(ax, -1, y, player_name=player, size=marker_size)
         if image:
             image_size = image.size
             for x, c, score in zip(xs, colors, scores):
-                self.plot_image(ax, x, y, color=c, image_size=image_size, size=marker_size,
+                self.place_image(ax, x, y, color=c, image_size=image_size, size=marker_size,
                                 text=round(score*100) if not isnull(score) else 'DNF')
         else:
             image_size = None
@@ -647,7 +666,7 @@ class Plotter(Streamable):
 
         return image_size
 
-    def plot_player_score(self, ax, x, y, score, max_score, rgb_df, marker_size, image_size=None, percent=None):
+    def place_player_score(self, ax, x, y, score, max_score, rgb_df, marker_size, image_size=None, percent=None):
         if percent:
             text = f'{score:.0%}'
         elif isnull(score):
@@ -657,7 +676,7 @@ class Plotter(Streamable):
 
         color = self.paintbrush.get_rgb(rgb_df, score/max_score)
         if image_size:
-            image, imgs = self.plot_image(ax, x, y, color=color, image_size=image_size, size=marker_size, text=text)
+            image, imgs = self.place_image(ax, x, y, color=color, image_size=image_size, size=marker_size, text=text)
         else:
             image, imgs = None
         return image, imgs
@@ -787,8 +806,7 @@ class Plotter(Streamable):
         self.streamer.image(wordcloud_image, header='Genre Cloud',
                             tooltip=self.library.get_tooltip('tags', parameters=parameters))
 
-    def word_color(self, word, font_size, position, orientation, random_state=None,
-                    **kwargs):
+    def word_color(self, word, font_size, position, orientation, random_state=None, **kwargs):
         color = rand_choice(self.pass_colors if (word in self.player_tags) else self.fail_colors)
         
         return color
@@ -798,7 +816,8 @@ class Plotter(Streamable):
         plot_key = (league_title, 'top_songs_ax')
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
-            round_titles, n_rounds, n_years, years_range, text_df, W, H, x0, x1, parameters = stored
+            round_titles, n_rounds, n_years, years_range, max_date, \
+                text_df, W, H, x0, x1, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:
@@ -853,8 +872,8 @@ class Plotter(Streamable):
                           'average_age': datetime.today().year - average_year,
                           'oldest_year': results_df['release_date'].min().year,
                           }
-            self.streamer.store_session_state(plot_key, (round_titles, n_rounds, n_years, years_range, text_df,
-                                                         W, H, x0, x1, parameters))
+            self.streamer.store_session_state(plot_key, (round_titles, n_rounds, n_years, years_range, max_date,
+                                                         text_df, W, H, x0, x1, parameters))
         self.streamer.wrapper(header='Top Songs',
                                 tooltip=self.library.get_tooltip('top_songs', parameters=parameters))
                 
@@ -893,9 +912,8 @@ class Plotter(Streamable):
     def sum_num(self, num):
         return sum(1/(n+2) for n in range(int(num)))
 
-
     def plot_playlists(self, league_title, playlists_df, track_count, duration,
-                       width=400, height=600):
+                       width=400, height=80):#600):
         self.streamer.status(1/self.plot_counts)
 
         playlist_uri = playlists_df.query('theme == "complete"')['uri'].iloc[0].replace('spotify:playlist:', '')

@@ -272,7 +272,7 @@ class Library:
             leagues_in = self.texter.get_plurals(league_titles)['text']
             other_leagues = 'Other ' if parameters.get('other_leagues') else ''
             leagues_list.append(f'{other_leagues}Leagues Played In: {leagues_in}')
-        leagues = self.bar_list(leagues_list, indent=False)
+        leagues = self.bar_list(leagues_list, indent=False, bar=False)
 
         awards_list = []
         if parameters.get('dirtiest'):
@@ -319,10 +319,11 @@ class Library:
 
         return text
 
-    def bar_list(self, items_list, indent=True):
+    def bar_list(self, items_list, indent=True, bar=True):
         if len(items_list):
             indent_me = self.indent() if indent else ''
-            items = (f'{self.bar()}' + 
+            bar_me = self.bar() if bar else self.newline(1)
+            items = (f'{bar_me}' + 
                      ''.join(f'{indent_me}{x}{self.newline(1)}' for x in items_list) +
                      f'{self.newline(1)}'
                      )

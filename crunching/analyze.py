@@ -53,9 +53,11 @@ class Analyzer:
 
                     if placement:
                         members = placement['members']
+                        pulse = placement['pulse']
 
                         self.database.store_members(members.df, league_title)
-                        
+                        self.database.store_pulse(pulse.df, league_title)
+
                         self.database.store_analysis(league_title, self.version, optimized=members.coordinates['success'])
         
     def get_statuses(self, rounds_df):

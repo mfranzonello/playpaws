@@ -52,6 +52,8 @@ class Database(Streamable):
               # analytics
               'Members': {'keys': ['league', 'player'],
                           'values': ['x', 'y', 'wins', 'dfc', 'likes', 'liked']},
+              'Pulse': {'keys': ['league', 'p1', 'p2'],
+                        'values': ['distance']},
               'Results': {'keys': ['league', 'song_id'],
                           'values': ['people', 'votes', 'closed', 'discovery', 'points']},
               'Rankings': {'keys': ['league', 'round', 'player'],
@@ -470,14 +472,23 @@ class Database(Streamable):
         songs_df = self.get_table('Results', league=league_title).drop(columns='league')
         return songs_df
 
-    def store_results(self, songs_df, league_title):
-        df = songs_df.reindex(columns=self.store_columns('Results'))
+    def store_results(self, results_df, league_title):
+        df = results_df.reindex(columns=self.store_columns('Results'))
         df['league'] = league_title
         self.upsert_table('Results', df)
 
     def get_members(self, league_title):
         members_df = self.get_table('Members', league=league_title).drop(columns='league')
         return members_df
+
+    def store_pulse(self, pulse_df, league_title):
+        df = pulse_df.reindex(columns=self.store_columns('Pulse'))
+        df['league'] = league_title
+        self.upsert_table('Pulse', df)
+
+    def get_pulse(self, league_title):
+        pulse_df = self.get_table('Pulse', league=league_title).drop(columns='league')
+        return pulse_df
 
     def store_players(self, players_df, league_title=None):
         df = players_df.reindex(columns=self.store_columns('Players'))
@@ -837,11 +848,10 @@ class Database(Streamable):
         if vote:
             gb = 'player'
             sql = (f'SELECT v.player, '
-                   f'count(CASE WHEN t.explicit THEN 1 END) / '
-                   f'count(CASE WHEN NOT t.explicit THEN 1 END)::real AS dirtiness '
+                   f'AVG(CASE WHEN t.explicit THEN 1 ELSE 0 END) AS dirtiness '
                    f'FROM {self.table_name("Votes")} AS v '
                    f'LEFT JOIN {self.table_name("Songs")} AS s '
-                   f'ON (v.song_id = s.song_id) AND (v.league = s.league)'
+                   f'ON (v.song_id = s.song_id) AND (v.league = s.league) '
                    f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
                    f'WHERE s.league = {self.needs_quotes(league_title)} '
                    f'GROUP BY v.player;'
@@ -1057,7 +1067,15 @@ class Database(Streamable):
                f'FROM {self.table_name("Members")} '
                f'WHERE (league = {self.needs_quotes(league_title)}) '
                f'AND (player = {self.needs_quotes(player_name)})) as p '
-               f'CROSS JOIN (SELECT q.player AS closest FROM ( '
+
+               f'CROSS JOIN '
+
+               ##f'(SELECT q.player AS closest FROM ('
+               ##f'SELECT p2 AS player, ABS()) '
+               ##f'WHERE (league = {self.needs_quotes(league_title)}) '
+               ##f'AND (p1 = {self.needs_quotes(player_name)})) AS j;'
+
+               f'(SELECT q.player AS closest FROM ( '
                f'SELECT player, abs(dfc - '
                f'(SELECT dfc FROM {self.table_name("Members")} '
                f'WHERE (league = {self.needs_quotes(league_title)}) '
@@ -1108,8 +1126,7 @@ class Database(Streamable):
 
                f'CROSS JOIN '
                f'(SELECT w.dirtiest FROM (SELECT s.submitter, RANK() OVER '
-               f'(ORDER BY COUNT(CASE WHEN t.explicit THEN 1 END) / '
-               f'COUNT(CASE WHEN NOT t.explicit THEN 1 END)::real DESC) AS dirtiest '
+               f'(ORDER BY AVG(CASE WHEN t.explicit THEN 1 ELSE 0 END) DESC) AS dirtiest '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
                f'WHERE s.league = {self.needs_quotes(league_title)} '
@@ -1118,7 +1135,7 @@ class Database(Streamable):
 
                f'CROSS JOIN '
                f'(SELECT w.clean FROM (SELECT s.submitter, '
-               f'SUM(CASE WHEN t.explicit THEN 1 END) AS clean '
+               f'SUM(CASE WHEN t.explicit THEN 1 ELSE 0 END) AS clean '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url '
                f'WHERE s.league = {self.needs_quotes(league_title)} '
