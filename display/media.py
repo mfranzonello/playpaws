@@ -72,6 +72,7 @@ class Byter:
 
 class Imager:
     def __init__(self):
+        self.antialias = 2
         self.images = {}
         self.streamer = Streamer(deployed=False)
 
@@ -80,8 +81,11 @@ class Imager:
 
         return image
     
-    def crop_image(self, image):
+    def crop_image(self, image, antialias=True):
         if image:
+            a = self.antialias if antialias else 1
+            w0, h0 = image.size
+            image = image.resize((a*w0, a*h0))
             W, H = image.size
             if W != H:
                 # crop to square
@@ -97,6 +101,7 @@ class Imager:
             drawing.ellipse((0, 0) + (W, H), fill=255)
             cropped = ImageOps.fit(image, mask.size, centering=(0.5, 0.5))
             cropped.putalpha(mask)
+            cropped = cropped.resize((w0, h0), resample=Image.ANTIALIAS)
             
         else:
             cropped = None

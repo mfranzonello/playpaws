@@ -96,7 +96,7 @@ class Plotter(Streamable):
     def plot_results(self):
         player_names = self.database.get_player_names()
         self.view_player = self.streamer.player_box.selectbox('Who are you?', player_names + [''],
-                                                              index=len(player_names))
+                                                              index=len(player_names), format_func=self.texter.get_display_name_full)
 
         if self.view_player != '':
             

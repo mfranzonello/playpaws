@@ -200,6 +200,8 @@ class Canvas(Imager, Streamable):
         return image
 
     def add_border(self, image, color=(0,0,0), padding=0):
+        ##w0, h0 = image.size
+        ##image = image.resize((self.antialias*w0, self.antialias*h0))
         W, H = image.size
         border_size = (int(W * (1 + padding/2)), int(H * (1 + padding/2)))
 
@@ -209,7 +211,8 @@ class Canvas(Imager, Streamable):
         border = self.get_color_image(color, border_size)
         w, h = border.size
         border.paste(image, ((w-W)//2, (h-H)//2), image)
-        border = border.resize(image.size)
+        border = border.resize((W, H))#, resample=Image.ANTIALIAS)
+        ##border = border.resize((w0, h0)), resample=Image.ANTIALIAS)
         return border
 
     def add_badge(self, image, text, font, pct=0.25, color=(0,0,0), border_color=(0,0,0), padding=0):
