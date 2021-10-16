@@ -254,13 +254,15 @@ class Plotter(Streamable):
 
         
         html = None
+        height = None
         if playlists_df is not None:
             theme = f'favorite - {self.view_player}'
             playlist_uri = playlists_df.query('theme == @theme')['uri'].squeeze()
             if len(playlist_uri):
                 playlist_uri = playlist_uri.replace('spotify:playlist:', '')
 
-                width = 380; height = 80
+                width = 380
+                height = 80
                 html = (f'<iframe src="https://open.spotify.com/embed/playlist/{playlist_uri}" '
                         f'width="{width}" height="{height}" '
                         f'frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>'
