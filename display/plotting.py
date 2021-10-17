@@ -891,7 +891,7 @@ class Plotter(Streamable):
                 fig = plt.figure()
                 ax = fig.add_axes([1, 1, 1, 1])
             
-                image = self.canvas.get_timeline_image(text_df[text_df['round'] == r], W, H, x0,
+                image = self.canvas.get_timeline_image(text_df[text_df['round'] == r], W, H, x0, x1,
                                                         base, self.highlight_color)
 
                 ax.imshow(image)

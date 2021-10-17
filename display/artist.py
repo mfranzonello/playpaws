@@ -268,33 +268,31 @@ class Canvas(Imager, Streamable):
         text_df['right'] = text_df.apply(lambda x: x['x'] + base * x['size']/2,
                                          axis=1)
 
-        # add flag where text is too long
-        text_df['flip'] = text_df['length'].add(text_df['x']).gt(w)
-
+        # adjust width for box on the edge
         left = text_df['left'].min()
         right = text_df['right'].max()
 
-        # adjust width for box on the edge
         W = int(-left + right)
         H = int(h)
         x0 = -left
         x1 = right - w
+
         return text_df, W, H, x0, x1
 
-    def get_timeline_image(self, text_df, W, H, x0, base, highlight_color,
+    def get_timeline_image(self, text_df, W, H, x0, x1, base, highlight_color,
                            padding=0.1, min_box_size=5):
         image = Image.new('RGBA', (W, H), (255, 255, 255, 0))
         draw = ImageDraw.Draw(image)
-
+        
         for i, text_row in text_df.iterrows():
-            x = text_row['x'] + x0
-            y = text_row['y'] * base
-
             box_src = text_row['src']
             box_size = text_row['size'] * base
             padded_size = box_size * (1 - padding)
             box_color = text_row['color']
             pad_offset = box_size * padding / 2
+
+            x = W - box_size/2 if (text_row['x'] == text_df['x'].max()) else min(text_row['x'] + x0, W - box_size/2)
+            y = text_row['y'] * base
 
             if padded_size:
                 if box_src and padded_size > min_box_size:
@@ -305,14 +303,13 @@ class Canvas(Imager, Streamable):
                         # grey out an image without points
                         ImageOps.grayscale(box_img)
                         
-                    x_box = x if (not text_row['flip']) else W
-                    x_adj = box_size/2 if (not text_row['flip']) else box_size
-                    image.paste(box_img, (int(x_box - x_adj + pad_offset), int(y + pad_offset)))
+                    x_adj = box_size/2
+                    image.paste(box_img, (int(x - x_adj + pad_offset), int(y + pad_offset)))
                     
                 else:
-                    draw.rectangle([int(x_box - x_adj + pad_offset),
+                    draw.rectangle([int(x - x_adj + pad_offset),
                                     int(y + pad_offset),
-                                    int(x_box + x_adj - pad_offset),
+                                    int(x + x_adj - pad_offset),
                                     int(y + box_size - pad_offset)],
                                    fill=box_color)
                 if text_row['highlight']:
@@ -320,12 +317,13 @@ class Canvas(Imager, Streamable):
                                     int(x + box_size/2 - pad_offset), int(y + box_size - pad_offset)],
                                    outline=highlight_color, width=int(pad_offset))
 
-            if not text_row['flip']:
+            flip = x + box_size/2 + text_row['length'] > W
+            if not flip:
                 x_text_top = x + box_size/2
                 x_text_bottom = x + box_size/2
             else:
-                x_text_top = W - box_size - text_row['length_top']
-                x_text_bottom = W - box_size - text_row['length_bottom']
+                x_text_top = x - box_size/2 - text_row['length_top']
+                x_text_bottom = x - box_size/2 - text_row['length_bottom']
             
             draw.text((int(x_text_top), int(y)), text_row['text_top'],
                       fill=box_color, font=text_row['image_font'])
