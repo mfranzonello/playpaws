@@ -1072,11 +1072,11 @@ class Database(Streamable):
                f'(SELECT p2 AS closest FROM {self.table_name("Pulse")} '
                f'WHERE (league = {self.needs_quotes(league_title)}) '
                f'AND (p1 = {self.needs_quotes(player_name)}) '
-               f'AND (distance IN (SELECT MIN(CASE WHEN distance > 0 THEN distance END) '
+               f'AND (distance IN (SELECT MIN(distance) '
                f'FROM "mfranzonello/playpaws"."pulse" '
                f'WHERE (league = {self.needs_quotes(league_title)}) '
                f'AND (p1 = {self.needs_quotes(player_name)}) '
-               f'GROUP BY league, p1))) AS j '
+               f'GROUP BY league, p1)) LIMIT 1) AS j '
 
                ##f'(SELECT q.player AS closest FROM ( '
                ##f'SELECT player, abs(dfc - '
