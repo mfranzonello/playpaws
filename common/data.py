@@ -14,7 +14,7 @@ class Engineer:
         self.engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}{get_secret("BITIO_ADD_ON")}'
                               f':{get_secret("BITIO_PASSWORD")}@{get_secret("BITIO_HOST")}')
 
-    @cache(allow_output_mutation=True)
+    @cache(allow_output_mutation=True, max_entries=10)#, ttl=3600)
     def connect(self):  
         engine = create_engine(self.engine_string)
         connection = engine.connect()
@@ -666,7 +666,8 @@ class Database(Streamable):
         self.upsert_table('Playlists', df)
 
     def flag_player_image(self, player_name):
-        sql = (f'UPDATE {self.table_name("Players")} SET flagged = TRUE '
+        sql = (f'UPDATE {self.table_name("Players")} '
+               f'SET flagged = {self.needs_quotes(date.today())} '
                f'WHERE player = {self.needs_quotes(player_name)};'
                )
 
@@ -675,7 +676,7 @@ class Database(Streamable):
     def get_players_update_sp(self):
         wheres = ' OR '.join(f'({v} IS NULL)' for v in ['src', 'uri', 'followers'])
         sql = (f'SELECT username FROM {self.table_name("Players")} '
-               f'WHERE {wheres} OR (flagged);')
+               f'WHERE {wheres} OR (flagged <= {self.needs_quotes(date.today())});')
 
         players_df = read_sql(sql, self.connection)
 

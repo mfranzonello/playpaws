@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from math import ceil
 import time
 
@@ -207,8 +207,20 @@ class Spotter(Streamable):
 
         if len(players_db):
             players_update = self.get_updates(players_db, self.get_user_elements, key='username')
-            players_update['flagged'] = players_update['src'].isna()
+            players_update['flagged'] = players_update['src'].apply(self.flag_src)
             self.database.store_players(players_update)    
+
+    def flag_src(self, src, fb=7):
+        if src is None:
+            # no image detected, look again tomorrow
+            flag = datetime.today().date() + timedelta(1)
+        elif ('fbcdn.net' in src) or ('fbsbx.com' in src):
+            # Facebook image detected, check again in a week in case it expired
+            flag = datetime.today().date() + timedelta(fb)
+        else:
+            # presumably a Spotify CDN (i.scdn.co) image that doesn't expire from
+            flag = None
+        return flag
 
     def update_db_tracks(self):
         self.streamer.print('\t...updating track information')
