@@ -9,7 +9,7 @@ on:
   pull_request:
     branches: [ main ]
   schedule:
-    - cron: '0 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23 * * *'
+    - cron: '0 * * * *'
 
 jobs:
 
@@ -60,6 +60,7 @@ jobs:
         SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
         SPOTIFY_REDIRECT_URL: ${{ secrets.SPOTIFY_REDIRECT_URL }}
         SPOTIFY_USER_ID: ${{ secrets.SPOTIFY_USER_ID }}
+        SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
 
         GCP_API_KEY: ${{ secrets.GCP_API_KEY }}
         GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
