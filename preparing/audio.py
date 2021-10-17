@@ -1,9 +1,13 @@
 from datetime import datetime
 from math import ceil
+import time
 
 import requests
+import six
+from base64 import b64encode
 from spotipy import Spotify, SpotifyClientCredentials
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.cache_handler import MemoryCacheHandler
 from pylast import LastFMNetwork, NetworkError
 from pandas import DataFrame, isnull
 
@@ -41,21 +45,29 @@ class Spotter(Streamable):
 
         client_credentials_manager = None
         auth_manager = None
-        ##s = requests.Session()
-        ##response = s.post('https://accounts.spotify.com/api/token',
-        ##                  data={'grant_type': 'authorization_code',
-        ##                        'code': get_secret('SPOTIFY_GRANT_CODE'),
-        ##                        'client_id': get_secret('SPOTIFY_CLIENT_ID'),
-        ##                        'client_secret': get_secret('SPOTIFY_CLIENT_SECRET'),
-        ##                        'redirect_uri': get_secret('SPOTIFY_REDIRECT_URL'),
-        ##                        })
-        ##if response.ok:
-        ##    print('Success!') 
+        cache_handler = None
+
         if auth:
+            data = {'grant_type': 'refresh_token',
+                    'refresh_token': get_secret('SPOTIFY_REFRESH_TOKEN'),
+                    }
+            auth_header = b64encode(six.text_type(get_secret('SPOTIFY_CLIENT_ID')
+                                                  + ':'
+                                                  + get_secret('SPOTIFY_CLIENT_SECRET')).encode('ascii'))
+            headers = {'Authorization': f'Basic {auth_header.decode("ascii")}'}
+            response = requests.post('https://accounts.spotify.com/api/token', data=data, headers=headers)
+            if response.ok:
+                token_info = response.json()
+                token_info['expires_at'] = int(time.time()) + token_info['expires_in']
+                token_info['refresh_token'] = get_secret('SPOTIFY_REFRESH_TOKEN')
+
+                access_token = token_info['access_token']
+                cache_handler = MemoryCacheHandler(token_info)
             auth_manager = SpotifyOAuth(client_id=get_secret('SPOTIFY_CLIENT_ID'),
                                         client_secret=get_secret('SPOTIFY_CLIENT_SECRET'),
                                         redirect_uri=get_secret('SPOTIFY_REDIRECT_URL'),
                                         #requests_session=s,
+                                        cache_handler=cache_handler,
                                         open_browser=False,
                                         scope='playlist-modify-public ugc-image-upload user-read-private user-read-email')
         else:
@@ -163,7 +175,7 @@ class Spotter(Streamable):
         self.update_db_albums()
         self.update_db_genres()
 
-    def update_spotify(self, database):
+    def output_playlists(self, database):
         self.database = database
         
         self.connect_to_spotify(auth=True)

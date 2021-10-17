@@ -19,6 +19,10 @@ def analyze_data(database):
     analyzer.analyze_all()
     analyzer.place_all()
 
+def output_playlists(database):
+    musician = Musician(database)
+    musician.output_playlists()
+
 def main():
     printer = Printer('display.max_columns', 'display.max_rows')
 
@@ -33,6 +37,9 @@ def main():
 
     # update data in database from Spotify and LastFM APIs
     update_api_data(database)
+
+    # output Spotify playlists
+    output_playlists(database)
 
 if __name__ == '__main__':
     main()
