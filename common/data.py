@@ -1061,7 +1061,6 @@ class Database(Streamable):
         return all_info_df
 
     def get_player_pulse(self, league_title, player_name):
-        ## Note that closest DFC may not be the most accurate distance measure -- would need to save Pulse
         sql = (f'SELECT p.player, p.likes, p.liked, j.closest '
                f'FROM (SELECT player, likes, liked  '
                f'FROM {self.table_name("Members")} '
@@ -1070,20 +1069,26 @@ class Database(Streamable):
 
                f'CROSS JOIN '
 
-               ##f'(SELECT q.player AS closest FROM ('
-               ##f'SELECT p2 AS player, ABS()) '
-               ##f'WHERE (league = {self.needs_quotes(league_title)}) '
-               ##f'AND (p1 = {self.needs_quotes(player_name)})) AS j;'
+               f'(SELECT p2 AS closest FROM {self.table_name("Pulse")} '
+               f'WHERE (league = {self.needs_quotes(league_title)}) '
+               f'AND (p1 = {self.needs_quotes(player_name)}) '
+               f'AND (distance IN (SELECT MIN(CASE WHEN distance > 0 THEN distance END) '
+               f'FROM "mfranzonello/playpaws"."pulse" '
+               f'WHERE (league = {self.needs_quotes(league_title)}) '
+               f'AND (p1 = {self.needs_quotes(player_name)}) '
+               f'GROUP BY league, p1))) AS j '
 
-               f'(SELECT q.player AS closest FROM ( '
-               f'SELECT player, abs(dfc - '
-               f'(SELECT dfc FROM {self.table_name("Members")} '
-               f'WHERE (league = {self.needs_quotes(league_title)}) '
-               f'AND (player = {self.needs_quotes(player_name)}))) AS distance '
-               f'FROM {self.table_name("Members")} '
-               f'WHERE (league = {self.needs_quotes(league_title)}) '
-               f'AND (player != {self.needs_quotes(player_name)}) '
-               f'ORDER BY distance LIMIT 1) AS q) AS j;'
+               ##f'(SELECT q.player AS closest FROM ( '
+               ##f'SELECT player, abs(dfc - '
+               ##f'(SELECT dfc FROM {self.table_name("Members")} '
+               ##f'WHERE (league = {self.needs_quotes(league_title)}) '
+               ##f'AND (player = {self.needs_quotes(player_name)}))) AS distance '
+               ##f'FROM {self.table_name("Members")} '
+               ##f'WHERE (league = {self.needs_quotes(league_title)}) '
+               ##f'AND (player != {self.needs_quotes(player_name)}) '
+               ##f'ORDER BY distance LIMIT 1) AS q) AS j'
+               
+               f';'
                )
 
         player_pulse_df = read_sql(sql, self.connection).squeeze(0)
