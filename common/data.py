@@ -14,7 +14,7 @@ class Engineer:
         self.engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}{get_secret("BITIO_ADD_ON")}'
                               f':{get_secret("BITIO_PASSWORD")}@{get_secret("BITIO_HOST")}')
 
-    @cache(allow_output_mutation=True, max_entries=10)#, ttl=3600)
+    @cache(allow_output_mutation=True, max_entries=10, ttl=10800)
     def connect(self):  
         engine = create_engine(self.engine_string)
         connection = engine.connect()
