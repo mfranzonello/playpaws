@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams, font_manager
 from matplotlib.dates import date2num
 from wordcloud import WordCloud
-from numpy import unique
+from numpy import unique, int64, float64
 
 from common.words import Texter
 from display.librarian import Library
@@ -53,6 +53,7 @@ class Plotter(Streamable):
                                                     plot_color=self.paintbrush.get_color('dark_grey', normalize=True))       
         self.highlight_color = self.paintbrush.get_color('blue', lighten=0.2)
         self.fail_color = self.paintbrush.get_color('grey')
+        self.separate_colors = self.paintbrush.get_colors('gold', 'silver')
         
         lighten_pcts = [p/100 for p in range(-30, 30+10, 10)]
         self.pass_colors = [self.paintbrush.lighten_color(self.highlight_color, p) for p in lighten_pcts]
@@ -118,9 +119,12 @@ class Plotter(Streamable):
             else:
                 badge = self.prepare_dfs(('badge', league_title, self.view_player),
                                          self.database.get_badge, league_title, self.view_player)
+                badge2 = self.prepare_dfs(('badge2', league_title, self.view_player),
+                                          self.database.get_badge, league_title, self.view_player,
+                                          competition=True)
                 playlists_df = self.prepare_dfs(('playlists_df', league_title),
                                                 self.database.get_playlists, league_title)
-                self.plot_viewer(badge=badge, playlists_df=playlists_df)
+                self.plot_viewer(badge=badge, badge2=badge2, playlists_df=playlists_df)
 
                 viewer_df = self.prepare_dfs(('viewer_df', league_title, self.view_player),
                                              self.database.get_player_pulse, league_title, self.view_player)
@@ -128,8 +132,13 @@ class Plotter(Streamable):
                                            self.database.get_player_wins, league_title, self.view_player)
                 awards_df = self.prepare_dfs(('awards_df', league_title, self.view_player),
                                              self.database.get_awards, league_title, self.view_player)
+                competitions_df = self.prepare_dfs(('competitions_df', league_title, self.view_player),
+                                                   self.database.get_competition_results, league_title,
+                                                   competition_title=None)
+                competition_title = self.database.get_current_competition(league_title)
                 self.plot_caption(league_title=league_title, viewer_df=viewer_df,
-                                  wins_df=wins_df, awards_df=awards_df)
+                                  wins_df=wins_df, awards_df=awards_df,
+                                  competition_title=competition_title, competitions_df=competitions_df)
 
                 self.streamer.print(f'Preparing plot for {league_title}')
                 self.streamer.status(0, base=True)
@@ -142,7 +151,9 @@ class Plotter(Streamable):
                                              self.database.get_boards, league_title)
                 creators_and_winners_df = self.prepare_dfs(('creators_and_winners_df', league_title),
                                                            self.database.get_creators_and_winners, league_title)
-                self.plot_boards(league_title, boards_df, creators_and_winners_df)
+                competitions_df = self.prepare_dfs(('competitions_df', league_title),
+                                                    self.database.get_competitions, league_title)
+                self.plot_boards(league_title, boards_df, creators_and_winners_df, competitions_df)
 
                 rankings_df = self.prepare_dfs(('rankings_df', league_title),
                                                self.database.get_rankings, league_title)
@@ -238,21 +249,16 @@ class Plotter(Streamable):
         y_shifted = y + shift_distance*sin(theta + rotate*pi/2)
         return x_shifted, y_shifted
 
-    def plot_viewer(self, badge=None, playlists_df=None):
+    def plot_viewer(self, badge=None, badge2=None, playlists_df=None):
         image = self.canvas.get_player_image(self.view_player)
         palette = self.paintbrush.get_palette(image)
         image = self.canvas.add_border(image, color=palette[0], padding=0.2)
 
-        if badge:
-            medal_metals = ['gold', 'silver', 'bronze', 'gunmetal_grey']
-            place = max(1, min(len(medal_metals), badge))
-            border_color = [self.paintbrush.get_color(c) for c in medal_metals][place - 1]
-
-            image = self.canvas.add_badge(image, self.texter.get_ordinal(badge), self.fonts['image_sans'],
-                                          pct=0.4, color=self.paintbrush.lighten_color(border_color, 0.1),
-                                          border_color=border_color, padding=0.3)
-
-        
+        medal_metals = ['gold', 'silver', 'bronze', 'gunmetal_grey']
+        for b, pct, position in zip([badge, badge2], [0.4, 0.25], ['LR', 'UL']):
+            if isinstance(b, (int, float, int64, float64)):
+                image = self.place_badge(image, b, medal_metals, pct=pct, position=position)
+            
         html = None
         height = None
         if playlists_df is not None:
@@ -270,7 +276,18 @@ class Plotter(Streamable):
 
         self.streamer.viewer(image, footer=html, footer_height=height)
 
-    def plot_caption(self, league_title=None, viewer_df=None, wins_df=None, awards_df=None):
+    def place_badge(self, image, badge, medal_metals, pct, position):
+        place = max(1, min(len(medal_metals), badge))
+        border_color = [self.paintbrush.get_color(c) for c in medal_metals][place - 1]
+
+        image = self.canvas.add_badge(image, self.texter.get_ordinal(badge), self.fonts['image_sans'],
+                                      pct=pct, color=self.paintbrush.lighten_color(border_color, 0.1),
+                                      border_color=border_color, padding=0.3, position=position)
+
+        return image
+
+    def plot_caption(self, league_title=None, viewer_df=None, wins_df=None, awards_df=None,
+                     competition_title=None, competitions_df=None):
         parameters = {}
         keys = ['likes', 'liked', 'closest', 'dirtiest', 'discoverer', 'popular',
                 'win_rate', 'play_rate', 'generous', 'clean'] #'stingy' 'maxed_out'
@@ -279,8 +296,13 @@ class Plotter(Streamable):
                 parameters.update({k: df[k] for k in keys if k in df})
         if (wins_df is not None) and len(wins_df):
             parameters['wins'] = wins_df['round'].to_list()
+        if (competitions_df is not None) and len(competitions_df):
+            parameters.update({'current_competition': competition_title,
+                               'badge2': competitions_df.query('player == @self.view_player')['place'].squeeze(),
+                               'n_players': len(competitions_df)})
         parameters['leagues'] = [self.texter.clean_text(l) for l in self.view_league_titles if l != league_title]
         parameters['other_leagues'] = (league_title is not None)
+        parameters['competitions'] = None
 
         self.streamer.player_caption.markdown(self.library.get_column(parameters))
 
@@ -448,7 +470,7 @@ class Plotter(Streamable):
         sizes = (members_df['wins'] + 1) * self.marker_sizing
         return sizes
 
-    def plot_boards(self, league_title, board, creators_winners_df):
+    def plot_boards(self, league_title, board, creators_winners_df, competitions_df):
         plot_key = (league_title, 'boards_ax', self.view_player)
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
@@ -503,6 +525,9 @@ class Plotter(Streamable):
             ax.set_ylim(y_min + 0.5, y_max + 0.5)
             ax.set_yticks(yticks)
             ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
+
+            if len(competitions_df):
+                self.add_backgrounds(ax, round_titles, competitions_df, scaling=scaling)
 
             parameters = {'round_titles': creators_winners_df['round'].values,
                           'choosers': creators_winners_df['creator'].values,
@@ -568,6 +593,23 @@ class Plotter(Streamable):
             y_plot = R * sin(angle * i + adj) + y
             
         return x_plot, y_plot
+
+    def add_backgrounds(self, ax, round_titles, competitions_df, scaling=[1, 1], x_offset=0):
+        competition_titles = competitions_df['competition'].unique().tolist()
+        cgb = competitions_df.groupby('competition')['round']
+        competition_colors = self.paintbrush.get_scatter_colors(self.separate_colors)
+
+        y0, y1 = ax.get_ylim()
+        for c_round in competitions_df['competition'].unique():
+            c_first = cgb.first()[c_round]
+            c_last = cgb.last()[c_round]
+            
+            if c_first in round_titles:
+                x0 = (round_titles.index(c_first) if c_first in round_titles else 0) + 1 - 1/2 + x_offset
+                x1 = (round_titles.index(c_last) if c_last in round_titles else len(round_titles)) + 1 + 1/2 + x_offset
+
+                color = competition_colors[competition_titles.index(c_round) % len(competition_colors)]
+                ax.fill_between([scaling[0]*x0, scaling[0]*x1], y0, y1, color=color, zorder=-1)
 
     def plot_rankings(self, league_title, rankings, dirty_df, discovery_df):
         plot_key = (league_title, 'rankings_ax', self.view_player)
@@ -900,7 +942,7 @@ class Plotter(Streamable):
                 ax.set_yticklabels([])
 
                 ax.set_xticks([x0 + (W - x0 - x1) / n_years * y for y in years_range] + [W - x1])
-                ax.set_xticklabels([max_date.year - i for i in years_range] + [f'< {max_date.year - max(years_range)}'])
+                ax.set_xticklabels([max_date.year - i for i in years_range] + [f'<{max_date.year - max(years_range)}'])
                 
                 self.streamer.status(1/self.plot_counts * (1/n_rounds))
 

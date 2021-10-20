@@ -60,6 +60,8 @@ class Database(Streamable):
                            'values': ['points', 'score']},
               'Boards': {'keys': ['league', 'round', 'player'],
                          'values': ['place']},
+              'Competitions': {'keys': ['league', 'competition'],
+                               'values': ['start', 'finish']},
               'Analyses': {'keys': ['league'],
                            'values': ['date', 'open', 'closed', 'version']},
               
@@ -95,6 +97,9 @@ class Database(Streamable):
         full_table_name = f'{self.db}."{table_name.lower()}"'
 
         return full_table_name
+
+    def read_sql(self, sql, **kwargs):
+        return read_sql(sql, self.connection, **kwargs)
 
     def get_table(self, table_name, columns=None, league=None, order_by=None):
         # get values from database
@@ -134,7 +139,7 @@ class Database(Streamable):
 
         # write and execute SQL
         sql = f'SELECT {cols} FROM {self.table_name(table_name)}{joins}{wheres}{orders};'
-        table = read_sql(sql, self.connection, coerce_float=True)        
+        table = self.read_sql(sql, coerce_float=True)        
 
         return table
 
@@ -286,7 +291,7 @@ class Database(Streamable):
 
             sql = f'SELECT player FROM {self.table_name("Members")} WHERE {wheres}'
 
-            names_df = read_sql(sql, self.connection)
+            names_df = self.read_sql(sql)
             if len(names_df):
                 # potential matches
                 if partial_name in names_df['player'].values:
@@ -344,7 +349,7 @@ class Database(Streamable):
     def get_league_creator(self, league_title):
         # get name of league creator
         sql = f'SELECT creator FROM {self.table_name("Leagues")} WHERE league = {self.needs_quotes(league_title)}'
-        creators_df = read_sql(sql, self.connection)
+        creators_df = self.read_sql(sql)
         if len(creators_df):
             creator = creators_df['creator'].iloc[0]
         else:
@@ -356,7 +361,7 @@ class Database(Streamable):
                f'WHERE player = {self.needs_quotes(player_name)};'
                )
                
-        league_titles = read_sql(sql, self.connection)['league'].values
+        league_titles = self.read_sql(sql)['league'].values
 
         return league_titles
 
@@ -373,7 +378,7 @@ class Database(Streamable):
 
         sql = f'SELECT COUNT({count}) FROM {self.table_name(table_name)} WHERE {wheres}'
 
-        count_df = read_sql(sql, self.connection)
+        count_df = self.read_sql(sql)
         check = count_df['count'].gt(0).all()
 
         return check
@@ -385,7 +390,7 @@ class Database(Streamable):
     def get_url_status(self, url):
         table_name = 'Rounds'
         sql = f'SELECT league, round FROM {self.table_name(table_name)} WHERE url = {self.needs_quotes(url)}'
-        results = read_sql(sql, self.connection)
+        results = self.read_sql(sql)
 
         if len(results):
             league, round_title = results.iloc[0]
@@ -401,7 +406,7 @@ class Database(Streamable):
             sql = (f'SELECT * FROM {self.table_name("Rounds")} '
                    f'WHERE (league = {self.needs_quotes(league_title)}) AND (round = {self.needs_quotes(round_title)});'
                    )
-            status_df = read_sql(sql, self.connection)
+            status_df = self.read_sql(sql)
 
             if len(status_df) and (not isnull(status_df['status'].iloc[0])):
                 round_status = status_df['status'].iloc[0] # ['new', 'open', 'closed']
@@ -414,7 +419,7 @@ class Database(Streamable):
         sql = (f'SELECT round, description, creator FROM {self.table_name("Rounds")} '
                f'WHERE (league = {self.needs_quotes(league_title)}) AND (creator IS NULL);')
 
-        rounds_df = read_sql(sql, self.connection)
+        rounds_df = self.read_sql(sql)
 
         return rounds_df
 
@@ -516,7 +521,7 @@ class Database(Streamable):
                f'ORDER BY parameter, version DESC;'
                )
 
-        weights = read_sql(sql, self.connection, index_col='parameter')['value']
+        weights = self.read_sql(sql, index_col='parameter')['value']
         weights = weights.apply(self.clean_up_weight)
         return weights
 
@@ -575,7 +580,7 @@ class Database(Streamable):
                f'WHERE (league = {self.needs_quotes(league_title)}) AND (round = {self.needs_quotes(round_title)}) '
                f'AND (playlist_url IS NOT NULL);')
 
-        playlist_df = read_sql(sql, self.connection)
+        playlist_df = self.read_sql(sql)
         if len(playlist_df):
             playlist_url = playlist_df['url'].iloc[0]
         else:
@@ -592,7 +597,7 @@ class Database(Streamable):
                f'WHERE league = {self.needs_quotes(league_title)};'
                )
 
-        count = read_sql(sql, self.connection)['count'].iloc[0]
+        count = self.read_sql(sql)['count'].iloc[0]
 
         return count
 
@@ -603,7 +608,7 @@ class Database(Streamable):
                f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_url = t.url;'
                )
 
-        duration = read_sql(sql, self.connection)['duration'].iloc[0]
+        duration = self.read_sql(sql)['duration'].iloc[0]
 
         return duration
 
@@ -645,7 +650,7 @@ class Database(Streamable):
 
             wheres = f'theme LIKE {self.needs_quotes(theme+"%%")}'
 
-        rounds_df = read_sql(sql, self.connection)
+        rounds_df = self.read_sql(sql)
 
         # get comprehensive playlists
         selects = ', theme' if theme == 'favorite' else ''
@@ -654,7 +659,7 @@ class Database(Streamable):
                f'WHERE {wheres};'
                )
 
-        playlists_df = read_sql(sql, self.connection)
+        playlists_df = self.read_sql(sql)
      
         return rounds_df, playlists_df
 
@@ -678,7 +683,7 @@ class Database(Streamable):
         sql = (f'SELECT username FROM {self.table_name("Players")} '
                f'WHERE {wheres} OR (flagged <= {self.needs_quotes(date.today())});')
 
-        players_df = read_sql(sql, self.connection)
+        players_df = self.read_sql(sql)
 
         return players_df
 
@@ -695,7 +700,7 @@ class Database(Streamable):
                f'UNION SELECT url FROM {self.table_name("Tracks")} WHERE {wheres};'
                )
 
-        tracks_df = read_sql(sql, self.connection)
+        tracks_df = self.read_sql(sql)
 
         return tracks_df
     
@@ -709,7 +714,7 @@ class Database(Streamable):
                f'UNION SELECT uri FROM {self.table_name("Artists")} WHERE {wheres};'
                )
 
-        artists_df = read_sql(sql, self.connection)
+        artists_df = self.read_sql(sql)
 
         return artists_df
 
@@ -721,7 +726,7 @@ class Database(Streamable):
                f'UNION SELECT uri FROM {self.table_name("Albums")} WHERE {wheres};'
                )
 
-        albums_df = read_sql(sql, self.connection)
+        albums_df = self.read_sql(sql)
 
         return albums_df
 
@@ -734,7 +739,7 @@ class Database(Streamable):
                f'WHERE u.genre NOT IN (SELECT name FROM {self.table_name("Genres")});'
                )
 
-        genres_df = read_sql(sql, self.connection)
+        genres_df = self.read_sql(sql)
 
         return genres_df
 
@@ -750,7 +755,7 @@ class Database(Streamable):
                f'ON (t.artist_uri->>0) = a.uri WHERE {wheres};'
                )
 
-        tracks_df = read_sql(sql, self.connection)
+        tracks_df = self.read_sql(sql)
 
         return tracks_df
 
@@ -789,7 +794,7 @@ class Database(Streamable):
                f'AND (version = {version}::real);'
                )
 
-        analyzed = read_sql(sql, self.connection)['count'].iloc[0] > 0
+        analyzed = self.read_sql(sql)['count'].iloc[0] > 0
 
         return analyzed
 
@@ -799,7 +804,7 @@ class Database(Streamable):
                f'AND (optimized = TRUE);'
                )
 
-        optimized = read_sql(sql, self.connection)['count'].iloc[0] > 0
+        optimized = self.read_sql(sql)['count'].iloc[0] > 0
 
         return optimized
 
@@ -868,7 +873,7 @@ class Database(Streamable):
                    f'GROUP BY s.submitter;'
                    )
 
-        dirtiness = read_sql(sql, self.connection).set_index(gb)['dirtiness']
+        dirtiness = self.read_sql(sql).set_index(gb)['dirtiness']
 
         return dirtiness
 
@@ -895,7 +900,7 @@ class Database(Streamable):
                    f'GROUP BY s.round, r.date ORDER BY r.date;'
                    )
 
-        features_df = read_sql(sql, self.connection)
+        features_df = self.read_sql(sql)
 
         return features_df
 
@@ -908,7 +913,7 @@ class Database(Streamable):
                f'GROUP BY s.round, s.song_id;'
                )
 
-        discoveries_df = read_sql(sql, self.connection)
+        discoveries_df = self.read_sql(sql)
 
         return discoveries_df
 
@@ -922,7 +927,7 @@ class Database(Streamable):
                f'GROUP BY s.submitter;'
                )
 
-        discoveries_df = read_sql(sql, self.connection).set_index('submitter')
+        discoveries_df = self.read_sql(sql).set_index('submitter')
 
         return discoveries_df
 
@@ -941,7 +946,7 @@ class Database(Streamable):
                f'WHERE s.league = {self.needs_quotes(league_title)}{wheres};'
                )
 
-        genres_df = read_sql(sql, self.connection)
+        genres_df = self.read_sql(sql)
         
         if player_name:
             genres_df = set(genres_df.sum().sum())
@@ -979,7 +984,7 @@ class Database(Streamable):
                f'WHERE s.league != {self.needs_quotes(league_title)});'
                )
 
-        exclusives = read_sql(sql, self.connection)['tag']
+        exclusives = self.read_sql(sql)['tag']
 
         return exclusives
 
@@ -1008,7 +1013,7 @@ class Database(Streamable):
                f'ORDER BY l.date ASC, d.date ASC, r.points DESC;'
                )
 
-        results_df = read_sql(sql, self.connection).drop_duplicates(subset='song_id')
+        results_df = self.read_sql(sql).drop_duplicates(subset='song_id')
 
         return results_df
 
@@ -1029,7 +1034,7 @@ class Database(Streamable):
                f'ORDER BY r.date;'
                )
         
-        creators_winners_df = read_sql(sql, self.connection)
+        creators_winners_df = self.read_sql(sql)
 
         return creators_winners_df
 
@@ -1042,7 +1047,7 @@ class Database(Streamable):
                f'GROUP BY s.song_id, s.league;'
                )
 
-        all_artists_df = read_sql(sql, self.connection)
+        all_artists_df = self.read_sql(sql)
 
         return all_artists_df
 
@@ -1057,7 +1062,7 @@ class Database(Streamable):
                f'ON (x.song_id = q.song_id) AND (x.league = q.league);'
                )
 
-        all_info_df = read_sql(sql, self.connection)
+        all_info_df = self.read_sql(sql)
 
         return all_info_df
 
@@ -1092,7 +1097,7 @@ class Database(Streamable):
                f';'
                )
 
-        player_pulse_df = read_sql(sql, self.connection).squeeze(0)
+        player_pulse_df = self.read_sql(sql).squeeze(0)
 
         return player_pulse_df
 
@@ -1102,7 +1107,7 @@ class Database(Streamable):
                f'AND (league = {self.needs_quotes(league_title)}) AND (place = 1);'
                )
 
-        player_wins_df = read_sql(sql, self.connection)
+        player_wins_df = self.read_sql(sql)
 
         return player_wins_df
 
@@ -1200,18 +1205,94 @@ class Database(Streamable):
                f';'
                )
 
-        awards_df = read_sql(sql, self.connection).squeeze(0)
+        awards_df = self.read_sql(sql).squeeze(0)
 
         return awards_df
 
-    def get_badge(self, league_title, player_name):
-        sql = (f'SELECT q.badge FROM '
-               f'(SELECT player, RANK() OVER (ORDER BY wins DESC) AS badge '
-               f'FROM {self.table_name("Members")} '
-               f'WHERE league = {self.needs_quotes(league_title)}) AS q '
-               f'WHERE q.player = {self.needs_quotes(player_name)};'
-               )
+    def get_badge(self, league_title, player_name, competition=False):
+        if not competition:
+            sql = (f'SELECT q.badge FROM '
+                   f'(SELECT player, RANK() OVER (ORDER BY wins DESC) AS badge '
+                   f'FROM {self.table_name("Members")} '
+                   f'WHERE league = {self.needs_quotes(league_title)}) AS q '
+                   f'WHERE q.player = {self.needs_quotes(player_name)};'
+                   )
+        else:
+            current_competition = self.get_current_competition(league_title)
+            if current_competition:
+                sql = (f'SELECT q.badge FROM (SELECT r.player, RANK() '
+                       f'OVER(ORDER BY SUM(r.points) DESC) AS badge '
+                       f'FROM {self.table_name("Rounds")} AS d '
+                       f'RIGHT JOIN {self.table_name("Competitions")} AS c '
+                       f'ON d.league = c.league AND d.date >= c.start '
+                       f'AND d.date <= (CASE WHEN c.finish IS NOT NULL THEN c.finish ELSE current_date END) '
+                       f'RIGHT JOIN {self.table_name("Rankings")} AS r '
+                       f'ON d.league = r.league AND d.round = r.round '
+                       f'WHERE c.league = {self.needs_quotes(league_title)} '
+                       f'AND c.competition = {self.needs_quotes(current_competition)} '
+                       f'GROUP BY r.player) AS q WHERE q.player = {self.needs_quotes(player_name)};'
+                       )
+            else:
+                sql = None
 
-        badge = read_sql(sql, self.connection).squeeze()
+        if sql:
+            badge = self.read_sql(sql).squeeze()
+        else:
+            badge = None
 
         return badge
+
+    def get_competitions(self, league_title):
+        sql = (f'SELECT c.competition, d.round '
+               f'FROM {self.table_name("Rounds")} AS d '
+               f'RIGHT JOIN {self.table_name("Competitions")} AS c '
+               f'ON d.league = c.league '
+               f'AND d.date >= c.start AND d.date <= (CASE WHEN c.finish IS NOT NULL '
+               f'THEN c.finish ELSE CURRENT_DATE END) '
+               f'WHERE c.league = {self.needs_quotes(league_title)} '
+               f'ORDER BY d.date;'
+               )
+
+        competitions_df = self.read_sql(sql)
+
+        return competitions_df
+
+    def get_current_competition(self, league_title):
+        sql = (f'SELECT competition FROM {self.table_name("Competitions")} '
+               f'WHERE start <= CURRENT_DATE and (finish >= CURRENT_DATE OR finish IS NULL) '
+               f'LIMIT 1;' )
+
+        competition_title = self.read_sql(sql)
+        
+        if len(competition_title):
+            competition_title = competition_title.squeeze()
+        else:
+            competition_title = None
+
+        return competition_title
+
+    def get_competition_results(self, league_title, competition_title=None):
+        if competition_title is None:
+            # get current competition
+            competition_title = self.get_current_competition(league_title)
+
+        if competition_title:
+            sql = (f'SELECT r.player, RANK() '
+                   f'OVER(ORDER BY SUM(r.points) DESC) AS place '
+                   f'FROM {self.table_name("Rounds")} AS d '
+                   f'RIGHT JOIN {self.table_name("Competitions")} AS c '
+                   f'ON d.league = c.league AND d.date >= c.start '
+                   f'AND d.date <= (CASE WHEN c.finish IS NOT NULL THEN c.finish ELSE current_date END) '
+                   f'RIGHT JOIN {self.table_name("Rankings")} AS r '
+                   f'ON d.league = r.league AND d.round = r.round '
+                   f'WHERE c.league = {self.needs_quotes(league_title)} '
+                   f'AND c.competition = {self.needs_quotes(competition_title)} '
+                   f'GROUP BY r.player;'
+                   )
+               
+            results_df = self.read_sql(sql)
+
+        else:
+            results_df = None
+
+        return results_df

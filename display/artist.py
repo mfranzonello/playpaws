@@ -215,7 +215,8 @@ class Canvas(Imager, Streamable):
         ##border = border.resize((w0, h0)), resample=Image.ANTIALIAS)
         return border
 
-    def add_badge(self, image, text, font, pct=0.25, color=(0,0,0), border_color=(0,0,0), padding=0):
+    def add_badge(self, image, text, font, pct=0.25, color=(0,0,0), border_color=(0,0,0),
+                  padding=0, position='LR'):
         W, H = image.size
         badge_size = (int(W * pct), int(H * pct))
         w, h = badge_size
@@ -224,7 +225,19 @@ class Canvas(Imager, Streamable):
         badge = self.add_border(badge, color=border_color, padding=padding)
 
         # place badge on image
-        image.paste(badge, (W - w - 1, H - h - 1), badge)
+        if position not in ['UL', 'UR', 'LL', 'LR']:
+            x, y = (0, 0)
+        else:
+            if position[0] == 'L':
+                y = H - h - 1
+            elif position[0] == 'U':
+                y = 1
+            if position[1] == 'L':
+                x = 1
+            elif position[1] == 'R':
+                x = W - w - 1
+
+        image.paste(badge, (x, y), badge)
 
         return image
         

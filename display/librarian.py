@@ -17,6 +17,7 @@ class Library:
              'win_rate': '🔥',
              'play_rate': '⚾',
              'wins': '🏅',
+             'competitions': '🥊',
              'viewer': '👋',
              'creator': '🤓',
              'leader': '🥇',
@@ -274,6 +275,15 @@ class Library:
             leagues_list.append(f'{other_leagues}Leagues Played In: {leagues_in}')
         leagues = self.bar_list(leagues_list, indent=False, bar=False)
 
+        competitions_list = []
+        if parameters.get('current_competition'):
+            place = self.texter.get_ordinal(parameters['badge2'])
+            total = parameters['n_players']
+            competitions_list.append(f'Currently competing in {self.feel("competition")}'
+                                     f'{parameters["current_competition"]}{self.feel("competition")}'
+                                     f'{self.newline(1)}{self.indent()}(ranked {place} of {total})')
+        competitions = self.bar_list(competitions_list, indent=False)
+
         awards_list = []
         if parameters.get('dirtiest'):
             awards_list.append(f'{self.feel("dirtiest")}**Most Explicit Player**{self.feel("dirtiest")}')
@@ -311,10 +321,14 @@ class Library:
             round_titles = [self.texter.clean_text(t) for t in parameters['wins']]
             rounds_won = self.texter.get_plurals(round_titles, markdown='**')
             wins_list.append(f'Round{rounds_won["s"]} won: {self.feel("wins")}{rounds_won["text"]}{self.feel("wins")}')
+        if parameters.get('competition_wins'):
+            competition_titles = [self.texter.clean_text(t) for t in parameters['competition_wins']]
+            competitions_won = self.texter.get_plurals(competition_titles, markdown='**')
+            wins_list.append(f'Competitions{competitions_won["s"]} won: {self.feel("competitions")}{competitions_won["text"]}{self.feel("competitions")}')
         wins = self.bar_list(wins_list)
 
         text = (f'## Player Stats'
-                f'{leagues}{awards}{pulse}{stats}{wins}'
+                f'{leagues}{competitions}{awards}{pulse}{stats}{wins}'
                 )
 
         return text
