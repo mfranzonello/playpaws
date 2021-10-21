@@ -312,9 +312,9 @@ class Canvas(Imager, Streamable):
                     src_size = tuple([int(padded_size)] * 2)
                     box_img = Image.open(urlopen(box_src)).resize(src_size)
 
-                    if isnan(text_row['points']):
-                        # grey out an image without points
-                        ImageOps.grayscale(box_img)
+                    if text_row['status']=='open':
+                        # grey out an image in an open round
+                        box_img = ImageOps.grayscale(box_img)
                         
                     x_adj = box_size/2
                     image.paste(box_img, (int(x - x_adj + pad_offset), int(y + pad_offset)))

@@ -875,11 +875,14 @@ class Plotter(Streamable):
             results_df['text_top'] = results_df.apply(lambda x: ' + '.join(x['artist']), axis=1)
             results_df['text_bottom'] = results_df.apply(lambda x: '"' + x['title'] + '"', axis=1)
 
-            divisor = results_df['round'].map(results_df.groupby('round').count()['song_id'].to_dict()).apply(self.sum_num)
-            results_df['size'] = results_df.reset_index().groupby('round').rank()['index'].add(1).pow(-1)\
-                .div(divisor)
-            results_df['y'] = results_df.reset_index().groupby('round').rank()['index'].sub(1).apply(self.sum_num)\
-                .div(divisor)
+            rdfgb = results_df.reset_index().groupby('round').rank()['index']
+            rdfgb2 = results_df.groupby('round').count()['song_id']
+            divisor = results_df['round'].map(rdfgb2.to_dict()).apply(self.sum_num)
+            multiplier = results_df['round'].map(rdfgb2.astype(float).pow(-1).to_dict())
+            results_df['size'] = rdfgb.add(1).pow(-1).div(divisor).where(results_df['status']=='closed',
+                                                                         multiplier)
+            results_df['y'] = rdfgb.sub(1).apply(self.sum_num).div(divisor).where(results_df['status']=='closed',
+                                                                                  rdfgb.sub(1).mul(multiplier))
        
             self.streamer.status(1/self.plot_counts * (1/4))
     
