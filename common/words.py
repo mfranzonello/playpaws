@@ -93,7 +93,7 @@ class Texter:
             if p > 0 and not ((text[:p].count('(') > text[:p].count(')')) and (text[p:].find(')') > text[p:].find('('))):
                 # don't drop if - is in between parenthesis
                 text = text[:text.find(' - ')].strip()
-        if text[-2] == ' -':
+        if text[-2:] == ' -':
             text = text[:-2]
 
         return text
