@@ -41,8 +41,12 @@ class Boxer:
     def get_bytes(self, path=None, folder=None, name=None, ext=None):
         if not path:
             path = self.file_in_folder(folder, name, ext)
-        _, result = self.dbx.files_download(path) if path else None
-        image_bytes = BytesIO(result.content)
+        response = self.dbx.files_download(path) if path else None
+        if response:
+            _, result = response
+            image_bytes = BytesIO(result.content)
+        else:
+            image_bytes = None
 
         return image_bytes
 
@@ -52,7 +56,7 @@ class Boxer:
         return image_bytes
 
     def get_mask(self, name):
-        image_bytes = self.get_bytes(folder=self.masks_folder, name=name, ext='png') # url
+        image_bytes = self.get_bytes(folder=self.masks_folder, name=name, ext='png')
 
         return image_bytes
 
