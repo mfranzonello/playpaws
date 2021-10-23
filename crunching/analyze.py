@@ -170,7 +170,7 @@ class Analyzer:
 
     def check_songs_and_votes(self, songs, votes):
         # make sure there were songs and votes
-        check = len(songs.df) > 0 # & (len(votes.df) > 0)
+        check = (songs.df['submitter'].notna().sum() > 0) and (votes.df['player'].notna().sum() > 0)
         return check
 
     def crunch_rounds(self, songs, votes, rounds, members):
