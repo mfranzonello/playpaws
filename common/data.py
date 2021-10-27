@@ -1296,3 +1296,26 @@ class Database(Streamable):
             results_df = None
 
         return results_df
+
+    def get_hoarding(self, league_title):
+        sql = (f'SELECT q.round, q.player, q.votes/p.total::real*n.players/(n.players-1) AS pct '
+               f'FROM (SELECT s.round, v.player, COUNT(v.song_id) AS votes '
+               f'FROM {self.table_name("Votes")} AS v '
+               f'LEFT JOIN {self.table_name("Songs")} AS s '
+               f'ON v.song_id = s.song_id AND v.league = s.league '
+               f'WHERE v.league = {self.needs_quotes(league_title)} AND v.player IS NOT NULL '
+               f'GROUP BY s.round, v.player) AS q '
+               f'LEFT JOIN (SELECT round, COUNT(song_id) AS total '
+               f'FROM {self.table_name("Songs")} WHERE league = {self.needs_quotes(league_title)} '
+               f'GROUP BY round) AS p ON q.round = p.round '
+               f'LEFT JOIN (SELECT round, COUNT(DISTINCT submitter) AS players '
+               f'FROM {self.table_name("Songs")} WHERE league = {self.needs_quotes(league_title)} '
+               f'GROUP BY round) AS n ON q.round = n.round;'
+               )
+
+        hoarding_df = self.read_sql(sql).pivot(index='player', columns='round', values='pct')
+
+        reindexer = [c for c in self.get_round_order(league_title) if c in hoarding_df.columns]
+        hoarding_df = hoarding_df.reindex(columns=reindexer)
+                
+        return hoarding_df

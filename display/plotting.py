@@ -69,6 +69,7 @@ class Plotter(Streamable):
                                 self.plot_tags,
                                 self.plot_top_songs,
                                 self.plot_playlists,
+                                self.plot_hoarding,
                                 ))
     
     def add_canvas(self):
@@ -117,6 +118,7 @@ class Plotter(Streamable):
                 self.plot_caption()
 
             else:
+                # plot the viewer image
                 badge = self.prepare_dfs(('badge', league_title, self.view_player),
                                          self.database.get_badge, league_title, self.view_player)
                 badge2 = self.prepare_dfs(('badge2', league_title, self.view_player),
@@ -126,6 +128,7 @@ class Plotter(Streamable):
                                                 self.database.get_playlists, league_title)
                 self.plot_viewer(badge=badge, badge2=badge2, playlists_df=playlists_df)
 
+                # plot the viewer stats
                 viewer_df = self.prepare_dfs(('viewer_df', league_title, self.view_player),
                                              self.database.get_player_pulse, league_title, self.view_player)
                 wins_df = self.prepare_dfs(('player_wins_df', league_title, self.view_player),
@@ -143,10 +146,12 @@ class Plotter(Streamable):
                 self.streamer.print(f'Preparing plot for {league_title}')
                 self.streamer.status(0, base=True)
 
+                # plot results title
                 league_creator = self.prepare_dfs(('league_creator', league_title),
                                                   self.database.get_league_creator, league_title)
                 self.plot_title(league_title, league_creator)
            
+                # plot round finishers
                 boards_df = self.prepare_dfs(('boards_df', league_title),
                                              self.database.get_boards, league_title)
                 creators_and_winners_df = self.prepare_dfs(('creators_and_winners_df', league_title),
@@ -155,6 +160,7 @@ class Plotter(Streamable):
                                                     self.database.get_competitions, league_title)
                 self.plot_boards(league_title, boards_df, creators_and_winners_df, competitions_df)
 
+                # plot player scores
                 rankings_df = self.prepare_dfs(('rankings_df', league_title),
                                                self.database.get_rankings, league_title)
                 dirtiness_df = self.prepare_dfs(('dirtiness_df', league_title),
@@ -163,14 +169,22 @@ class Plotter(Streamable):
                                                 self.database.get_discovery_scores, league_title)
                 self.plot_rankings(league_title, rankings_df, dirtiness_df, discovery_df)
                                    
+                # plot vote hoarding
+                hoarding_df = self.prepare_dfs(('hoarding_df', league_title),
+                                               self.database.get_hoarding, league_title)
+                self.plot_hoarding(league_title, hoarding_df)
+
+                # plot league pulse
                 members_df = self.prepare_dfs(('members_df', league_title),
                                               self.database.get_members, league_title)
                 self.plot_members(league_title, members_df)
 
+                # plot audio features
                 features_df = self.prepare_dfs(('features_df', league_title),
                                                self.database.get_audio_features, league_title)
                 self.plot_features(league_title, features_df)
                 
+                # plot wordcloud
                 tags_df = self.prepare_dfs(('tags_df', league_title),
                                            self.database.get_genres_and_tags, league_title)
                 exclusives_df = self.prepare_dfs(('exclusives_df', league_title),
@@ -181,12 +195,14 @@ class Plotter(Streamable):
                                          self.boxer.get_mask, league_title)
                 self.plot_tags(league_title, tags_df, exclusives_df, player_tags_df, masks)
 
+                # plot top songs
                 results_df = self.prepare_dfs(('results_df', league_title),
                                               self.database.get_song_results, league_title)
                 descriptions_df = self.prepare_dfs(('descriptions_df', league_title),
                                                    self.database.get_round_descriptions, league_title)
                 self.plot_top_songs(league_title, results_df, descriptions_df)
 
+                # plot complete playlist
                 ##playlists_df = self.prepare_dfs(('playlists_df', league_title),
                 ##                                self.database.get_playlists, league_title)
                 track_count = self.prepare_dfs(('track_count', league_title),
@@ -975,3 +991,55 @@ class Plotter(Streamable):
                       }
         self.streamer.embed(html, height=height, header='League Playlist',
                             tooltip=self.library.get_tooltip('playlist', parameters=parameters))
+
+    def plot_hoarding(self, league_title, hoarding_df):
+        player_names = hoarding_df.index
+        rounds = hoarding_df.columns
+
+        angles = [i*2*pi/len(rounds) for i in range(len(rounds))]
+        angles = [self.flip_angle(a) for a in angles]
+
+        fig, ax = plt.subplots(nrows=1, ncols=1, subplot_kw={'polar': True})
+
+        for player in player_names:
+            color = self.paintbrush.normalize_color(self.highlight_color) if player == self.view_player else None
+            ax.plot(angles, hoarding_df.loc[player],
+                    color=color, label=self.texter.get_display_name(player))
+            ax.fill([angles[0]] + angles + [angles[-1]], [0] + hoarding_df.loc[player].tolist() + [0], color=color, alpha=0.2)
+
+        ax.set_xticks(angles)
+        ax.set_xticklabels(self.texter.clean_text(r) for r in rounds)
+        ax.legend()
+
+        parameters = {}
+        self.streamer.pyplot(ax.figure, header='Vote Sharing', #in_expander=fig.get_size_inches()[1] > 6,
+                             tooltip=self.library.get_tooltip('hoarding', parameters=parameters))
+
+    def plot_hoarding2(self, league_title, hoarding_df):
+        player_names = hoarding_df.index
+        round_titles = hoarding_df.columns
+
+        angles = [i*2*pi/len(player_names) for i in range(len(player_names))]
+        ##angles = [self.flip_angle(a) for a in angles]
+
+        fig, ax = plt.subplots(nrows=1, ncols=1, subplot_kw={'polar': True})
+
+        for round_title in round_titles:
+            ax.plot(angles + [angles[0]], hoarding_df[round_title].tolist() + [hoarding_df[round_title].iloc[0]],
+                    label=self.texter.clean_text(round_title))
+            ax.fill(angles, hoarding_df[round_title], alpha=0.2)
+
+        ax.set_xticks(angles)
+        ax.set_xticklabels(self.texter.get_display_name(p) for p in player_names)
+        ax.legend()
+
+        parameters = {}
+        self.streamer.pyplot(ax.figure, header='Vote Sharing', #in_expander=fig.get_size_inches()[1] > 6,
+                             tooltip=self.library.get_tooltip('hoarding', parameters=parameters))
+
+    def flip_angle(self, angle):
+        if 0 <= angle <= pi:
+            flipped = pi - angle
+        else:
+            flipped = 3*pi - angle
+        return flipped

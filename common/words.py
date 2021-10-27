@@ -34,7 +34,7 @@ class Texter:
 
     def get_display_name_full(self, name):
         punctuation = ['.', '_']
-        if (name == name.lower()) and any(p in name for p in punctuation) and (' ' not in name):
+        if (name != name.lower()) and any(p in name for p in punctuation) and (' ' not in name):
             for p in punctuation:
                 display_name = name.replace(p, ' ')
         else:
