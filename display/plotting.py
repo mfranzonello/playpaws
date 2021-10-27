@@ -53,11 +53,13 @@ class Plotter(Streamable):
                                                     plot_color=self.paintbrush.get_color('dark_grey', normalize=True))       
         self.highlight_color = self.paintbrush.get_color('blue', lighten=0.2)
         self.fail_color = self.paintbrush.get_color('grey')
-        self.separate_colors = self.paintbrush.get_colors('gold', 'silver')
+        self.separate_colors = self.paintbrush.get_colors('silver', 'gold')
         
         lighten_pcts = [p/100 for p in range(-30, 30+10, 10)]
         self.pass_colors = [self.paintbrush.lighten_color(self.highlight_color, p) for p in lighten_pcts]
         self.fail_colors = [self.paintbrush.lighten_color(self.fail_color, p) for p in lighten_pcts]                                       
+
+        plt.rcParams['hatch.linewidth'] = 3.0
 
         self.league_titles = None
         self.view_player = None
@@ -502,7 +504,7 @@ class Plotter(Streamable):
                 self.place_board_player(ax, xs, player, board, lowest_rank, ties_df)
             self.streamer.status(1/self.plot_counts * (1/3))
 
-            round_titles = [self.texter.clean_text(c) for c in board.columns]
+            round_titles = board.columns.tolist()
         
             x_min = min(xs)
             x_max = max(xs)
@@ -515,7 +517,7 @@ class Plotter(Streamable):
 
             ax.set_xlim(x_min - scaling[0]/2, x_max + scaling[0]/2)
             ax.set_xticks(xs)
-            ax.set_xticklabels(self.split_labels(round_titles, n_rounds),
+            ax.set_xticklabels(self.split_labels([self.texter.clean_text(r) for r in round_titles], n_rounds),
                                rotation=self.rotate_labels(n_rounds))
 
             y_min = lowest_rank - highest_dnf + has_dnf
@@ -546,7 +548,7 @@ class Plotter(Streamable):
 
         display_name = self.texter.get_display_name(player)
 
-                # plot finishers
+        # plot finishers
         if player == self.view_player:
             border_color = self.highlight_color
             color = self.paintbrush.normalize_color(border_color)
@@ -598,7 +600,7 @@ class Plotter(Streamable):
         competition_titles = competitions_df['competition'].unique().tolist()
         cgb = competitions_df.groupby('competition')['round']
         competition_colors = self.paintbrush.get_scatter_colors(self.separate_colors)
-
+        
         y0, y1 = ax.get_ylim()
         for c_round in competitions_df['competition'].unique():
             c_first = cgb.first()[c_round]
@@ -609,7 +611,9 @@ class Plotter(Streamable):
                 x1 = (round_titles.index(c_last) if c_last in round_titles else len(round_titles)) + 1 + 1/2 + x_offset
 
                 color = competition_colors[competition_titles.index(c_round) % len(competition_colors)]
-                ax.fill_between([scaling[0]*x0, scaling[0]*x1], y0, y1, color=color, alpha=0.2, zorder=-1)
+                facecolor = tuple([c for c in color] + [0.4])
+                edgecolor = tuple([c for c in color] + [0.3])
+                ax.fill_between([scaling[0]*x0, scaling[0]*x1], y0, y1, facecolor=facecolor, edgecolor=edgecolor, hatch='///', zorder=-1) #edgecolor=None,  
 
     def plot_rankings(self, league_title, rankings, dirty_df, discovery_df):
         plot_key = (league_title, 'rankings_ax', self.view_player)
