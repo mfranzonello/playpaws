@@ -135,7 +135,10 @@ class Texter:
             matches = list(filter(lambda x: x[1] > threshold,
                                   process.extract(text.lower(), [t.lower() for t in texts], limit=10)))
 
-            if (len(matches) == 1) or (similarity == 0):
+            if matches is None:
+                closest_text = text
+
+            elif (len(matches) == 1) or (similarity == 0):
                 # only one matching result or being forced to choose best match
                 closest_text = matches[0][0]
 
