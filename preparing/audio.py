@@ -405,7 +405,7 @@ class Spotter(Streamable):
         cover_src = self.get_playlist_cover(uri)
 
         mosaic = 'https://mosaic.scdn.co'
-        if isnull(src) or (cover_src[:len(mosaic)] == mosaic):
+        if isnull(src) or isnull(cover_src) or (cover_src[:len(mosaic)] == mosaic):
             # needs an image
             image_src = self.boxer.get_cover(league_title)
             if image_src:
