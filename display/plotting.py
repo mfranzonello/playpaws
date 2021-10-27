@@ -609,7 +609,7 @@ class Plotter(Streamable):
                 x1 = (round_titles.index(c_last) if c_last in round_titles else len(round_titles)) + 1 + 1/2 + x_offset
 
                 color = competition_colors[competition_titles.index(c_round) % len(competition_colors)]
-                ax.fill_between([scaling[0]*x0, scaling[0]*x1], y0, y1, color=color, zorder=-1)
+                ax.fill_between([scaling[0]*x0, scaling[0]*x1], y0, y1, color=color, alpha=0.2, zorder=-1)
 
     def plot_rankings(self, league_title, rankings, dirty_df, discovery_df):
         plot_key = (league_title, 'rankings_ax', self.view_player)
