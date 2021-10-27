@@ -1001,43 +1001,24 @@ class Plotter(Streamable):
         rounds = hoarding_df.columns
 
         angles = [i*2*pi/len(rounds) for i in range(len(rounds))]
-        angles = [self.flip_angle(a) for a in angles]
+        angles = [self.reduce_angle(self.flip_angle(a) + sum(angles)/len(angles) - pi/2) for a in angles]
 
         fig, ax = plt.subplots(nrows=1, ncols=1, subplot_kw={'polar': True})
 
         for player in player_names:
             color = self.paintbrush.normalize_color(self.highlight_color) if player == self.view_player else None
+            zorder = 1 if player == self.view_player else 0
             ax.plot(angles, hoarding_df.loc[player],
-                    color=color, label=self.texter.get_display_name(player))
+                    color=color, label=self.texter.get_display_name(player), zorder=zorder)
             ax.fill([angles[0]] + angles + [angles[-1]], [0] + hoarding_df.loc[player].tolist() + [0], color=color, alpha=0.2)
 
         ax.set_xticks(angles)
         ax.set_xticklabels(self.texter.clean_text(r) for r in rounds)
         ax.legend()
 
-        parameters = {}
-        self.streamer.pyplot(ax.figure, header='Vote Sharing', #in_expander=fig.get_size_inches()[1] > 6,
-                             tooltip=self.library.get_tooltip('hoarding', parameters=parameters))
-
-    def plot_hoarding2(self, league_title, hoarding_df):
-        player_names = hoarding_df.index
-        round_titles = hoarding_df.columns
-
-        angles = [i*2*pi/len(player_names) for i in range(len(player_names))]
-        ##angles = [self.flip_angle(a) for a in angles]
-
-        fig, ax = plt.subplots(nrows=1, ncols=1, subplot_kw={'polar': True})
-
-        for round_title in round_titles:
-            ax.plot(angles + [angles[0]], hoarding_df[round_title].tolist() + [hoarding_df[round_title].iloc[0]],
-                    label=self.texter.clean_text(round_title))
-            ax.fill(angles, hoarding_df[round_title], alpha=0.2)
-
-        ax.set_xticks(angles)
-        ax.set_xticklabels(self.texter.get_display_name(p) for p in player_names)
-        ax.legend()
-
-        parameters = {}
+        parameters = {'generous': hoarding_df[hoarding_df.sum(1) == hoarding_df.sum(1).max()].index[0],
+                      'hoarder': hoarding_df[hoarding_df.sum(1) == hoarding_df.sum(1).min()].index[0],
+                      }
         self.streamer.pyplot(ax.figure, header='Vote Sharing', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('hoarding', parameters=parameters))
 
@@ -1047,3 +1028,6 @@ class Plotter(Streamable):
         else:
             flipped = 3*pi - angle
         return flipped
+
+    def reduce_angle(self, angle):
+        return angle % (2*pi)

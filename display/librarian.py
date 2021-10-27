@@ -10,6 +10,7 @@ class Library:
              'discoverer': '🔎',
              'popular': '🕶',
              'generous': '🗳',
+             'hoarder': '🦍',
              'participant': '🤗',
              'likes': '💞',
              'liked': '💕',
@@ -256,6 +257,17 @@ class Library:
                     f'in this league, all {self.feel("track_count")}**{count}**{self.feel("track_count")} of them, and it would '
                     f'take you {self.feel("track_duration")}{duration}{self.feel("track_duration")} to listen to the whole thing!')
 
+        elif plot_name == 'hoarding':
+            text = (f'This shows how people spread their votes across rounds. Out of the available song '
+                    f'selection, some people concentrate on assigning points to a few favorites, '
+                    f'whereas others give many songs a few points each.'
+                    f'{self.newline()}'
+                    f'In this group, {self.feel("generous")}**{parameters.get("generous")}**{self.feel("generous")} '
+                    f'is the most generous with spreading votes to all players, '
+                    f'while {self.feel("hoarder")}**{parameters.get("hoarder")}**{self.feel("hoarder")} is the '
+                    f'one who goes hardest on key tracks.'
+                    )
+
         if text:
             tooltip = {'label': label,
                        'content': text}
@@ -279,8 +291,8 @@ class Library:
         if parameters.get('current_competition'):
             place = self.texter.get_ordinal(parameters['badge2'])
             total = parameters['n_players']
-            competitions_list.append(f'Currently competing in {self.feel("competition")}'
-                                     f'{parameters["current_competition"]}{self.feel("competition")}'
+            competitions_list.append(f'Currently competing in {self.feel("competitions")}'
+                                     f'{parameters["current_competition"]}{self.feel("competitions")}'
                                      f'{self.newline(1)}{self.indent()}(ranked {place} of {total})')
         competitions = self.bar_list(competitions_list, indent=False)
 
