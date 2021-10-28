@@ -176,7 +176,7 @@ class Canvas(Imager, Streamable):
     def store_player_image(self, player_name, image):
         self.gallery.store_image(player_name, image)
 
-    def add_text(self, image, text, font, color=(255, 255, 255), boundary=[0.75, 0.8]):
+    def add_text(self, image, text, font, color=(255, 255, 255), boundary=[0.75, 0.8], offset=(0, 0)):
         draw = ImageDraw.Draw(image)
 
         text_str = str(text)
@@ -193,7 +193,7 @@ class Canvas(Imager, Streamable):
         w = x1 - x0
         h = y1 + y0
 
-        position = ((W-w)/2,(H-h)/2)
+        position = ((W-w)/2 + offset[0]*W,(H-h)/2 + offset[1]*H)
        
         draw.text(position, text_str, color, font=font)
 
@@ -216,12 +216,18 @@ class Canvas(Imager, Streamable):
         return border
 
     def add_badge(self, image, text, font, pct=0.25, color=(0,0,0), border_color=(0,0,0),
-                  padding=0, position='LR'):
+                  label=None, padding=0, position='LR'):
         W, H = image.size
         badge_size = (int(W * pct), int(H * pct))
         w, h = badge_size
         badge = self.get_color_image(color, badge_size)
-        badge = self.add_text(badge, text, font)
+        
+        if label:
+            badge = self.add_text(badge, text, font, offset=[0, -0.05])
+            badge = self.add_text(badge, label, font, boundary=[0.75, 0.2], offset=[0, 0.25])
+        else:
+            badge = self.add_text(badge, text, font)
+        
         badge = self.add_border(badge, color=border_color, padding=padding)
 
         # place badge on image

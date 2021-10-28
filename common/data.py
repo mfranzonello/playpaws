@@ -1111,6 +1111,16 @@ class Database(Streamable):
 
         return player_wins_df
 
+    def get_competition_wins(self, league_title, player_name):
+        competition_titles = self.get_competitions(league_title)['competition'].unique()
+        competition_wins = [competition for competition in competition_titles \
+            if self.get_badge(league_title, player_name, competition_title=competition) == 1]
+
+        if not len(competition_wins):
+            competition_wins = None
+
+        return competition_wins
+
     def get_awards(self, league_title, player_name, base=1000):
         ## Note that Discoverer, Dirtiest, etc should be based on MAX/MIN and not LIMIT 1
         sql = (f'SELECT (p.popular = 1) AS popular, (q.discoverer = 1) AS discoverer, '
@@ -1209,8 +1219,8 @@ class Database(Streamable):
 
         return awards_df
 
-    def get_badge(self, league_title, player_name, competition=False):
-        if not competition:
+    def get_badge(self, league_title, player_name, competition=None, competition_title=None):
+        if (not competition) and (not competition_title):
             sql = (f'SELECT q.badge FROM '
                    f'(SELECT player, RANK() OVER (ORDER BY wins DESC) AS badge '
                    f'FROM {self.table_name("Members")} '
@@ -1218,8 +1228,10 @@ class Database(Streamable):
                    f'WHERE q.player = {self.needs_quotes(player_name)};'
                    )
         else:
-            current_competition = self.get_current_competition(league_title)
-            if current_competition:
+            if not competition_title:
+                competition_title = self.get_current_competition(league_title)
+            
+            if competition_title:
                 sql = (f'SELECT q.badge FROM (SELECT r.player, RANK() '
                        f'OVER(ORDER BY SUM(r.points) DESC) AS badge '
                        f'FROM {self.table_name("Rounds")} AS d '
@@ -1232,7 +1244,7 @@ class Database(Streamable):
                        f'RIGHT JOIN {self.table_name("Rankings")} AS r '
                        f'ON d.league = r.league AND d.round = r.round '
                        f'WHERE c.league = {self.needs_quotes(league_title)} '
-                       f'AND c.competition = {self.needs_quotes(current_competition)} '
+                       f'AND c.competition = {self.needs_quotes(competition_title)} '
                        f'GROUP BY r.player) AS q WHERE q.player = {self.needs_quotes(player_name)};'
                        )
             else:

@@ -336,7 +336,7 @@ class Library:
         if parameters.get('competition_wins'):
             competition_titles = [self.texter.clean_text(t) for t in parameters['competition_wins']]
             competitions_won = self.texter.get_plurals(competition_titles, markdown='**')
-            wins_list.append(f'Competitions{competitions_won["s"]} won: {self.feel("competitions")}{competitions_won["text"]}{self.feel("competitions")}')
+            wins_list.append(f'Competition{competitions_won["s"]} won: {self.feel("competitions")}{competitions_won["text"]}{self.feel("competitions")}')
         wins = self.bar_list(wins_list)
 
         text = (f'## Player Stats'

@@ -141,9 +141,13 @@ class Plotter(Streamable):
                                                    self.database.get_competition_results, league_title,
                                                    competition_title=None)
                 competition_title = self.database.get_current_competition(league_title)
+                competition_wins = self.prepare_dfs(('competitions_wins', league_title, self.view_player),
+                                                   self.database.get_competition_wins, league_title,
+                                                   self.view_player)
                 self.plot_caption(league_title=league_title, viewer_df=viewer_df,
                                   wins_df=wins_df, awards_df=awards_df,
-                                  competition_title=competition_title, competitions_df=competitions_df)
+                                  competition_title=competition_title, competitions_df=competitions_df,
+                                  competition_wins=competition_wins)
 
                 self.streamer.print(f'Preparing plot for {league_title}')
                 self.streamer.status(0, base=True)
@@ -273,9 +277,9 @@ class Plotter(Streamable):
         image = self.canvas.add_border(image, color=palette[0], padding=0.2)
 
         medal_metals = ['gold', 'silver', 'bronze', 'gunmetal_grey']
-        for b, pct, position in zip([badge, badge2], [0.4, 0.25], ['LR', 'UL']):
+        for b, pct, position, label in zip([badge, badge2], [0.4, 0.25], ['LR', 'UL'], ['OVERALL', 'COMPETITION']):
             if isinstance(b, (int, float, int64, float64)):
-                image = self.place_badge(image, b, medal_metals, pct=pct, position=position)
+                image = self.place_badge(image, b, medal_metals, pct=pct, position=position, label=label)
             
         html = None
         height = None
@@ -294,18 +298,18 @@ class Plotter(Streamable):
 
         self.streamer.viewer(image, footer=html, footer_height=height)
 
-    def place_badge(self, image, badge, medal_metals, pct, position):
+    def place_badge(self, image, badge, medal_metals, pct, position, label=None):
         place = max(1, min(len(medal_metals), badge))
         border_color = [self.paintbrush.get_color(c) for c in medal_metals][place - 1]
 
         image = self.canvas.add_badge(image, self.texter.get_ordinal(badge), self.fonts['image_sans'],
                                       pct=pct, color=self.paintbrush.lighten_color(border_color, 0.1),
-                                      border_color=border_color, padding=0.3, position=position)
+                                      border_color=border_color, padding=0.3, position=position, label=label)
 
         return image
 
     def plot_caption(self, league_title=None, viewer_df=None, wins_df=None, awards_df=None,
-                     competition_title=None, competitions_df=None):
+                     competition_title=None, competitions_df=None, competition_wins=None):
         parameters = {}
         keys = ['likes', 'liked', 'closest', 'dirtiest', 'discoverer', 'popular',
                 'win_rate', 'play_rate', 'generous', 'clean'] #'stingy' 'maxed_out'
@@ -320,7 +324,8 @@ class Plotter(Streamable):
                                'n_players': len(competitions_df)})
         parameters['leagues'] = [self.texter.clean_text(l) for l in self.view_league_titles if l != league_title]
         parameters['other_leagues'] = (league_title is not None)
-        parameters['competitions'] = None
+        
+        parameters['competition_wins'] = competition_wins #competitions_df
 
         self.streamer.player_caption.markdown(self.library.get_column(parameters))
 
@@ -997,6 +1002,7 @@ class Plotter(Streamable):
                             tooltip=self.library.get_tooltip('playlist', parameters=parameters))
 
     def plot_hoarding(self, league_title, hoarding_df):
+        self.streamer.status(1/self.plot_counts)
         player_names = hoarding_df.index
         rounds = hoarding_df.columns
 
