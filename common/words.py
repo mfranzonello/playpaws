@@ -190,7 +190,10 @@ class Texter:
         if markdown:
             durations = [f'{markdown}{d}{markdown[::-1]}' for d in durations]
 
-        duration = ', '.join(durations[:-1]) + ' and ' + durations[-1]
+        if len(durations) == 1:
+            duration = durations[0]
+        else:
+            duration = ', '.join(durations[:-1]) + ' and ' + durations[-1]
         
         return duration
 
