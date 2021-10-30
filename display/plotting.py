@@ -509,7 +509,7 @@ class Plotter(Streamable):
 
             n_rounds = len(board.columns)
             n_players = len(board.index)
-            aspect = (n_rounds - 1, n_players - 1)
+            aspect = (max(1, n_rounds - 1), max(1, n_players - 1))
             scaling = [a / b * aspect[1] for a, b in zip(self.subplot_aspects['golden'], aspect)]
 
             xs = [x * scaling[0] for x in range(1, n_rounds + 1)]
@@ -1014,7 +1014,8 @@ class Plotter(Streamable):
         for player in player_names:
             color = self.paintbrush.normalize_color(self.highlight_color) if player == self.view_player else None
             zorder = 1 if player == self.view_player else 0
-            ax.plot(angles, hoarding_df.loc[player],
+            ax_method = ax.plot if (len(rounds) > 1) else ax.scatter
+            ax_method(angles, hoarding_df.loc[player],
                     color=color, label=self.texter.get_display_name(player), zorder=zorder)
             ax.fill([angles[0]] + angles + [angles[-1]], [0] + hoarding_df.loc[player].tolist() + [0], color=color, alpha=0.2)
 

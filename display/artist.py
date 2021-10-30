@@ -252,6 +252,11 @@ class Canvas(Imager, Streamable):
         try:
             image = Image.open(image_bytes) #fp)
             mask = asarray(image)
+
+        except AttributeError:
+            self.streamer.print(f'no mask found') # at {src}')
+            mask = None
+
         except UnidentifiedImageError:
             self.streamer.print(f'can\'t open image') # at {src}')
             mask = None
