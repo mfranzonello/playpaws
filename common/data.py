@@ -1025,12 +1025,13 @@ class Database(Streamable):
         return descriptions_df
 
     def get_creators_and_winners(self, league_title):
-        sql = (f'SELECT r.round, r.creator, b.player AS winner '
+        sql = (f'SELECT r.round, r.creator, jsonb_agg(b.player) AS winner '
                f'FROM {self.table_name("Rounds")} as r '
                f'LEFT JOIN {self.table_name("Boards")} as b '
                f'ON (r.league = b.league) AND (r.round = b.round) '
                f'WHERE (r.league = {self.needs_quotes(league_title)}) '
-               f'AND ((b.place = 1) OR (b.place IS NULL)) '
+               f'AND ((b.place < 2) OR (b.place IS NULL)) ' ## can this be MIN without GROUP BY?
+               f'GROUP BY r.round, r.creator, r.date '
                f'ORDER BY r.date;'
                )
         

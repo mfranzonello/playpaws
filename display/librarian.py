@@ -158,11 +158,12 @@ class Library:
             round_titles = parameters.get('round_titles')
             choosers = parameters.get('choosers')
             winners = parameters.get('winners')
-            placements = f'{self.newline(num=1)}'.join(f'{round_title} (chosen by {chooser}):'
+            placements = f'{self.newline(num=1)}'.join(f'{self.texter.clean_text(round_title)} '
+                                                       f'(chosen by {chooser}):'
                                                        f'{self.newline(num=1)}{self.indent(20)}'
-                                                       f'{self.feel("tbd") if isnull(winner) else self.feel("winner")}'
-                                                       f'**{"TBD" if isnull(winner) else winner}**'
-                                                       f'{self.feel("tbd") if isnull(winner) else self.feel("winner")}' \
+                                                       f'{self.feel("tbd") if winner == [None] else self.feel("winner")}' #isnull
+                                                       f'**{"TBD" if winner == [None] else " & ".join(winner)}**'
+                                                       f'{self.feel("tbd") if winner == [None] else self.feel("winner")}' \
                 for round_title, chooser, winner in zip(round_titles, choosers, winners))
             text = (f'This chart shows how players finished in each round. '
                     f'{self.newline()}{placements}')

@@ -121,7 +121,7 @@ class Gallery(Imager):
         self.images = self.download_images() if download_all else {}
         
     def get_image(self, name):
-        if name not in self.images:
+        if (name not in self.images) and (name in self.players_df['player'].values):
             self.download_image(name)
 
         image = self.images.get(name)
