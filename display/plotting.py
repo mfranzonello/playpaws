@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib import rcParams, font_manager
 from matplotlib.dates import date2num
 from wordcloud import WordCloud
-from numpy import unique, int64, float64
+from numpy import unique, int64, float64, array
 
 from common.words import Texter
 from display.librarian import Library
@@ -1037,13 +1037,26 @@ class Plotter(Streamable):
 
         fig, ax = plt.subplots(nrows=1, ncols=1, subplot_kw={'polar': True})
 
+        adj = DataFrame([[(hoarding_df.loc[:i, c] == hoarding_df.loc[i, c]).sum() - 1 for c in hoarding_df.columns] \
+            for i in hoarding_df.index], columns=hoarding_df.columns, index=hoarding_df.index).mul(3*pi/180)
+
+        if len(rounds) > 2:
+            adj[adj.columns[0]] = 0
+            adj[adj.columns[-1]] = 0
+
         for player in player_names:
             color = self.paintbrush.normalize_color(self.highlight_color) if player == self.view_player else None
             zorder = 1 if player == self.view_player else 0
+
+            angles_adj = (array(angles) + array(adj.loc[player])).tolist()
+
             ax_method = ax.plot if (len(rounds) > 2) else ax.scatter
-            ax_method(angles, hoarding_df.loc[player],
+            ax_method(angles_adj, hoarding_df.loc[player],
                     color=color, label=self.texter.get_display_name(player), zorder=zorder)
-            ax.fill([angles[0]] + angles + [angles[-1]], [0] + hoarding_df.loc[player].tolist() + [0], color=color, alpha=0.2)
+
+            ax.fill([angles_adj[0]] + angles_adj + [angles_adj[-1]],
+                    [0] + hoarding_df.loc[player].tolist() + [0],
+                    color=color, alpha=0.2)
 
         ax.set_xticks(angles)
         ax.set_xticklabels(self.texter.clean_text(r) for r in rounds)
