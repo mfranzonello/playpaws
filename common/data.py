@@ -11,8 +11,11 @@ from display.streaming import Streamable, cache
 class Engineer:
     def __init__(self):
         self.db = f'"{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}"'
-        self.engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}{get_secret("BITIO_ADD_ON")}'
-                              f':{get_secret("BITIO_PASSWORD")}@{get_secret("BITIO_HOST")}')
+        self.engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}' #{get_secret("BITIO_ADD_ON")}
+                              f':{get_secret("BITIO_PASSWORD")}@{get_secret("BITIO_HOST")}'
+                              f'/{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}')
+
+        print(self.engine_string)
 
     @cache(allow_output_mutation=True, max_entries=10, ttl=10800)
     def connect(self):  
