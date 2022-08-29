@@ -503,10 +503,14 @@ class FMer(Streamable):
 
         max_tags = 5
         top_tags = track.get_top_tags()
-        elements = {'scrobbles': track.get_playcount(),
-                    'listeners': track.get_listener_count(),
-                    'top_tags': [tag.item.get_name() for tag in top_tags[:min(max_tags, len(top_tags))]],
-                    }
+
+        if len(track.info):
+            elements = {'scrobbles': track.get_playcount(),
+                        'listeners': track.get_listener_count(),
+                        'top_tags': [tag.item.get_name() for tag in top_tags[:min(max_tags, len(top_tags))]],
+                        }
+        else: # ignore when Last.fm has no info
+            elements = {x: None for x in ['scrobbles', 'listeners', 'top_tags']}
         
         return elements
 

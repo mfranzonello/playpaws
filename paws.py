@@ -30,7 +30,7 @@ def main():
     database = Database('https://musicleague.app')
     
     # update data in database from MusicLeague webpage
-    update_web_data(database)
+    #update_web_data(database)
 
     # analyze data from rounds
     analyze_data(database)

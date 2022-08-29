@@ -19,6 +19,8 @@ class Updater:
         leagues = Leagues()
 
         # get information from home page
+        html_zip = self.scraper.get_zip_file(self.main_url)
+
         html_text = self.scraper.get_html_text(self.main_url)
         results = self.stripper.extract_results(html_text, page_type='home')
 

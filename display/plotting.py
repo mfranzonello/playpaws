@@ -525,8 +525,9 @@ class Plotter(Streamable):
             self.streamer.status(1/self.plot_counts)
             
         else:
-            fig = plt.figure()
+            fig = plt.figure() ###figsize=(8,8), dpi=100)
             ax = fig.add_axes([1, 1, 1, 1])
+            ###print(f'size: {fig.figsize}')
 
             self.streamer.status(1/self.plot_counts * (1/3))
             self.streamer.print('\t...rankings', base=False)
@@ -607,9 +608,9 @@ class Plotter(Streamable):
         ax.scatter(xs, ds, marker='.', color=color, zorder=0)
 
         for x, y, d, t in zip(xs, ys, ds, ties):
-            size = self.ranking_size# * t**0.5 / t
+            size = min(ax.figure.get_figwidth()/len(xs), 1) * self.ranking_size ## min(len(xs), self.ranking_size)# * t**0.5 / t
             if y > 0:
-                x_plot, y_plot = self.adjust_ties(x, y, t, ties_df.loc[x, y])
+                x_plot, y_plot = self.adjust_ties(x, y, t, ties_df.loc[x, y], size)
                 ties_df.loc[x, y] += 1
 
                 image, _ = self.place_image(ax, x_plot, y_plot, player_name=player, size=size, flipped=True,
@@ -626,7 +627,7 @@ class Plotter(Streamable):
                 if not image:
                     ax.text(x, d, display_name)
 
-    def adjust_ties(self, x, y, t, i, overlap=0.95):
+    def adjust_ties(self, x, y, t, i, size, overlap=0.95):
         if t == 1:
             x_plot = x
             y_plot = y
@@ -635,7 +636,7 @@ class Plotter(Streamable):
             angle = 2*pi / t
 
             adj = pi / 4 if t == 2 else 0
-            R = self.ranking_size/2 * overlap
+            R = size/2 * overlap
             x_plot = R * cos(angle * i + adj) + x
             y_plot = R * sin(angle * i + adj) + y
             
