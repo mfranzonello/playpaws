@@ -501,10 +501,10 @@ class FMer(Streamable):
 
         self.streamer.print(f'\t...{artist} - {title}')
 
-        max_tags = 5
-        top_tags = track.get_top_tags()
-
         if len(track.info):
+            max_tags = 5
+            top_tags = track.get_top_tags()
+
             elements = {'scrobbles': track.get_playcount(),
                         'listeners': track.get_listener_count(),
                         'top_tags': [tag.item.get_name() for tag in top_tags[:min(max_tags, len(top_tags))]],
