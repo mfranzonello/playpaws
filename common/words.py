@@ -1,5 +1,7 @@
 import re
+
 from thefuzz import process
+from numpy import ndarray
 
 class Texter:
     emoji_pattern = re.compile('['
@@ -17,6 +19,8 @@ class Texter:
                                 u'\U00002049' # ?!
                                 ']+', flags=re.UNICODE)
 
+    #zerowidthjoiner = '\u200c'
+
     sans_fonts = {'Segoe UI': 'segoeui.ttf'}
     emoji_fonts = {'Segoe UI Emoji': 'seguiemj.ttf'}
     bold_fonts = {'Segoe UI Semibold': 'seguisb.ttf'}
@@ -26,10 +30,17 @@ class Texter:
 
     def clean_text(self, text:str) -> str:
         cleaned_text = self.emoji_pattern.sub(r'', text).strip()
+        #cleaned_text = cleaned_text.replace(self.zerowidthjoiner, '').replace('\u8205', '')
         return cleaned_text
 
     def get_display_name(self, name:str) -> str:
-        display_name = self.get_display_name_full(name).split()[0]
+        if isinstance(name, (list, ndarray)):
+            # get individual display names from a list or array
+            display_name = [self.get_display_name(n) for n in name]
+        else:
+            # get full name and then take just first name
+            display_name = self.get_display_name_full(name).split()[0]
+
         return display_name
 
     def get_display_name_full(self, name):
@@ -41,9 +52,10 @@ class Texter:
             display_name = name
 
         if not any(str(n) in name for n in range(10)):
+            # has numbers in name
             display_name = display_name.title()
 
-        return display_name
+        return display_name.strip()
 
     def slashable(self, char):
         slash_chars = ['[', '(', ']', ')', '.', '\\', '-']
@@ -171,11 +183,11 @@ class Texter:
             if len(text) == 1:
                 plurals['be'] = 'is'
                 plurals['s'] = ''
-                plurals['text'] = text[0]
+                plurals['text'] = text[0].strip()
             else:
                 plurals['be'] = 'are'
                 plurals['s'] = 's'
-                plurals['text'] = ', '.join(text[:-1]) + ' and ' + text[-1]
+                plurals['text'] = ', '.join(t.strip() for t in text[:-1]) + ' and ' + text[-1].strip()
         
         return plurals
 

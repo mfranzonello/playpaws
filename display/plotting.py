@@ -229,8 +229,8 @@ class Plotter(Streamable):
                 self.plot_top_songs(league_title, results_df, descriptions_df)
 
                 # plot complete playlist
-                ##playlists_df = self.prepare_dfs(('playlists_df', league_title),
-                ##                                self.database.get_playlists, league_title)
+                playlists_df = self.prepare_dfs(('playlists_df', league_title),
+                                                self.database.get_playlists, league_title)
                 track_count = self.prepare_dfs(('track_count', league_title),
                                                self.database.get_track_count, league_title)
                 track_durations = self.prepare_dfs(('track_durations', league_title),
@@ -527,7 +527,6 @@ class Plotter(Streamable):
         else:
             fig = plt.figure() ###figsize=(8,8), dpi=100)
             ax = fig.add_axes([1, 1, 1, 1])
-            ###print(f'size: {fig.figsize}')
 
             self.streamer.status(1/self.plot_counts * (1/3))
             self.streamer.print('\t...rankings', base=False)
@@ -546,8 +545,12 @@ class Plotter(Streamable):
 
             ties_df = DataFrame(0, columns=unique(board.values), index=xs)
 
+
+            icon_scale = min(ax.figure.get_figwidth()/n_rounds,
+                             ax.figure.get_figheight()/(n_players + has_dnf)) ** 0.5
+
             for player in board.index:
-                self.place_board_player(ax, xs, player, board, lowest_rank, ties_df)
+                self.place_board_player(ax, xs, player, board, lowest_rank, ties_df, icon_scale)
             self.streamer.status(1/self.plot_counts * (1/3))
 
             round_titles = board.columns.tolist()
@@ -586,7 +589,7 @@ class Plotter(Streamable):
         self.streamer.pyplot(ax.figure, header='Round Finishers', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('boards', parameters=parameters))
 
-    def place_board_player(self, ax, xs, player, board, lowest_rank, ties_df):
+    def place_board_player(self, ax, xs, player, board, lowest_rank, ties_df, icon_scale):
         ys = board.where(board > 0).loc[player]
         ds = [lowest_rank - d + 1 for d in board.where(board < 0).loc[player]]
 
@@ -607,8 +610,10 @@ class Plotter(Streamable):
         ax.plot(xs, ys, marker='.', color=color, zorder=1 if player==self.view_player else 0, linewidth=linewidth)
         ax.scatter(xs, ds, marker='.', color=color, zorder=0)
 
+        size = icon_scale * self.ranking_size
+
         for x, y, d, t in zip(xs, ys, ds, ties):
-            size = min(ax.figure.get_figwidth()/len(xs), 1) * self.ranking_size ## min(len(xs), self.ranking_size)# * t**0.5 / t
+
             if y > 0:
                 x_plot, y_plot = self.adjust_ties(x, y, t, ties_df.loc[x, y], size)
                 ties_df.loc[x, y] += 1

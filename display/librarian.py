@@ -123,8 +123,8 @@ class Library:
 
         elif plot_name == 'title':
             title = self.feel_title(parameters.get('title'), markdown='**')
-            viewer = parameters.get('viewer')
-            creator = parameters.get('creator')
+            viewer = self.texter.get_display_name(parameters.get('viewer'))
+            creator = self.texter.get_display_name(parameters.get('creator'))
             if creator == viewer:
                 creator = 'YOU'
             text = (f'Welcome to the MöbiMusic league analyzer, {self.feel("viewer")}**{viewer}**{self.feel("viewer")}! These are the nerb '
@@ -134,8 +134,12 @@ class Library:
                     )
 
         elif plot_name == 'members':
-            leaders = self.texter.get_plurals(parameters.get('leader'), markdown=f'{self.feel("leader")}**')
-            closest_dfc = self.texter.get_plurals(parameters.get('closest_dfc'), markdown=f'{self.feel("closest_dfc")}**')                         
+            print('LEADER')
+            print(parameters.get('leader'))
+            leaders = self.texter.get_plurals(parameters.get('leader'),
+                                              markdown=f'{self.feel("leader")}**')
+            closest_dfc = self.texter.get_plurals(parameters.get('closest_dfc'),
+                                                  markdown=f'{self.feel("closest_dfc")}**')                         
             text = (f'This shows the relationships between the league players. '
                     f'Players with similar music tastes are closer together. The '
                     f'arrows indicate who likes whom the most (a pink arrow shows '
@@ -159,7 +163,7 @@ class Library:
             choosers = parameters.get('choosers')
             winners = parameters.get('winners')
             placements = f'{self.newline(num=1)}'.join(f'{self.texter.clean_text(round_title)} '
-                                                       f'(chosen by {chooser}):'
+                                                       f'(chosen by {self.texter.get_display_name(chooser)}):'
                                                        f'{self.newline(num=1)}{self.indent(20)}'
                                                        f'{self.feel("tbd") if winner == [None] else self.feel("winner")}' #isnull
                                                        f'**{"TBD" if winner == [None] else " & ".join(winner)}**'
@@ -187,10 +191,12 @@ class Library:
                     f'a smaller listening base score high on the discovery '
                     f'dimension, and a player with a higher score is '
                     f'introducing undiscovered songs to the group. The best '
-                    f'discoverer{discovery.get("s")} {discovery.get("be")} {discovery.get("text")}. '
+                    f'discoverer{discovery.get("s")} {discovery.get("be")} '
+                    f'{discovery.get("text")}. '
                     f'Meanwhile, players with higher popularity scores are sharing songs '
                     f'that listeners are playing more often. The player{popular.get("s")} '
-                    f'sharing the most popular tracks {popular.get("be")} {popular.get("text")}.'                    
+                    f'sharing the most popular tracks {popular.get("be")} '
+                    f'{popular.get("text")}.'                    
                     )
 
         elif plot_name == 'features':
@@ -259,14 +265,17 @@ class Library:
                     f'take you {self.feel("track_duration")}{duration}{self.feel("track_duration")} to listen to the whole thing!')
 
         elif plot_name == 'hoarding':
+            generous = self.texter.get_plurals(parameters.get('generous'), markdown='**')
+            hoarder = self.texter.get_plurals(parameters.get('hoarder'), markdown='**')
+            hoarder_s = '' if hoarder.get('s') == 's' else 'es'
             text = (f'This shows how people spread their votes across rounds. Out of the available song '
                     f'selection, some people concentrate on assigning points to a few favorites, '
                     f'whereas others give many songs a few points each.'
                     f'{self.newline()}'
-                    f'In this group, {self.feel("generous")}**{parameters.get("generous")}**{self.feel("generous")} '
-                    f'is the most generous with spreading votes to all players, '
-                    f'while {self.feel("hoarder")}**{parameters.get("hoarder")}**{self.feel("hoarder")} is the '
-                    f'one who goes hardest on key tracks.'
+                    f'In this group, {self.feel("generous")}**{generous.get("text")}**'
+                    f'{self.feel("generous")} {generous.get("be")} the most generous with spreading votes '
+                    f'to all players, while {self.feel("hoarder")}**{hoarder.get("text")}**'
+                    f'{self.feel("hoarder")} go{hoarder_s} hardest on key tracks.'
                     )
 
         if text:
@@ -315,11 +324,11 @@ class Library:
 
         pulse_list = []
         if parameters.get('likes'):
-            pulse_list.append(f'Likes best: {self.feel("likes")}**{parameters["likes"]}**{self.feel("likes")}')
+            pulse_list.append(f'Likes best: {self.feel("likes")}**{self.texter.get_display_name(parameters["likes"])}**{self.feel("likes")}')
         if parameters.get('liked'):
-            pulse_list.append(f'Most liked by: {self.feel("liked")}**{parameters["liked"]}**{self.feel("liked")}')
+            pulse_list.append(f'Most liked by: {self.feel("liked")}**{self.texter.get_display_name(parameters["liked"])}**{self.feel("liked")}')
         if parameters.get('closest'):
-            pulse_list.append(f'Most similar to: {self.feel("closest")}**{parameters["closest"]}**{self.feel("closest")}')
+            pulse_list.append(f'Most similar to: {self.feel("closest")}**{self.texter.get_display_name(parameters["closest"])}**{self.feel("closest")}')
         pulse = self.bar_list(pulse_list)
 
         stats_list = []
