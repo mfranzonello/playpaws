@@ -266,8 +266,7 @@ class Library:
 
         elif plot_name == 'hoarding':
             generous = self.texter.get_plurals(parameters.get('generous'), markdown='**')
-            hoarder = self.texter.get_plurals(parameters.get('hoarder'), markdown='**')
-            hoarder_s = '' if hoarder.get('s') == 's' else 'es'
+            hoarder = self.texter.get_plurals(parameters.get('hoarder'), markdown='**', plural_case=['es', ''])
             text = (f'This shows how people spread their votes across rounds. Out of the available song '
                     f'selection, some people concentrate on assigning points to a few favorites, '
                     f'whereas others give many songs a few points each.'
@@ -275,7 +274,7 @@ class Library:
                     f'In this group, {self.feel("generous")}**{generous.get("text")}**'
                     f'{self.feel("generous")} {generous.get("be")} the most generous with spreading votes '
                     f'to all players, while {self.feel("hoarder")}**{hoarder.get("text")}**'
-                    f'{self.feel("hoarder")} go{hoarder_s} hardest on key tracks.'
+                    f'{self.feel("hoarder")} go{hoarder.get("s")} hardest on key tracks.'
                     )
 
         if text:

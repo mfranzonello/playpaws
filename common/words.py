@@ -174,19 +174,27 @@ class Texter:
 
         return abbreviation
 
-    def get_plurals(self, text, markdown=None):
+    def get_plurals(self, text, markdown=None, plural_case=['', 's']):
         plurals = {}
+
+        if isinstance(text, str):
+            # convert strings to lists for consistency
+            text = [text]
+
         if markdown:
-            text = [f'{markdown}{t}{markdown[::-1]}' for t in text]
+            text = [f'{markdown}{t.strip()}{markdown[::-1]}' for t in text]
 
         if text is not None:
             if len(text) == 1:
+                # only one item, so singular
                 plurals['be'] = 'is'
-                plurals['s'] = ''
+                plurals['s'] = plural_case[0]
                 plurals['text'] = text[0].strip()
+
             else:
+                # multiple items, so plural
                 plurals['be'] = 'are'
-                plurals['s'] = 's'
+                plurals['s'] = plural_case[1]
                 plurals['text'] = ', '.join(t.strip() for t in text[:-1]) + ' and ' + text[-1].strip()
         
         return plurals
