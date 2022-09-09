@@ -50,8 +50,8 @@ class Updater:
         votes_df = votes.merge(songs_df[['song_id', 'status']], on='song_id')
 
         # store data
-        self.database.store_songs(songs_df.drop(columns=['status']), league_title)
-        self.database.store_votes(votes_df.drop(columns=['status']), league_title)
+        self.database.store_songs(songs_df, league_title)
+        self.database.store_votes(votes_df, league_title)
         
         # close rounds with all votes
         open_rounds = (songs.groupby('round').count()['song_id'] > 0).reset_index().rename(columns={'song_id': 'new_status'})
@@ -60,7 +60,7 @@ class Updater:
         rounds.loc[rounds.merge(open_rounds, on='round')['new_status'], 'status'] = 'open'
         rounds.loc[rounds.merge(closed_rounds, on='round')['new_status'], 'status'] = 'closed'
 
-        self.database.store_rounds(rounds.drop(columns=['status']), league_title)
+        self.database.store_rounds(rounds, league_title)
         self.database.store_players(players, league_title=league_title)
 
     def update_creators(self, league_title):
