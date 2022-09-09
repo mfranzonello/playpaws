@@ -26,18 +26,18 @@ class Engineer:
 class Database(Streamable):
     tables = {# MusicLeague data
               'Leagues': {'keys': ['league'],
-                          'values': ['creator', 'date', 'url']},
-              'Players': {'keys': ['username'],
-                          'values': ['player', 'src', 'uri', 'followers', 'flagged']},
+                          'values': ['creator', 'date', 'url', 'league_id']}, # league_id
+              'Players': {'keys': ['player_id'],
+                          'values': ['username', 'player', 'src', 'uri', 'followers', 'flagged']},
               'Rounds': {'keys': ['league', 'round'],
-                         'values': ['creator', 'date', 'status', 'url', 'playlist_url', 'description', 'capture']},
+                         'values': ['creator', 'date', 'status', 'url', 'playlist_url', 'description', 'capture', 'round_id']}, # leauge_id
               'Songs': {'keys': ['league', 'song_id'],
-                        'values': ['round', 'submitter', 'track_url']},    
+                        'values': ['round', 'submitter', 'track_url', 'round_id', 'player_id']}, # track_uri
               'Votes': {'keys': ['league', 'player', 'song_id'],
-                        'values': ['vote']},
+                        'values': ['vote', 'player_id']},
 
               'Playlists': {'keys': ['league', 'theme'],
-                            'values': ['uri', 'src', 'rounds']},
+                            'values': ['uri', 'src', 'rounds']}, # round_ids, league_id
 
               # Spotify data
               'Tracks': {'keys': ['url'],
@@ -225,8 +225,8 @@ class Database(Streamable):
 
     def find_existing(self, df_store, df_existing, keys):
         # split dataframe between old and new rows
-
         df_merge = df_store.merge(df_existing, on=keys, how='left', indicator=True)
+
         df_updates = df_store.iloc[df_merge[df_merge['_merge'] == 'both'].index]
         df_inserts = df_store.iloc[df_merge[df_merge['_merge'] == 'left_only'].index]
        
@@ -311,19 +311,20 @@ class Database(Streamable):
 
         return matched_name
 
-    def get_song_ids(self, league_title:str, round_title:str, track_urls:list) -> list:
+    def get_song_ids(self, league_title:str, songs:DataFrame) -> DataFrame:
         # first check for which songs already exists
-        ids_df = self.get_table('Songs', league=league_title).drop(columns='league')
+        ids_df = self.get_table('Songs', league=league_title).drop(columns='league').rename(columns={'song_id': 'new_song_id'})
         merge_cols = ['track_url', 'round']
-        songs_df = DataFrame(data=zip(track_urls, [round_title]*len(track_urls)), columns=merge_cols).merge(ids_df, on=merge_cols, how='left')[merge_cols + ['song_id']]
+        id_cols = ['song_id', 'new_song_id']
+        songs_df = songs.merge(ids_df, on=merge_cols, how='left')[merge_cols + id_cols]
         
         # then fill in songs that are new
-        n_retrieve = songs_df['song_id'].isna().sum()
+        n_retrieve = songs_df['new_song_id'].isna().sum()
         if n_retrieve:
             new_ids = self.get_new_song_ids(league_title, n_retrieve)
-            songs_df.loc[songs_df['song_id'].isna(), 'song_id'] = new_ids
+            songs_df.loc[songs_df['new_song_id'].isna(), 'new_song_id'] = new_ids
             
-        song_ids = songs_df['song_id'].values
+        song_ids = songs_df[id_cols]
 
         return song_ids
 
@@ -402,12 +403,12 @@ class Database(Streamable):
 
         return league, round_title
 
-    def get_round_status(self, league_title, round_title):
-        if (league_title is None) and (round_title is None):
+    def get_round_status(self, league_title, round_id):
+        if (league_title is None) and (round_id is None):
             round_status = 'n/a'
         else:
             sql = (f'SELECT * FROM {self.table_name("Rounds")} '
-                   f'WHERE (league = {self.needs_quotes(league_title)}) AND (round = {self.needs_quotes(round_title)});'
+                   f'WHERE (league = {self.needs_quotes(league_title)}) AND (round_id = {self.needs_quotes(round_id)});'
                    )
             status_df = self.read_sql(sql)
 
@@ -683,7 +684,7 @@ class Database(Streamable):
 
     def get_players_update_sp(self):
         wheres = ' OR '.join(f'({v} IS NULL)' for v in ['src', 'uri', 'followers'])
-        sql = (f'SELECT username FROM {self.table_name("Players")} '
+        sql = (f'SELECT player_id, username FROM {self.table_name("Players")} '
                f'WHERE {wheres} OR (flagged <= {self.needs_quotes(date.today())});')
 
         players_df = self.read_sql(sql)

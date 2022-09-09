@@ -4,11 +4,12 @@ from crunching.analyze import Analyzer
 from display.streaming import Printer
 
 def update_web_data(database):
-    # scrape data from MusicLeague, Spotify and LastFM
+    # extract data from MusicLeague
     updater = Updater(database)
     updater.update_musicleague()
 
 def update_api_data(database):
+    # enhance data with Spotify and LastFM
     musician = Musician(database)
     musician.update_spotify()
     musician.update_lastfm()
@@ -20,6 +21,7 @@ def analyze_data(database):
     analyzer.place_all()
 
 def output_playlists(database):
+    # update Spotify playlists
     musician = Musician(database)
     musician.output_playlists()
 
@@ -27,10 +29,10 @@ def main():
     printer = Printer('display.max_columns', 'display.max_rows')
 
     # prepare database
-    database = Database('https://musicleague.app')
+    database = Database('https://app.musicleague.com')
     
     # update data in database from MusicLeague webpage
-    #update_web_data(database)
+    update_web_data(database)
 
     # analyze data from rounds
     analyze_data(database)

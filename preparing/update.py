@@ -1,7 +1,6 @@
 from common.words import Texter
 from preparing.extract import Stripper, Scraper
 from preparing.audio import Spotter, FMer
-from crunching.results import Songs, Votes, Rounds, Leagues, Players
 
 class Updater:
     def __init__(self, database):
@@ -16,126 +15,53 @@ class Updater:
 
     def update_musicleague(self):
         print('Updating database')
-        leagues = Leagues()
 
         # get information from home page
-        html_zip = self.scraper.get_zip_file(self.main_url)
-
-        html_text = self.scraper.get_html_text(self.main_url)
-        results = self.stripper.extract_results(html_text, page_type='home')
-
-        league_titles, league_urls, league_creators, league_dates = results
-
-        leagues_df = leagues.sub_leagues(league_titles, url=league_urls, date=league_dates, creator=league_creators)
-        self.database.store_leagues(leagues_df)
+        leagues_df = self.database.get_leagues()
+        league_titles = leagues_df['league']
+        league_urls = leagues_df['url']
 
         # store home page information
         for league_title, league_url in zip(league_titles, league_urls):
             print(f'Investigating {league_title}...')
             
             # get information from league page
-            results = self.update_league(league_title, league_url)
-            round_titles, round_urls = results
+            self.update_league(league_title, league_url) 
 
-            for round_title, round_url in zip(round_titles, round_urls):
-
-                # get information from round page
-                results = self.update_round(league_title, round_title, round_url)
-
-            # find round creators
             self.update_creators(league_title)
 
     def update_league(self, league_title, league_url):
-        rounds = Rounds()
-        players = Players()
+        # get the zip file from each league
+        html_zip = self.scraper.get_zip_file(self.main_url,league_url)
+        results = self.stripper.unzip_results(html_zip)
 
-        html_text = self.scraper.get_html_text(league_url)
-        results = self.stripper.extract_results(html_text, page_type='league')
+        players, rounds, songs, votes = results
 
-        _, round_titles, \
-            player_names, player_urls, \
-            round_urls, round_dates, round_descriptions, round_playlists = results # _ = league_title ##round_creators
+        rounds.loc[:, 'status'] = rounds.apply(lambda x: self.database.get_round_status(league_title, x['round_id']),
+                                     axis=1)
 
-        if len(round_titles):
-            rounds_df = rounds.sub_rounds(round_titles, url=round_urls, date=round_dates, playlist_url=round_playlists,
-                                          description=round_descriptions) # league_creator=league_creator,creator=round_creators,
-            self.database.store_rounds(rounds_df, league_title)
+        # update song_ids
+        song_ids = self.database.get_song_ids(league_title, songs)
 
-        if(len(player_names)):
-            players_df = players.sub_players(player_names, username=player_urls)
-            self.database.store_players(players_df, league_title=league_title)
+        songs = songs.merge(song_ids, on='song_id').drop(columns=['song_id']).rename(columns={'new_song_id': 'song_id'})
+        votes = votes.merge(song_ids, on='song_id').drop(columns=['song_id']).rename(columns={'new_song_id': 'song_id'})
+
+        songs_df = songs.merge(rounds[['round', 'status']], on='round')
+        votes_df = votes.merge(songs_df[['song_id', 'status']], on='song_id')
+
+        # store data
+        self.database.store_songs(songs_df.drop(columns=['status']), league_title)
+        self.database.store_votes(votes_df.drop(columns=['status']), league_title)
         
-        return round_titles, round_urls
+        # close rounds with all votes
+        open_rounds = (songs.groupby('round').count()['song_id'] > 0).reset_index().rename(columns={'song_id': 'new_status'})
+        closed_rounds = (votes.merge(songs, on='song_id')[['round', 'vote']].groupby('round').sum()['vote'] > 0).reset_index().rename(columns={'vote': 'new_status'})
 
-    def update_round(self, league_title, round_title, round_url):
-        songs = Songs()
-        votes = Votes()
-        players = Players()
+        rounds.loc[rounds.merge(open_rounds, on='round')['new_status'], 'status'] = 'open'
+        rounds.loc[rounds.merge(closed_rounds, on='round')['new_status'], 'status'] = 'closed'
 
-        # check round status
-        round_status = self.database.get_round_status(league_title, round_title)
-
-        # extract results from URL if new or open
-        if round_status in ['missing', 'new', 'open']:
-            round_available = (round_url is not None)
-        else: # round_status == closed
-            round_available = True
-
-        if round_available:
-            print(f'Loading round {round_title}')
-
-            if round_status in ['missing', 'new', 'open']:
-                # round needs to be updated
-                print(f'\t...updating round {round_title}')
-
-                html_text = self.scraper.get_html_text(round_url)
-                results = self.stripper.extract_results(html_text, 'round')
-                _, _, submitters, \
-                    song_ids, player_names, vote_counts, vote_totals, track_urls, \
-                    users = results # _, _ = league_title, round_title, artists, titles
-
-                if users:
-                    # update any users that may have dropped
-                    players_df = players.sub_players(users['player_names'], username=users['username'])
-                    self.database.store_players(players_df, league_title=league_title)
-
-                if not(len(track_urls)):
-                    playlist_url = self.database.get_round_playlist(league_title, round_title)
-                    if playlist_url:
-                        self.spotter.connect_to_spotify()
-                        track_urls = self.spotter.get_playlist_uris(playlist_url, external_url=True)
-                
-                next_song_ids = self.database.get_song_ids(league_title, round_title, track_urls) # -> consider replacing existing song_ids?
-                
-                # construct details with updates for new and open
-                songs_df = songs.sub_round(round_title, track_urls, submitters, next_song_ids)
-                votes_df = votes.sub_round(song_ids, player_names, vote_counts, vote_totals, next_song_ids)
-
-                # check if round can be closed
-                if len(player_names):
-                    new_status = 'closed'
-                elif len(track_urls):
-                    new_status = 'open'
-                else:
-                    new_status = 'new'
-
-                if new_status == 'closed':
-                    # remove placeholder votes
-                    self.database.drop_votes(league_title, round_title)
-
-                # store updates
-                self.database.store_songs(songs_df, league_title)
-                self.database.store_votes(votes_df, league_title)
-                self.database.store_round(league_title, round_title, new_status, round_url) # -> consider replacing with store_rounds
-
-            else:
-               # round is closed and doesn't need to be updated
-               print(f'\t...round {round_title} is closed, no need to update')
-
-        else:
-            # the URL is missing
-            print(f'Round {round_title} not found.')
-            self.database.store_round(league_title, round_title, 'new')
+        self.database.store_rounds(rounds.drop(columns=['status']), league_title)
+        self.database.store_players(players, league_title=league_title)
 
     def update_creators(self, league_title):
         rounds_df = self.database.get_uncreated_rounds(league_title)
@@ -150,7 +76,6 @@ class Updater:
                                                                 axis=1, result_type='expand')
 
             self.database.store_rounds(rounds_df, league_title)
-            #database.store_players()
 
     def find_creator(self, description, player_names, league_creator):
         creator = None
