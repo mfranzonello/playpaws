@@ -19,7 +19,7 @@ class Texter:
                                 u'\U00002049' # ?!
                                 ']+', flags=re.UNICODE)
 
-    #zerowidthjoiner = '\u200c'
+    zerowidthjoiner = '?\u200d'
 
     sans_fonts = {'Segoe UI': 'segoeui.ttf'}
     emoji_fonts = {'Segoe UI Emoji': 'seguiemj.ttf'}
@@ -29,8 +29,7 @@ class Texter:
         pass
 
     def clean_text(self, text:str) -> str:
-        cleaned_text = self.emoji_pattern.sub(r'', text).strip()
-        #cleaned_text = cleaned_text.replace(self.zerowidthjoiner, '').replace('\u8205', '')
+        cleaned_text = self.emoji_pattern.sub(r'', text).replace(self.zerowidthjoiner,'').strip()
         return cleaned_text
 
     def get_display_name(self, name:str) -> str:
@@ -170,7 +169,7 @@ class Texter:
         # return any words after the first word as initials
         punctuation = '- .'
         pattern = '|'.join(f'{self.slashable(p)}{p}' for p in punctuation)
-        abbreviation = ''.join(s if i == 0 else s[0] for i, s in enumerate(re.split(pattern, text)))
+        abbreviation = ''.join(s if i == 0 else s[0] for i, s in enumerate(re.split(pattern, text.strip())))
 
         return abbreviation
 

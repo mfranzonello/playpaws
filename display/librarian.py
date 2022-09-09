@@ -134,8 +134,6 @@ class Library:
                     )
 
         elif plot_name == 'members':
-            print('LEADER')
-            print(parameters.get('leader'))
             leaders = self.texter.get_plurals(parameters.get('leader'),
                                               markdown=f'{self.feel("leader")}**')
             closest_dfc = self.texter.get_plurals(parameters.get('closest_dfc'),
@@ -201,7 +199,7 @@ class Library:
 
         elif plot_name == 'features':
             text = (f'This shows the evolution of how each round sounds.{self.newline()}'
-                    f'{self.indent()}{self.feel("tempo")}: Tempo (beats per minute){self.newline(num=1)}'
+                    f'{self.indent()}{self.feel("tempo")}: Tempo (beats per minute){self.newline(num=1)}' # note that this indent is only working for the first
                     f'{self.indent()}{self.feel("danceability")}: Danceability (makes you move){self.newline(num=1)}'
                     f'{self.indent()}{self.feel("energy")}: Energy (NRG){self.newline(num=1)}'
                     f'{self.indent()}{self.feel("liveness")}: Liveness (sounds from a stadium){self.newline(num=1)}'
@@ -255,7 +253,7 @@ class Library:
                     )
 
         elif plot_name == 'top_songs_round':
-            text = f'>_{parameters.get("description")}_'
+            text = f'>_{parameters.get("description").strip()}_'
 
         elif plot_name == 'playlist':
             count = parameters.get('count')

@@ -985,7 +985,6 @@ class Plotter(Streamable):
             plot_key_i = (league_title, 'top_songs_ax', r)
             stored, ok = self.streamer.get_session_state(plot_key_i)
             if ok:
-                print(stored)
                 ax, parameters_i = stored
                 self.streamer.status(1/self.plot_counts * (1/n_rounds))
 
