@@ -25,22 +25,22 @@ class Engineer:
 
 class Database(Streamable):
     tables = {# MusicLeague data
-              'Leagues': {'keys': ['league'],
+              'Leagues': {'keys': ['league'], # league_id
                           'values': ['creator', 'date', 'url', 'league_id']}, # league_id
               'Players': {'keys': ['player_id'],
                           'values': ['username', 'player', 'src', 'uri', 'followers', 'flagged']},
-              'Rounds': {'keys': ['league', 'round'],
-                         'values': ['creator', 'date', 'status', 'url', 'playlist_url', 'description', 'capture', 'round_id']}, # leauge_id
-              'Songs': {'keys': ['league', 'song_id'],
-                        'values': ['round', 'submitter', 'track_url', 'round_id', 'player_id']}, # track_uri
-              'Votes': {'keys': ['league', 'player', 'song_id'],
-                        'values': ['vote', 'player_id']},
+              'Rounds': {'keys': ['league', 'round'], # round_id
+                         'values': ['creator', 'date', 'status', 'playlist_url', 'description', 'capture', 'round_id']}, # leauge_id, ##'url', 
+              'Songs': {'keys': ['league', 'song_id'], # league_id, song_id
+                        'values': ['round', 'submitter', 'track_url', 'round_id', 'player_id']}, # track_uri, comment
+              'Votes': {'keys': ['league', 'player', 'song_id'], # league_id, player_id, song_id
+                        'values': ['vote', 'player_id']}, # comment
 
-              'Playlists': {'keys': ['league', 'theme'],
+              'Playlists': {'keys': ['league', 'theme'], # league_id
                             'values': ['uri', 'src', 'rounds']}, # round_ids, league_id
 
               # Spotify data
-              'Tracks': {'keys': ['url'],
+              'Tracks': {'keys': ['url'], # uri
                          'values': ['uri', 'name', 'title', 'mix', 'artist_uri', 'album_uri', 'explicit', 'popularity',
                                     'duration', 'key', 'mode', 'loudness', 'tempo',
                                     'danceability', 'energy', 'liveness', 'valence', 'speechiness', 'acousticness', 'instrumentalness',
@@ -66,7 +66,7 @@ class Database(Streamable):
               'Competitions': {'keys': ['league', 'competition'],
                                'values': ['start', 'finish']},
               'Analyses': {'keys': ['league'],
-                           'values': ['date', 'open', 'closed', 'version']},
+                           'values': ['date', 'open', 'closed', 'version']}, ## 'open', 'closed' -> 'round_ids'
               
               # settings
               'Weights': {'keys': ['parameter', 'version'],
@@ -403,6 +403,7 @@ class Database(Streamable):
 
         return league, round_title
 
+    ## this function should be deprecated since the concept of open/closed rounds is defunct
     def get_round_status(self, league_title, round_id):
         if (league_title is None) and (round_id is None):
             round_status = 'n/a'
@@ -428,7 +429,7 @@ class Database(Streamable):
         return rounds_df
 
     def store_round(self, league_title, round_title, new_status, url=None):
-        df = DataFrame([[league_title, round_title, new_status, url]], columns=['league', 'round', 'status', 'url'])
+        df = DataFrame([[league_title, round_title, new_status, url]], columns=['league', 'round', 'status']) ##, 'url'])
         self.upsert_table('Rounds', df)
 
     def store_rounds(self, rounds_df, league_title):
@@ -633,7 +634,8 @@ class Database(Streamable):
                    f'LEFT JOIN {self.table_name("Songs")} as s ON (r.league = s.league) AND (r.song_id = s.song_id) '
                    f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_url = t.url '
                    f'LEFT JOIN {self.table_name("Rounds")} as d ON (s.league = d.league) AND (s.round = d.round) '
-                   f'WHERE d.status = {self.needs_quotes("closed")};'
+                   ##f'WHERE d.status = {self.needs_quotes("closed")};'
+                   f';'
                    )
 
             wheres = f'theme = {self.needs_quotes(theme)}'
@@ -770,6 +772,7 @@ class Database(Streamable):
              'date': [today],
              'version': [version]}
 
+        ## delete statuses, concept is defunct
         if statuses:
             d['open'] = [statuses['open']]
             d['closed'] = [statuses['closed']]
@@ -790,11 +793,12 @@ class Database(Streamable):
                                                            'sort': 'ASC'})
         return analyses_df
     
-    def get_analyzed(self, league_title, open_rounds, closed_rounds, version):
+    def get_analyzed(self, league_title, open_rounds, closed_rounds, version): ## open_rounds, closed_rounds -> round_ids
         sql = (f'SELECT COUNT(*) FROM {self.table_name("Analyses")} '
                f'WHERE (league = {self.needs_quotes(league_title)}) '
-               f'AND (open = {self.needs_quotes(open_rounds)}) '
-               f'AND (closed = {self.needs_quotes(closed_rounds)}) '
+               ##f'AND (round_ids = {self.needs_quotes(round_ids)}) '
+               f'AND (open = {self.needs_quotes(open_rounds)}) ' ## DELETE
+               f'AND (closed = {self.needs_quotes(closed_rounds)}) ' ## DELETE
                f'AND (version = {version}::real);'
                )
 
@@ -1186,7 +1190,8 @@ class Database(Streamable):
                f'CROSS JOIN '
                f'(SELECT COUNT(round)::real AS total FROM {self.table_name("Rounds")} '
                f'WHERE (league = {self.needs_quotes(league_title)}) '
-               f'AND (status = {self.needs_quotes("closed")})) AS p) AS k '
+               ##f'AND (status = {self.needs_quotes("closed")})) '
+               f'AS p) AS k '
 
                f'CROSS JOIN '
                f'(SELECT p.player, AVG(CASE WHEN p.votes/q.songs::real > r.avg_generosity THEN 1 ELSE 0 END) AS generous '
@@ -1200,7 +1205,7 @@ class Database(Streamable):
                f'(SELECT count(s.song_id) AS songs, s.round FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Rounds")} AS d '
                f'ON s.round = d.round '
-               f'WHERE d.status = {self.needs_quotes("closed")} '
+               ##f'WHERE d.status = {self.needs_quotes("closed")} '
                f'GROUP BY s.league, s.round) AS q ON p.round = q.round ' 
                f'LEFT JOIN (SELECT p.round, AVG(p.votes/q.songs::real) AS avg_generosity '
                f'FROM (SELECT v.player, COUNT(v.player) AS votes, s.round FROM {self.table_name("Votes")} AS v '
@@ -1210,7 +1215,8 @@ class Database(Streamable):
                f'GROUP BY s.league, s.round, v.player) AS p '
                f'LEFT JOIN (SELECT count(s.song_id) AS songs, s.round FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Rounds")} AS d '
-               f'ON s.round = d.round WHERE d.status = {self.needs_quotes("closed")} '
+               f'ON s.round = d.round '
+               ##f'WHERE d.status = {self.needs_quotes("closed")} '
                f'GROUP BY s.league, s.round) AS q '
                f'ON p.round = q.round GROUP BY p.round) AS r '
                f'ON p.round = r.round '
@@ -1245,7 +1251,8 @@ class Database(Streamable):
                        f'AND d.date <= (CASE WHEN c.finish IS NOT NULL THEN c.finish ELSE '
                        f'(SELECT MAX(date) FROM {self.table_name("Rounds")} '
                        f'WHERE c.league = {self.needs_quotes(league_title)} '
-                       f'AND status = {self.needs_quotes("closed")}) END) '
+                       ##f'AND status = {self.needs_quotes("closed")}) '
+                       f'END) '
                        f'RIGHT JOIN {self.table_name("Rankings")} AS r '
                        f'ON d.league = r.league AND d.round = r.round '
                        f'WHERE c.league = {self.needs_quotes(league_title)} '
@@ -1270,7 +1277,8 @@ class Database(Streamable):
                f'AND d.date >= c.start AND d.date <= (CASE WHEN c.finish IS NOT NULL '
                f'THEN c.finish ELSE (SELECT MAX(date) FROM {self.table_name("Rounds")} '
                f'WHERE c.league = {self.needs_quotes(league_title)} '
-               f'AND status = {self.needs_quotes("closed")}) END) '
+               ##f'AND status = {self.needs_quotes("closed")}) '
+               f'END) '
                f'WHERE c.league = {self.needs_quotes(league_title)} '
                f'ORDER BY d.date;'
                )
@@ -1307,7 +1315,8 @@ class Database(Streamable):
                    f'AND d.date <= (CASE WHEN c.finish IS NOT NULL THEN c.finish ELSE '
                    f'(SELECT MAX(date) FROM {self.table_name("Rounds")} '
                    f'WHERE c.league = {self.needs_quotes(league_title)} '
-                   f'AND status = {self.needs_quotes("closed")}) END) '
+                   ##f'AND status = {self.needs_quotes("closed")})'
+                   f' END) '
                    f'RIGHT JOIN {self.table_name("Rankings")} AS r '
                    f'ON d.league = r.league AND d.round = r.round '
                    f'WHERE c.league = {self.needs_quotes(league_title)} '

@@ -54,6 +54,7 @@ class Updater:
         self.database.store_votes(votes_df.drop(columns=['status']), league_title)
         
         # close rounds with all votes
+        ## this whole concept is defunct
         open_rounds = (songs.groupby('round').count()['song_id'] > 0).reset_index().rename(columns={'song_id': 'new_status'})
         closed_rounds = (votes.merge(songs, on='song_id')[['round', 'vote']].groupby('round').sum()['vote'] > 0).reset_index().rename(columns={'vote': 'new_status'})
 

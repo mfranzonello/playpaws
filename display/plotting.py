@@ -935,11 +935,11 @@ class Plotter(Streamable):
             rdfgb = results_df.reset_index().groupby('round').rank()['index']
             rdfgb2 = results_df.groupby('round').count()['song_id']
             divisor = results_df['round'].map(rdfgb2.to_dict()).apply(self.sum_num)
-            multiplier = results_df['round'].map(rdfgb2.astype(float).pow(-1).to_dict())
-            results_df['size'] = rdfgb.add(1).pow(-1).div(divisor).where(results_df['status']=='closed',
-                                                                         multiplier)
-            results_df['y'] = rdfgb.sub(1).apply(self.sum_num).div(divisor).where(results_df['status']=='closed',
-                                                                                  rdfgb.sub(1).mul(multiplier))
+            ##multiplier = results_df['round'].map(rdfgb2.astype(float).pow(-1).to_dict())
+            results_df['size'] = rdfgb.add(1).pow(-1).div(divisor)##.where(results_df['status']=='closed',
+                                                                  ##       multiplier)
+            results_df['y'] = rdfgb.sub(1).apply(self.sum_num).div(divisor)##.where(results_df['status']=='closed',
+                                                                           ##       rdfgb.sub(1).mul(multiplier))
        
             self.streamer.status(1/self.plot_counts * (1/4))
     

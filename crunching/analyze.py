@@ -16,7 +16,7 @@ class Analyzer:
 
                 statuses = self.get_statuses(rounds_db)
                 
-                if self.database.get_analyzed(league_title, statuses['open'], statuses['closed'], self.version):
+                if self.database.get_analyzed(league_title, statuses['open'], statuses['closed'], self.version): ## status['open'], statuses['closed'] -> round_ids
                     print(f'Analysis for {league_title} already up to date')
 
                 else:
@@ -60,6 +60,7 @@ class Analyzer:
 
                         self.database.store_analysis(league_title, self.version, optimized=members.coordinates['success'])
         
+    ## concept of statuses is defunct, this should just be round_ids
     def get_statuses(self, rounds_df):
         statuses = {status: [round_title for round_title in rounds_df.query(f'status == "{status}"')['round']] \
                         for status in ['open', 'closed']}
