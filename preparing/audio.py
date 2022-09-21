@@ -275,29 +275,30 @@ class Spotter(Streamable):
         for i in rounds_db.index:
             sublist_uri = rounds_db['url'][i]
 
-            league_title = rounds_db['league'][i]
-            round_title = rounds_db['round'][i]
+            league_id = rounds_db['league_id'][i]
+            round_id = rounds_db['round_id'][i]
 
-            db_query = playlists_db.query('league == @league_title') 
+            db_query = playlists_db.query('league_id == @league_id') 
             if len(db_query):
                 position = db_query.index[0]
                 playlist_uri = db_query['uri'].iloc[0]
 
             else:
                 position = len(playlists_db)
-                playlist_uri = self.create_playlist(f'{league_title} - Complete')
+                league_name = self.database.get_league_name(league_id)
+                playlist_uri = self.create_playlist(f'{league_name} - Complete')
 
-                playlists_db.loc[position, ['league', 'uri']] = league_title, playlist_uri
-                playlists_db.at[position, 'rounds'] = []
+                playlists_db.loc[position, ['league_id', 'uri']] = league_id, playlist_uri
+                playlists_db.at[position, 'round_ids'] = []
 
-            skip_rounds = playlists_db['rounds'][position]
+            skip_rounds = playlists_db['round_ids'][position]
             
-            if round_title not in skip_rounds:
+            if round_id not in skip_rounds:
                 # skip over rounds already in playlist
                 self.update_playlist(playlist_uri, sublist_uri=sublist_uri)
 
-                add_rounds = [round_title]
-                playlists_db.at[position, 'rounds'] += add_rounds
+                add_rounds = [round_id]
+                playlists_db.at[position, 'round_ids'] += add_rounds
             
         self.database.store_playlists(playlists_db, theme='complete')
 
@@ -305,34 +306,35 @@ class Spotter(Streamable):
         rounds_db, playlists_db = self.database.get_theme_playlists(theme='best')
 
         # trim to best songs
-        rounds_db = rounds_db.set_index(['league', 'round'])[\
-            rounds_db.set_index(['league', 'round'])['points'] >= rounds_db.groupby(['league', 'round'])[['points']].quantile(1-quantile).reindex_like(\
-            rounds_db.set_index(['league', 'round']))['points']].dropna().reset_index().sort_values(['date', 'points'], ascending=[True, False])
+        rounds_db = rounds_db.set_index(['league_id', 'round_id'])[\
+            rounds_db.set_index(['league_id', 'round_id'])['points'] >= rounds_db.groupby(['league_id', 'round_id'])[['points']].quantile(1-quantile).reindex_like(\
+            rounds_db.set_index(['league_id', 'round_id']))['points']].dropna().reset_index().sort_values(['date', 'points'], ascending=[True, False])
 
-        for league_title in rounds_db['league'].unique():
+        for league_id in rounds_db['league_id'].unique():
         
-            db_query = playlists_db.query('league == @league_title')
+            db_query = playlists_db.query('league_id == @league_id')
             if len(db_query):
                 position = db_query.index[0]
                 playlist_uri = db_query['uri'][position]
                
             else:
                 position = len(playlists_db)
-                playlist_uri = self.create_playlist(f'{league_title} - Best Of')
+                league_name = self.database.get_league_name(league_id)
+                playlist_uri = self.create_playlist(f'{league_name} - Best Of')
 
-                playlists_db.loc[len(playlists_db), ['league', 'uri']] = league_title, playlist_uri
-                playlists_db.at[position, 'rounds'] = []
+                playlists_db.loc[len(playlists_db), ['league_id', 'uri']] = league_id, playlist_uri
+                playlists_db.at[position, 'round_ids'] = []
 
             # skip over rounds already in playlist
-            skip_rounds = playlists_db['rounds'][position]
-            query_results = rounds_db.query('(league == @league_title) & (round not in @skip_rounds)')
+            skip_rounds = playlists_db['round_ids'][position]
+            query_results = rounds_db.query('(league_id == @league_id) & (round_id not in @skip_rounds)')
             track_uris = query_results['uri'].to_list()
             
             if len(track_uris):
                 self.update_playlist(playlist_uri, track_uris=track_uris)
 
-                add_rounds = [round_title for round_title in query_results['round'].unique() if round_title not in skip_rounds]
-                playlists_db.at[position, 'rounds'] += add_rounds
+                add_rounds = [round_id for round_id in query_results['round_id'].unique() if round_id not in skip_rounds]
+                playlists_db.at[position, 'round_ids'] += add_rounds
 
         self.database.store_playlists(playlists_db, theme='best')
 
@@ -341,33 +343,35 @@ class Spotter(Streamable):
 
         rounds_db = rounds_db.sort_values(['date', 'vote'], ascending=[True, False])
 
-        for league_title in rounds_db['league'].unique():
-            for player_name in rounds_db.query('(league == @league_title)')['player'].unique():
-                player_theme = f'favorite - {player_name}'
-        
-                db_query = playlists_db.query('(league == @league_title) & (theme == @player_theme)')
+        for league_id in rounds_db['league_id'].unique():
+            for player_id in rounds_db.query('(league_id == @league_id)')['player_id'].unique():
+                theme = 'favorite'
+
+                db_query = playlists_db.query('(league_id == @league_id) & (player_id == @player_id)')
                 if len(db_query):
                     position = db_query.index[0]
                     playlist_uri = db_query['uri'][position]
                     
                 else:
                     position = len(playlists_db)
+                    league_title = self.database.get_league_name(league_id)
+                    player_name = self.database.get_player_name(player_id)
                     player_name_print = self.texter.get_display_name_full(player_name)
                     playlist_uri = self.create_playlist(f'{league_title} - {player_name_print}\'s Favorites')
 
-                    playlists_db.loc[len(playlists_db), ['league', 'uri', 'theme']] = league_title, playlist_uri, player_theme
-                    playlists_db.at[position, 'rounds'] = []
+                    playlists_db.loc[len(playlists_db), ['league_id', 'uri', 'theme', 'player_id']] = league_id, playlist_uri, theme, player_id
+                    playlists_db.at[position, 'round_ids'] = []
                     
                 # skip over rounds already in playlist
-                skip_rounds = playlists_db['rounds'][position]
-                query_results = rounds_db.query('(league == @league_title) & (player == @player_name) & (round not in @skip_rounds)')
+                skip_rounds = playlists_db['round_ids'][position]
+                query_results = rounds_db.query('(league_id == @league_id) & (player_id == @player_id) & (round_id not in @skip_rounds)')
                 track_uris = query_results['uri'].to_list()
 
                 if len(track_uris):
                     self.update_playlist(playlist_uri, track_uris=track_uris)
 
-                    add_rounds = [round_title for round_title in query_results['round'].unique() if round_title not in skip_rounds]
-                    playlists_db.at[position, 'rounds'] += add_rounds
+                    add_rounds = [round_id for round_id in query_results['round_id'].unique() if round_id not in skip_rounds]
+                    playlists_db.at[position, 'round_ids'] += add_rounds
 
         self.database.store_playlists(playlists_db, theme='favorite')
 
@@ -395,18 +399,19 @@ class Spotter(Streamable):
         playlists_db = self.database.get_playlists()
 
         for i in playlists_db.index:
-            league_title, src, uri, theme = playlists_db.loc[i, ['league', 'src', 'uri', 'theme']]
-            playlists_db['src'][i] = self.check_playlist_image(league_title, src, uri, theme)
+            league_id, src, uri, theme = playlists_db.loc[i, ['league_id', 'src', 'uri', 'theme']]
+            playlists_db['src'][i] = self.check_playlist_image(league_id, src, uri, theme)
 
         self.database.store_playlists(playlists_db)
 
-    def check_playlist_image(self, league_title, src, uri, theme='complete'):
+    def check_playlist_image(self, league_id, src, uri, theme='complete'):
         """check if a playlist has an image already or if the src has changed and update if necessary"""
         cover_src = self.get_playlist_cover(uri)
 
         mosaic = 'https://mosaic.scdn.co'
         if isnull(src) or isnull(cover_src) or (cover_src[:len(mosaic)] == mosaic):
             # needs an image
+            league_title = self.database.get_league_name(league_id)
             image_src = self.boxer.get_cover(league_title)
             if image_src:
 

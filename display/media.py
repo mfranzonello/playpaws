@@ -120,25 +120,26 @@ class Gallery(Imager):
 
         self.images = self.download_images() if download_all else {}
         
-    def get_image(self, name):
-        if (name not in self.images) and (name in self.players_df['player'].values):
-            self.download_image(name)
+    def get_image(self, player_id):
+        if (player_id not in self.images) and (player_id in self.players_df['player_id'].values):
+            self.download_image(player_id)
 
-        image = self.images.get(name)
+        image = self.images.get(player_id)
 
         return image
 
-    def store_image(self, name, image):
-        self.images[name] = image
+    def store_image(self, player_id, image):
+        self.images[player_id] = image
    
-    def download_image(self, name):
-        image_key = ('gallery', name)
+    def download_image(self, player_id):
+        image_key = ('gallery', player_id)
         image, ok = self.streamer.get_session_state(image_key)
         if not ok:
-            self.streamer.print(f'\t...downloading image for {name}', base=False)
+            player_name = self.database.get_player_name(player_id)
+            self.streamer.print(f'\t...downloading image for {player_name}', base=False)
 
             # download image
-            src = self.players_df[self.players_df['player']==name]['src'].iloc[0]
+            src = self.players_df[self.players_df['player_id']==player_id]['src'].iloc[0]
             if src:
                 # Spotify profile image exists
                 if src[:len('http')] != 'http':
@@ -153,13 +154,13 @@ class Gallery(Imager):
 
                 except UnidentifiedImageError:
                     # image is unloadable
-                    self.streamer.print(f'...unable to read image for {name}', base=False)
+                    self.streamer.print(f'...unable to read image for {player_name}', base=False)
                     image = None
 
                 except HTTPError:
                     #  image is unreachable
-                    self.streamer.print(f'...image is expired for {name}', base=False)
-                    self.database.flag_player_image(name)
+                    self.streamer.print(f'...image is expired for {player_name}', base=False)
+                    self.database.flag_player_image(player_id)
                     image = None
 
             else:
@@ -167,7 +168,7 @@ class Gallery(Imager):
                 image = None
 
         # store in images dictionary
-        self.images[name] = image
+        self.images[player_id] = image
 
     def download_images(self):
         images = {}
@@ -175,12 +176,12 @@ class Gallery(Imager):
         self.streamer.status(0)
         self.streamer.print('Downloading profile images...')
         for i in self.players_df.index:
-            self.download_image(self.players_df['player'][i])
+            self.download_image(self.players_df['player_id'][i])
 
             self.streamer.status(i/len(self.players_df))
             
         return images
 
     def crop_player_images(self):
-        for player_name in self.images:
-            self.images[player_name] = self.crop_image(self.images[player_name])
+        for player_id in self.images:
+            self.images[player_id] = self.crop_image(self.images[player_id])

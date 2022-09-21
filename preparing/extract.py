@@ -30,14 +30,14 @@ class Scraper(Streamable):
         set_secret('ML_COOKIE_NAME', cookie_name)
         set_secret('ML_COOKIE_VALUE', cookie_value)
 
-    def get_zip_file(self, main_url, league_url):
-        url = f'{main_url}{league_url}'
+    def get_zip_file(self, main_url, league_id):
+        url = f'{main_url}/api/v1/leagues/{league_id}'
         return self.get_content(url)
     
     def get_content(self, url):
         self.streamer.print(f'\t...requesting response from {url}')
 
-        url = f'{url}data'.replace('/l/', '/api/v1/leagues/')
+        url = f'{url}data' #.replace('/l/', '/api/v1/leagues/')
 
         method = requests.post
         headers = self.headers_post
@@ -71,39 +71,29 @@ class Stripper(Streamable):
                     dfs[fn] = read_csv(f)
 
         # clean up players
-        players = dfs['competitors'].rename(columns={'ID': 'player_id', 'Name': 'player'})
+        players = dfs['competitors'].rename(columns={'ID': 'player_id', 'Name': 'player_name'})
 
         # clean up rounds
-        rounds = dfs['rounds'].rename(columns={'ID': 'round_id', 'Name': 'round', 
+        rounds = dfs['rounds'].rename(columns={'ID': 'round_id', 'Name': 'round_name', 
                                                'Description': 'description', 'Playlist URL': 'playlist_url'})
         rounds.loc[:, 'date'] = rounds.apply(lambda x: parse(x['Created']).date(),
                                              axis=1)
         
         # clean up songs
         songs = dfs['submissions'].rename(columns={'Submitter ID': 'player_id', 'Round ID': 'round_id',
-                                                   'Spotify URI': 'track_url'})        
+                                                   'Spotify URI': 'track_uri'})        
         songs.loc[:, 'song_id'] = songs.index
-        songs = songs.merge(players, on=['player_id']).merge(rounds, on=['round_id']).rename(columns={'player': 'submitter'})
+        songs = songs.merge(players, on=['player_id']).merge(rounds, on=['round_id']).rename(columns={'player_id': 'submitter_id'})
 
         # clean up votes
         votes = dfs['votes'].rename(columns={'Voter ID': 'player_id', 'Round ID': 'round_id', 'Points Assigned': 'vote',
-                                             'Spotify URI': 'track_url'})
-        votes = votes.merge(players, on=['player_id']).merge(rounds, on=['round_id']).merge(songs, on=['round_id', 'track_url'])
-
-        # change URI to URL
-        ## <FUTURE> keep as URI
-        songs.loc[:, 'track_url'] = songs.apply(lambda x: x['track_url'].replace('spotify:track:',
-                                                                                 'https://open.spotify.com/track/'),
-                                                axis=1)
-
-        votes.loc[:, 'track_url'] = votes.apply(lambda x: x['track_url'].replace('spotify:track:',
-                                                                                 'https://open.spotify.com/track/'),
-                                                axis=1)
+                                             'Spotify URI': 'track_uri'})
+        votes = votes.merge(players, on=['player_id']).merge(rounds, on=['round_id']).merge(songs, on=['round_id', 'track_uri'])
 
         # drop columns
-        players = players[['player_id', 'player']]
-        rounds = rounds[['round_id', 'round', 'description', 'playlist_url', 'date']]
-        songs = songs[['round', 'song_id', 'submitter', 'track_url']]
-        votes = votes[votes['vote']!=0][['player', 'song_id', 'vote']]
+        players = players[['player_id', 'player_name']]
+        rounds = rounds[['round_id', 'round_name', 'description', 'playlist_url', 'date']]
+        songs = songs[['round_id', 'song_id', 'submitter_id', 'track_uri']]
+        votes = votes[votes['vote']!=0][['player_id', 'song_id', 'vote']]
 
         return players, rounds, songs, votes

@@ -18,72 +18,61 @@ class Updater:
 
         # get information from home page
         leagues_df = self.database.get_leagues()
-        league_titles = leagues_df['league']
-        league_urls = leagues_df['url']
+        league_titles = leagues_df['league_name']
+        league_ids = leagues_df['league_id']
 
         # store home page information
-        for league_title, league_url in zip(league_titles, league_urls):
+        for league_title, league_id in zip(league_titles, league_ids):
             print(f'Investigating {league_title}...')
             
             # get information from league page
-            self.update_league(league_title, league_url) 
+            self.update_league(league_title, league_id) 
 
-            self.update_creators(league_title)
+            self.update_creators(league_id)
 
-    def update_league(self, league_title, league_url):
+    def update_league(self, league_title, league_id):
         # get the zip file from each league
-        html_zip = self.scraper.get_zip_file(self.main_url,league_url)
+        html_zip = self.scraper.get_zip_file(self.main_url,league_id)
         results = self.stripper.unzip_results(html_zip)
 
         players, rounds, songs, votes = results
 
-        rounds.loc[:, 'status'] = rounds.apply(lambda x: self.database.get_round_status(league_title, x['round_id']),
-                                     axis=1)
-
         # update song_ids
-        song_ids = self.database.get_song_ids(league_title, songs)
+        song_ids = self.database.get_song_ids(league_id, songs)
 
         songs = songs.merge(song_ids, on='song_id').drop(columns=['song_id']).rename(columns={'new_song_id': 'song_id'})
         votes = votes.merge(song_ids, on='song_id').drop(columns=['song_id']).rename(columns={'new_song_id': 'song_id'})
 
-        songs_df = songs.merge(rounds[['round', 'status']], on='round')
-        votes_df = votes.merge(songs_df[['song_id', 'status']], on='song_id')
-
         # store data
-        self.database.store_songs(songs_df, league_title)
-        self.database.store_votes(votes_df, league_title)
-        
-        # close rounds with all votes
-        ## this whole concept is defunct
-        open_rounds = (songs.groupby('round').count()['song_id'] > 0).reset_index().rename(columns={'song_id': 'new_status'})
-        closed_rounds = (votes.merge(songs, on='song_id')[['round', 'vote']].groupby('round').sum()['vote'] > 0).reset_index().rename(columns={'vote': 'new_status'})
+        self.database.store_songs(songs, league_title)
+        self.database.store_votes(votes, league_title)
 
-        rounds.loc[rounds.merge(open_rounds, on='round')['new_status'], 'status'] = 'open'
-        rounds.loc[rounds.merge(closed_rounds, on='round')['new_status'], 'status'] = 'closed'
 
-        self.database.store_rounds(rounds, league_title)
-        self.database.store_players(players, league_title=league_title)
+        self.database.store_rounds(rounds, league_id)
+        self.database.store_players(players, league_id=league_id)
 
-    def update_creators(self, league_title):
-        rounds_df = self.database.get_uncreated_rounds(league_title)
+    def update_creators(self, league_id):
+        rounds_df = self.database.get_uncreated_rounds(league_id)
 
         if len(rounds_df):
-            members_df = self.database.get_members(league_title)
-            player_names = members_df['player']
-            league_creator = self.database.get_league_creator(league_title)
+            members_df = self.database.get_members(league_id)
+            player_ids = members_df[['player_id']]
+            players = self.database.get_player_names().merge(player_ids, how='right', on='player_id')[['player_id', 'player_name']]
+
+            league_creator_id = self.database.get_league_creator(league_id)
         
-            rounds_df[['creator', 'capture']] = rounds_df.apply(lambda x: \
-                                             self.find_creator(x['description'], player_names, league_creator),
+            rounds_df[['creator_id', 'capture']] = rounds_df.apply(lambda x: \
+                                             self.find_creator(x['description'], players, league_creator_id),
                                                                 axis=1, result_type='expand')
 
-            self.database.store_rounds(rounds_df, league_title)
+            self.database.store_rounds(rounds_df, league_id)
 
-    def find_creator(self, description, player_names, league_creator):
+    def find_creator(self, description, players, league_creator_id):
         creator = None
         captured = None
         
         if description:
-        
+            player_names = players['player_name'].values
             # first look for item in Created By, Submitted By, etc
             words = ['chosen by', 'created by ', 'submitted by ', 'theme is from ', 'theme from ']
             if not creator:
@@ -101,10 +90,12 @@ class Updater:
             creator = self.texter.find_closest_match(creator, player_names)
 
             # finally, default to league creator
-            if not creator:
-                creator = league_creator
+            if creator:
+                creator_id = players.query('player_name == @creator')['player_id'].iloc[0]
+            else:
+                creator_id = league_creator_id
         
-        return creator, captured
+        return creator_id, captured
 
 class Musician:
     def __init__(self, database):

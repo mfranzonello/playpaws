@@ -8,19 +8,20 @@ class Analyzer:
         self.weights = database.get_weights(self.version)
 
     def analyze_all(self):
-        league_titles = self.get_league_titles()
+        league_ids = self.get_league_ids()
 
-        for league_title in league_titles:
-            if self.database.check_data(league_title):
-                rounds_db = self.database.get_rounds(league_title)
+        for league_id in league_ids:
+            if self.database.check_data(league_id):
+                league_title = self.database.get_league_name(league_id)
+                rounds_db = self.database.get_rounds(league_id)
 
-                statuses = self.get_statuses(rounds_db)
+                round_ids = rounds_db['round_id'].to_list()
                 
-                if self.database.get_analyzed(league_title, statuses['open'], statuses['closed'], self.version): ## status['open'], statuses['closed'] -> round_ids
+                if self.database.get_analyzed(league_id, round_ids, self.version):
                     print(f'Analysis for {league_title} already up to date')
 
                 else:
-                    analysis = self.analyze_league(league_title)
+                    analysis = self.analyze_league(league_id, league_title)
 
                     if analysis:
                         songs = analysis['songs']
@@ -28,50 +29,43 @@ class Analyzer:
                         rankings = analysis['rankings']
                         board = rankings.get_board()
                         rounds = analysis['rounds']
-                    
-                        statuses = self.get_statuses(rounds.df)
                         
-                        self.database.store_results(songs.df, league_title)
-                        self.database.store_members(members.df, league_title)
-                        self.database.store_rankings(rankings.df, league_title)
-                        self.database.store_boards(board, league_title)
+                        self.database.store_results(songs.df, league_id)
+                        self.database.store_members(members.df, league_id)
+                        self.database.store_rankings(rankings.df, league_id)
+                        self.database.store_boards(board, league_id)
 
-                        self.database.store_analysis(league_title, self.version,
-                                                     statuses=statuses, optimized=False)
+                        self.database.store_analysis(league_id, self.version,
+                                                     round_ids,
+                                                     optimized=False)
 
     def place_all(self):
-        league_titles = self.get_league_titles()
+        league_ids = self.get_league_ids()
 
-        for league_title in league_titles:
-            if self.database.check_data(league_title):
+        for league_id in league_ids:
+            if self.database.check_data(league_id):
+                league_title = self.database.get_league_name(league_id)
                 # place
-                if self.database.get_optimized(league_title):
+                if self.database.get_optimized(league_id):
                     print(f'Placements for {league_title} already up to date')
 
                 else:
-                    placement = self.place_league(league_title)
+                    placement = self.place_league(league_id, league_title)
 
                     if placement:
                         members = placement['members']
                         pulse = placement['pulse']
 
-                        self.database.store_members(members.df, league_title)
-                        self.database.store_pulse(pulse.df, league_title)
+                        self.database.store_members(members.df, league_id)
+                        self.database.store_pulse(pulse.df, league_id)
 
-                        self.database.store_analysis(league_title, self.version, optimized=members.coordinates['success'])
+                        self.database.store_analysis(league_id, self.version, optimized=members.coordinates['success'])
         
-    ## concept of statuses is defunct, this should just be round_ids
-    def get_statuses(self, rounds_df):
-        statuses = {status: [round_title for round_title in rounds_df.query(f'status == "{status}"')['round']] \
-                        for status in ['open', 'closed']}
-
-        return statuses
-    
-    def analyze_league(self, league_title):
+    def analyze_league(self, league_id, league_title):
         print(f'Setting up league {league_title}')
-        members = self.get_members(league_title)
+        members = self.get_members(league_id)
 
-        songs, votes, rounds = self.get_songs_and_votes(league_title)
+        songs, votes, rounds = self.get_songs_and_votes(league_id)
 
         if self.check_songs_and_votes(songs, votes):
             print(f'\t...analyzing {league_title}')
@@ -84,7 +78,7 @@ class Analyzer:
             for df in [songs, rounds, pulse, members, rankings]:
                 print(df)
 
-            analysis = {'league_title': league_title,
+            analysis = {'league_id': league_id,
                         'songs': songs,
                         'votes': votes,
                         'rounds': rounds,
@@ -99,15 +93,15 @@ class Analyzer:
 
         return analysis
 
-    def place_league(self, league_title):
+    def place_league(self, league_id, league_title):
         print(f'Placing members in league {league_title}')
-        members = self.get_members(league_title)
+        members = self.get_members(league_id)
 
-        songs, votes, _ = self.get_songs_and_votes(league_title)
+        songs, votes, _ = self.get_songs_and_votes(league_id)
 
         if self.check_songs_and_votes(songs, votes):
             print(f'\t...analyzing {league_title}')
-            xy_ = self.get_coordinates(league_title)
+            xy_ = self.get_coordinates(league_id)
 
             pulse = self.get_placements(songs, votes, members, xy_)
 
@@ -116,7 +110,7 @@ class Analyzer:
             for df in [pulse, members]:
                 print(df)
 
-            placement = {'league_title': league_title,
+            placement = {'league_id': league_id,
                          'pulse': pulse,
                          'members': members,
                          }
@@ -127,38 +121,38 @@ class Analyzer:
 
         return placement
 
-    def get_league_titles(self):
+    def get_league_ids(self):
         leagues = Leagues()
         db_leagues = self.database.get_leagues()
         leagues.add_leagues_db(db_leagues)
-        league_titles = leagues.get_league_titles()
+        league_ids = leagues.get_league_ids()
 
-        return league_titles
+        return league_ids
 
-    def get_members(self, league_title):
-        player_names = self.database.get_player_names(league_title)
+    def get_members(self, league_id):
+        player_ids = self.database.get_player_ids(league_id)
 
-        members = Members(player_names)
+        members = Members(player_ids)
 
         return members
         
-    def get_songs_and_votes(self, league_title):
+    def get_songs_and_votes(self, league_id):
         print('Loading from database')
         rounds = Rounds()
         songs = Songs()
         votes = Votes()
 
-        db_rounds = self.database.get_rounds(league_title)
-        db_songs = self.database.get_songs(league_title)
-        db_votes = self.database.get_votes(league_title)
+        db_rounds = self.database.get_rounds(league_id)
+        db_songs = self.database.get_songs(league_id)
+        db_votes = self.database.get_votes(league_id)
 
         rounds.add_rounds_db(db_rounds)
-        round_titles = rounds.get_titles()
+        round_ids = rounds.get_ids()
 
-        for round_title in round_titles:
-            if self.database.check_data(league_title, round_title=round_title):
-                songs.add_round_db(db_songs.query(f'round == "{round_title}"'))
-                round_song_ids = songs.get_songs_ids(round_title)
+        for round_id in round_ids:
+            if self.database.check_data(league_id, round_id=round_id):
+                songs.add_round_db(db_songs.query(f'round_id == "{round_id}"'))
+                round_song_ids = songs.get_songs_ids(round_id)
                 votes.add_round_db(db_votes.query(f'song_id in {round_song_ids}'))
 
         votes.name_rounds(songs)
@@ -171,7 +165,7 @@ class Analyzer:
 
     def check_songs_and_votes(self, songs, votes):
         # make sure there were songs and votes
-        check = (songs.df['submitter'].notna().sum() > 0) and (votes.df['player'].notna().sum() > 0)
+        check = (songs.df['submitter_id'].notna().sum() > 0) and (votes.df['player_id'].notna().sum() > 0)
         return check
 
     def crunch_rounds(self, songs, votes, rounds, members):
@@ -221,7 +215,7 @@ class Analyzer:
 
         return pulse
 
-    def get_coordinates(self, league_title):
-        members = self.database.get_members(league_title)
-        xy_ = members[['player', 'x', 'y']]
+    def get_coordinates(self, league_id):
+        members = self.database.get_members(league_id)
+        xy_ = members[['player_id', 'x', 'y']]
         return xy_
