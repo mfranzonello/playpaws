@@ -216,28 +216,35 @@ class Stripper(Streamable):
         # clean up players
         players = dfs['competitors'].rename(columns={'ID': 'player_id', 'Name': 'player_name'})
 
-        # clean up rounds
-        rounds = dfs['rounds'].rename(columns={'ID': 'round_id', 'Name': 'round_name', 
-                                               'Description': 'description', 'Playlist URL': 'playlist_url'})
-        rounds.loc[:, 'date'] = rounds.apply(lambda x: parse(x['Created']).date(),
-                                             axis=1)
+        # check for data
+        if len(dfs['rounds']):
+
+            # clean up rounds
+            rounds = dfs['rounds'].rename(columns={'ID': 'round_id', 'Name': 'round_name', 
+                                                   'Description': 'description', 'Playlist URL': 'playlist_url'})
         
-        # clean up songs
-        songs = dfs['submissions'].rename(columns={'Submitter ID': 'player_id', 'Round ID': 'round_id',
-                                                   'Spotify URI': 'track_uri'})        
-        songs.loc[:, 'song_id'] = songs.index
-        songs = songs.merge(players, on=['player_id']).merge(rounds, on=['round_id']).rename(columns={'player_id': 'submitter_id'})
+            rounds.loc[:, 'date'] = rounds.apply(lambda x: parse(x['Created']).date(),
+                                                 axis=1)
+        
+            # clean up songs
+            songs = dfs['submissions'].rename(columns={'Submitter ID': 'player_id', 'Round ID': 'round_id',
+                                                       'Spotify URI': 'track_uri'})        
+            songs.loc[:, 'song_id'] = songs.index
+            songs = songs.merge(players, on=['player_id']).merge(rounds, on=['round_id']).rename(columns={'player_id': 'submitter_id'})
 
-        # clean up votes
-        votes = dfs['votes'].rename(columns={'Voter ID': 'player_id', 'Round ID': 'round_id', 'Points Assigned': 'vote',
-                                             'Spotify URI': 'track_uri'})
-        votes = votes.merge(players, on=['player_id']).merge(rounds, on=['round_id']).merge(songs, on=['round_id', 'track_uri'])
+            # clean up votes
+            votes = dfs['votes'].rename(columns={'Voter ID': 'player_id', 'Round ID': 'round_id', 'Points Assigned': 'vote',
+                                                 'Spotify URI': 'track_uri'})
+            votes = votes.merge(players, on=['player_id']).merge(rounds, on=['round_id']).merge(songs, on=['round_id', 'track_uri'])
 
-        # drop columns
-        players = players[['player_id', 'player_name']]
-        rounds = rounds[['round_id', 'round_name', 'description', 'playlist_url', 'date']]
-        songs = songs[['round_id', 'song_id', 'submitter_id', 'track_uri']]
-        votes = votes[votes['vote']!=0][['player_id', 'song_id', 'vote']]
+            # drop columns
+            players = players[['player_id', 'player_name']]
+            rounds = rounds[['round_id', 'round_name', 'description', 'playlist_url', 'date']]
+            songs = songs[['round_id', 'song_id', 'submitter_id', 'track_uri']]
+            votes = votes[votes['vote']!=0][['player_id', 'song_id', 'vote']]
+            
+            return players, rounds, songs, votes
 
-        return players, rounds, songs, votes
+        else:
+            self.streamer.print('\t...league results are empty')
 

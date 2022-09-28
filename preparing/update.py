@@ -36,21 +36,23 @@ class Updater:
         html_zip = self.scraper.get_zip_file(league_id)
         results = self.stripper.unzip_results(html_zip)
 
-        players, rounds, songs, votes = results
+        if results is not None:
 
-        # update song_ids
-        song_ids = self.database.get_song_ids(league_id, songs)
+            players, rounds, songs, votes = results
 
-        songs = songs.merge(song_ids, on='song_id').drop(columns=['song_id']).rename(columns={'new_song_id': 'song_id'})
-        votes = votes.merge(song_ids, on='song_id').drop(columns=['song_id']).rename(columns={'new_song_id': 'song_id'})
+            # update song_ids
+            song_ids = self.database.get_song_ids(league_id, songs)
 
-        # store data
-        self.database.store_songs(songs, league_title)
-        self.database.store_votes(votes, league_title)
+            songs = songs.merge(song_ids, on='song_id').drop(columns=['song_id']).rename(columns={'new_song_id': 'song_id'})
+            votes = votes.merge(song_ids, on='song_id').drop(columns=['song_id']).rename(columns={'new_song_id': 'song_id'})
+
+            # store data
+            self.database.store_songs(songs, league_title)
+            self.database.store_votes(votes, league_title)
 
 
-        self.database.store_rounds(rounds, league_id)
-        self.database.store_players(players, league_id=league_id)
+            self.database.store_rounds(rounds, league_id)
+            self.database.store_players(players, league_id=league_id)
 
     def update_creators(self, league_id):
         rounds_df = self.database.get_uncreated_rounds(league_id)
