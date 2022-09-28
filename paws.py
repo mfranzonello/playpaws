@@ -32,13 +32,13 @@ def main():
     database = Database()
     
     # update data in database from MusicLeague webpage
-    ##update_web_data(database)
+    update_web_data(database)
 
     # analyze data from rounds
-    ##analyze_data(database)
+    analyze_data(database)
 
     # update data in database from Spotify and LastFM APIs
-    ##update_api_data(database)
+    update_api_data(database)
 
     # output Spotify playlists
     output_playlists(database)
