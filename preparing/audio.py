@@ -299,7 +299,7 @@ class Spotter(Streamable):
 
                 add_rounds = [round_id]
                 playlists_db.at[position, 'round_ids'] += add_rounds
-            
+        
         self.database.store_playlists(playlists_db, theme='complete')
 
     def update_best_playlists(self, quantile=0.25): ## move best to db.weights
@@ -404,7 +404,7 @@ class Spotter(Streamable):
 
         self.database.store_playlists(playlists_db)
 
-    def check_playlist_image(self, league_id, src, uri, theme='complete'):
+    def check_playlist_image(self, league_id, src, uri, theme):
         """check if a playlist has an image already or if the src has changed and update if necessary"""
         cover_src = self.get_playlist_cover(uri)
 
@@ -416,7 +416,7 @@ class Spotter(Streamable):
             if image_src:
 
                 # found image in Dropbox
-                if 'favorite' in theme:
+                if theme == 'favorite':
                     player_name = theme[theme.find(' - ') + len(' - '):]
                     overlay = self.gallery.get_image(player_name)
 
@@ -549,7 +549,7 @@ class FMer(Streamable):
                     self.database.store_tracks(tracks_update_db_segment)
 
                 except NetworkError:
-                    print('Error: disconnected (possibly too many API calls)')
+                    self.streamer.print('Error: disconnected (possibly too many API calls)')
                     break
 
 class Charter(Streamable):

@@ -671,10 +671,11 @@ class Database(Streamable):
      
         return rounds_df, playlists_df
 
-    def store_playlists(self, playlists_df, theme='all'):
+    def store_playlists(self, playlists_df, theme=None):
         df = playlists_df.reindex(columns=self.store_columns('Playlists'))
-        if theme in ['complete', 'best']:
+        if theme:
             df['theme'] = theme
+        if theme in ['complete', 'best']:
             df['player_id'] = self.god_id
 
         self.upsert_table('Playlists', df)

@@ -47,10 +47,8 @@ class Updater:
             votes = votes.merge(song_ids, on='song_id').drop(columns=['song_id']).rename(columns={'new_song_id': 'song_id'})
 
             # store data
-            self.database.store_songs(songs, league_title)
-            self.database.store_votes(votes, league_title)
-
-
+            self.database.store_songs(songs, league_id)
+            self.database.store_votes(votes, league_id)
             self.database.store_rounds(rounds, league_id)
             self.database.store_players(players, league_id=league_id)
 

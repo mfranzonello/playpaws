@@ -1,11 +1,11 @@
 from dateutil.parser import parse
 from io import BytesIO
 from zipfile import ZipFile
+from datetime import datetime, timedelta
 
 import requests
 import browser_cookie3 as browsercookie
 from pandas import read_csv, DataFrame
-from datetime import datetime, timedelta
 
 from common.secret import get_secret, set_secret
 from common.words import Texter
