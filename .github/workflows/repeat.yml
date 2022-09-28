@@ -4,12 +4,12 @@
 name: Python application
 
 on:
-  push:
-    branches: [ main ]
+#  push:
+#    branches: [ main ]
 #  pull_request:
 #    branches: [ main ]
   schedule:
-    - cron: '0 * * * *'
+    - cron: '0 12 * * *'
 
 jobs:
 
@@ -39,7 +39,7 @@ jobs:
     #- name: Test with pytest
     #  run: |
     #    pytest
-    - name: Update database and outputs      
+    - name: Extend deadlines automatically      
       env:
         BITIO_ADD_ON: ${{ secrets.BITIO_ADD_ON }}
         BITIO_DBNAME: ${{ secrets.BITIO_DBNAME }}
@@ -49,24 +49,7 @@ jobs:
         BITIO_STRING: ${{ secrets.BITIO_STRING }}
         BITIO_USERNAME: ${{ secrets.BITIO_USERNAME }}
 
-        DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
-        DROPBOX_APP_SECRET: ${{ secrets.DROPBOX_APP_SECRET }}
-        DROPBOX_TOKEN: ${{ secrets.DROPBOX_TOKEN }}
-
-        LASTFM_API_KEY: ${{ secrets.LASTFM_API_KEY }}
-        LASTFM_API_SECRET: ${{ secrets.LASTFM_API_SECRET }}
-
-        SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
-        SPOTIFY_CLIENT_SECRET: ${{ secrets.SPOTIFY_CLIENT_SECRET }}
-        SPOTIFY_REDIRECT_URL: ${{ secrets.SPOTIFY_REDIRECT_URL }}
-        SPOTIFY_USER_ID: ${{ secrets.SPOTIFY_USER_ID }}
-        SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
-
-        GCP_API_KEY: ${{ secrets.GCP_API_KEY }}
-        GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-        GCP_PROJECT_CX: ${{ secrets.GCP_PROJECT_CX }}
-
         ML_COOKIE_NAME: ${{ secrets.ML_COOKIE_NAME }}
         ML_COOKIE_VALUE: ${{ secrets.ML_COOKIE_VALUE }}
       run: |
-        python paws.py
+        python repeat.py
