@@ -5,10 +5,8 @@ from preparing.audio import Spotter, FMer
 class Updater:
     def __init__(self, database):
         self.database = database
-        self.main_url = database.main_url
-
-        self.stripper = Stripper(self.main_url)
-        self.scraper = Scraper(self.stripper)
+        self.stripper = Stripper()
+        self.scraper = Scraper()
         self.texter = Texter()
 
         self.spotter = Spotter()
@@ -17,6 +15,9 @@ class Updater:
         print('Updating database')
 
         # get information from home page
+        my_leagues_df = self.scraper.get_my_leagues()
+        self.database.store_leagues(my_leagues_df)
+
         leagues_df = self.database.get_leagues()
         league_titles = leagues_df['league_name']
         league_ids = leagues_df['league_id']
@@ -32,7 +33,7 @@ class Updater:
 
     def update_league(self, league_title, league_id):
         # get the zip file from each league
-        html_zip = self.scraper.get_zip_file(self.main_url,league_id)
+        html_zip = self.scraper.get_zip_file(league_id)
         results = self.stripper.unzip_results(html_zip)
 
         players, rounds, songs, votes = results

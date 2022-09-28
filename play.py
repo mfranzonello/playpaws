@@ -13,7 +13,7 @@ def main():
     streamer = Streamer()
 
     # prepare database
-    database = Database('https://musicleague.app', streamer=streamer)
+    database = Database(streamer=streamer)
     
     plot_data(database, streamer)
 

@@ -24,9 +24,9 @@ class Engineer:
 class Database(Streamable):
     tables = {# MusicLeague data
               'Leagues': {'keys': ['league_id'],
-                          'values': ['creator_id', 'date', 'league_name']},
+                          'values': ['creator_id', 'date', 'league_name', 'extendable']},
               'Players': {'keys': ['player_id'],
-                          'values': ['player_name', 'username', 'src', 'uri', 'followers', 'flagged']},
+                          'values': ['player_name', 'username', 'src', 'uri', 'followers', 'flagged', 'inactive']},
               'Rounds': {'keys': ['league_id', 'round_id'],
                          'values': ['round_name', 'creator_id', 'date', 'playlist_url', 'description', 'capture']},
               'Songs': {'keys': ['league_id', 'song_id'],
@@ -73,11 +73,10 @@ class Database(Streamable):
 
     god_id = '777'
 
-    def __init__(self, main_url, streamer=None):
+    def __init__(self, streamer=None):
         super().__init__()
         self.db = f'"{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}"'
         
-        self.main_url = main_url
         self.add_streamer(streamer)
         
         self.keys = {table_name: self.tables[table_name]['keys'] for table_name in self.tables}
@@ -505,6 +504,24 @@ class Database(Streamable):
 
     def get_god_id(self):
         return self.god_id
+
+    def get_inactive_players(self):
+        sql = (f'SELECT player_id FROM {self.table_name("Players")} '
+               f'WHERE inactive = {self.needs_quotes("True")};'
+               )
+
+        player_ids = self.read_sql(sql)['player_id'].to_list()
+
+        return player_ids
+
+    def get_extendable_leagues(self):
+        sql = (f'SELECT league_id FROM {self.table_name("Leagues")} '
+               f'WHERE extendable = {self.needs_quotes("True")};'
+               )
+
+        league_ids = self.read_sql(sql)['league_id'].to_list()
+
+        return league_ids
 
     def get_weights(self, version):
         sql = (f'SELECT DISTINCT ON(parameter) version, parameter, value '

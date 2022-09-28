@@ -29,7 +29,7 @@ def main():
     printer = Printer('display.max_columns', 'display.max_rows')
 
     # prepare database
-    database = Database('https://app.musicleague.com')
+    database = Database()
     
     # update data in database from MusicLeague webpage
     update_web_data(database)
