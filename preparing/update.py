@@ -15,7 +15,7 @@ class Updater:
         print('Updating database')
 
         # get information from home page
-        my_leagues_df = self.scraper.get_my_leagues()
+        my_leagues_df = self.stripper.extract_my_leagues(self.scraper.get_my_leagues())
         self.database.store_leagues(my_leagues_df)
 
         leagues_df = self.database.get_leagues()
@@ -33,8 +33,8 @@ class Updater:
 
     def update_league(self, league_title, league_id):
         # get the zip file from each league
-        html_zip = self.scraper.get_zip_file(league_id)
-        results = self.stripper.unzip_results(html_zip)
+        data_zip = self.scraper.get_data_zip(league_id)
+        results = self.stripper.unzip_results(data_zip)
 
         if results is not None:
 
@@ -97,6 +97,83 @@ class Updater:
                 creator_id = league_creator_id
         
         return creator_id, captured
+
+class Extender:
+    def __init__(self, database):
+        self.stripper = Stripper()
+        self.scraper = Scraper()
+        self.database = database
+
+    def update_deadlines(self, league_id, round_id, status, days=0, hours=0):
+        ''' move out deadlines for a round '''
+        dl_types = self.stripper.extract_deadline_types(status)
+        round_jason = self.scraper.get_due_dates(league_id, round_id)
+        
+        if round_jason:
+            for dl in dl_types:
+                due_date = self.stripper.parse_date(round_jason[f'{dl}Due'])
+
+                if self.stripper.has_passed(due_date):
+                    round_jason[f'{dl}Due'] = self.stripper.push_date(date, days, hours)
+                    
+            self.scraper.post_due_dates(league_id, round_id, round_jason)
+            
+    def check_outstanding(self, league_id, round_id, status, submit_date, vote_date,
+                          inactive_players=[], hours_left=0):
+        ''' find which rounds need to be modified based on who hasn't played '''
+        extracted = self.stripper.extract_status(status, submit_date, vote_date)
+
+        if extracted:
+            period, due_date = extracted
+
+            standing_jason = self.scraper.get_outstanding(league_id, round_id, period)
+            outstanding_players = self.stripper.extract_outstanding_players(standing_jason, status, inactive_players)
+            
+            if len(outstanding_players):
+                outstanding = self.stripper.is_outstanding(due_date, hours_left)
+            else:
+                outstanding = False
+
+        else:
+            outstanding = None
+
+        return outstanding
+
+    def check_open_rounds(self, league_id, inactive_players, hours_left):
+        ''' find which rounds are current '''
+        round_jason = self.scraper.get_round_details(league_id)
+        open_rounds = self.stripper.extract_open_rounds(round_jason)
+        
+        open_rounds.loc[:, 'outstanding'] = open_rounds.apply(lambda x: self.check_outstanding(league_id,
+                                                                                               x['round_id'],
+                                                                                               x['status'],
+                                                                                               x['submit_date'],
+                                                                                               x['vote_date'], 
+                                                                                               inactive_players,
+                                                                                               hours_left=hours_left),
+                                                          axis=1)
+
+        if open_rounds['outstanding'].sum():
+            open_rounds.loc[:, 'outstanding'] = open_rounds.apply(lambda x: not self.stripper.is_complete(x['status']),
+                                                                  axis=1)
+            
+        return open_rounds
+
+    def extend_deadlines(self, league_id, days, hours, hours_left, inactive_players=[]):
+        open_rounds = self.check_open_rounds(league_id, inactive_players=inactive_players, hours_left=hours_left)
+        open_rounds.sort_values(by='date', ascending=False, inplace=True)
+
+        for i in open_rounds[open_rounds['outstanding'].fillna(False)].index:
+            self.update_deadlines(league_id, open_rounds['round_id'][i], open_rounds['status'][i],
+                                  days=days, hours=hours)
+
+    def extend_all_deadlines(self, days=1, hours=0, hours_left=24):
+        inactive_players = self.database.get_inactive_players()
+        league_ids = self.database.get_extendable_leagues()
+
+        for league_id in league_ids:
+            # extend cascading deadlines when the open round has a deadline coming up and outstanding voters
+            self.extend_deadlines(league_id, days, hours, hours_left, inactive_players)
 
 class Musician:
     def __init__(self, database):

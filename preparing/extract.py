@@ -12,28 +12,6 @@ from common.words import Texter
 from display.streaming import Streamable
 
 class Scraper(Streamable):
-    timestring = '%Y-%m-%dT%H:%M:%SZ'
-
-    # round parameters:
-    # 'completed'
-    # 'description'
-    # 'downvotesPerUser'
-    # 'highStakes'
-    # 'id'
-    # 'leagueId'
-    # 'maxDownvotesPerSong'
-    # 'maxUpvotesPerSong'
-    # 'name'
-    # 'playlistUrl'
-    # 'sequence'
-    # 'songPerUser'
-    # 'startDate'
-    # 'status'
-    # 'submissionsDue'
-    # 'templateId'
-    # 'upvotesPerUser'
-    # 'votesDue'
-
     app_url = 'https://app.musicleague.com' ## move this elsewhere?
 
     def __init__(self):
@@ -84,17 +62,25 @@ class Scraper(Streamable):
         my_id = me_jason['id']
 
         _, leagues_jason = self.call_api('get', player_id=my_id, end='leagues')
+
+        return leagues_jason
+
+    def get_due_date(self, league_id, round_id):
+        _, round_jason = self.call_api('get', league_id=league_id, round_id=round_id)
+        return round_jason
+
+    def post_due_date(self, league_id, round_id, round_jason):
+        self.call_api('put', league_id=league_id, round_id=round_id, jason=round_jason)
+
+    def get_round_details(self, league_id):
+        _, round_jason = self.call_api('get', league_id=league_id, end='rounds')
+        return round_jason
+
+    def get_outstanding(self, league_id, round_id, period):
+        _, standing_jason = self.call_api('get', league_id=league_id, round_id=round_id, end=f'{period}s')
+        return standing_jason
         
-        leagues_df = DataFrame([[l['id'],
-                                 [m['user']['id'] for m in l['members'] if m['isAdmin']][0],
-                                 parse(l['created']),
-                                 l['name']] for l in leagues_jason],
-                               columns=['league_id', 'creator_id', 'date', 'league_name'])
-
-        return leagues_df
-
-
-    def get_zip_file(self, league_id):
+    def get_data_zip(self, league_id):
         ''' get zipped CSV files of all exported league data '''
         r_content, _ = self.call_api('post', league_id=league_id, end='data')
         
@@ -105,110 +91,51 @@ class Scraper(Streamable):
 
         return item
 
-    def update_deadlines(self, league_id, round_id, status, days=0, hours=0):
-        ''' move out deadlines for a round '''
-        if status in ['NOT_STARTED', 'ACCEPTING_SUBMISSIONS']:
-            dl_types= ['submissions', 'votes']
-        elif status in ['ACCEPTING_VOTES']:
-            dl_types = ['votes']
-        else:
-            dl_types = []
+class Stripper(Streamable):  
+    timestring = '%Y-%m-%dT%H:%M:%SZ' ## MOVE TO STRIPPER
 
-        _, round_jason = self.call_api('get', league_id=league_id, round_id=round_id)
+    '''
+    round parameters:
+        'completed'
+        'description'
+        'downvotesPerUser'
+        'highStakes'
+        'id'
+        'leagueId'
+        'maxDownvotesPerSong'
+        'maxUpvotesPerSong'
+        'name'
+        'playlistUrl'
+        'sequence'
+        'songPerUser'
+        'startDate'
+        'status'
+        'submissionsDue'
+        'templateId'
+        'upvotesPerUser'
+        'votesDue'
 
-        if round_jason:
-            for dl in dl_types:
-                due_date = parse(round_jason[f'{dl}Due'])
-                if due_date >= datetime.now(due_date.tzinfo):
-                    round_jason[f'{dl}Due'] = datetime.strftime(due_date + timedelta(days=days, hours=hours), self.timestring)
+    participation status
+        {'haveNotVoted/Submitted': ['id']
+         'haveVoted/Submitted': ['id']}
 
-            self.call_api('put', league_id=league_id, round_id=round_id, jason=round_jason)
-            
-    def check_outstanding(self, league_id, round_id, status, submit_date, vote_date,
-                          inactive_players=[], hours_left=0):
-        ''' find which rounds need to be modified based on who hasn't played '''
+    status types:
+        "NOT_STARTED"
+        "ACCEPTING_SUBMISSIONS"
+        "ACCEPTING_VOTES"
+        "COMPLETE"
 
-        # {'haveNotVoted/Submitted': ['id']
-        #  'haveVoted/Submitted': ['id']}
-        # status types:
-        # "NOT_STARTED"
-        # "ACCEPTING_SUBMISSIONS"
-        # "ACCEPTING_VOTES"
-        # "COMPLETE"
-        if 'ACCEPTING' in status:
-            if status == 'ACCEPTING_SUBMISSIONS':
-                end = 'submission'
-                have_not = 'Submitted'
-                due_date = submit_date
-            elif status == 'ACCEPTING_VOTES':
-                end = 'vote'
-                have_not = 'Voted'
-                due_date = vote_date
+    '''
 
-            _, standing_jason = self.call_api('get', league_id=league_id, round_id=round_id, end=f'{end}s')
-
-            outstanding_players = [i['id'] for i in standing_jason[f'haveNot{have_not}'] if i['id'] not in inactive_players]
-
-            if len(outstanding_players):
-                time_diff = due_date - datetime.now(due_date.tzinfo)
-                hours_diff = (time_diff.days * 24) + (time_diff.seconds/60**2)
-                outstanding = hours_diff <= hours_left
-            else:
-                outstanding = False
-
-        else:
-            outstanding = None
-
-        return outstanding
-
-    def check_open_rounds(self, league_id, inactive_players, hours_left):
-        ''' find which rounds are current '''
-
-        # status types:
-        # "NOT_STARTED"
-        # "ACCEPTING_SUBMISSIONS"
-        # "ACCEPTING_VOTES"
-        # "COMPLETE"
-        _, round_jason = self.call_api('get', league_id=league_id, end='rounds')
-
-        open_rounds = DataFrame([[r['id'], r['status'], parse(r['startDate']),
-                                  parse(r['submissionsDue']), parse(r['votesDue'])] \
-                                    for r in round_jason if r['status'] != 'COMPLETED'],
-                                columns=['round_id', 'status', 'date', 'submit_date', 'vote_date'])
-        
-        open_rounds.loc[:, 'outstanding'] = open_rounds.apply(lambda x: self.check_outstanding(league_id,
-                                                                                               x['round_id'],
-                                                                                               x['status'],
-                                                                                               x['submit_date'],
-                                                                                               x['vote_date'], 
-                                                                                               inactive_players,
-                                                                                               hours_left=hours_left),
-                                                          axis=1)
-
-        if open_rounds['outstanding'].sum():
-            open_rounds.loc[open_rounds[open_rounds['status']!='COMPLETED'].index, 'outstanding'] = True
-
-        return open_rounds
-
-    def extend_deadlines(self, league_id, inactive_players=[], days=1, hours=0, hours_left=24):
-        open_rounds = self.check_open_rounds(league_id, inactive_players=inactive_players, hours_left=hours_left)
-        open_rounds.sort_values(by='date', ascending=False, inplace=True)
-
-        for i in open_rounds[open_rounds['outstanding'].fillna(False)].index:
-            self.update_deadlines(league_id, open_rounds['round_id'][i], open_rounds['status'][i],
-                                  days=days, hours=hours)
-
-
-class Stripper(Streamable):                                 
     def __init__(self):
         super().__init__()
 
         self.texter = Texter()
 
-    def unzip_results(self, results):
+    def unzip_results(self, data_zip):
         sheets = ['competitors', 'rounds', 'submissions', 'votes']
         dfs = {}
-        with results as z:
+        with data_zip as z:
             for fn in sheets:
                 with z.open(f'{fn}.csv') as f:
                     dfs[fn] = read_csv(f)
@@ -248,3 +175,69 @@ class Stripper(Streamable):
         else:
             self.streamer.print('\t...league results are empty')
 
+    def extract_my_leagues(self, leagues_jason):
+        ''' turn raw league data into dataframe '''
+        leagues_df = DataFrame([[l['id'],
+                            [m['user']['id'] for m in l['members'] if m['isAdmin']][0],
+                            parse(l['created']),
+                            l['name']] for l in leagues_jason],
+                        columns=['league_id', 'creator_id', 'date', 'league_name'])
+
+        return leagues_df
+
+    def parse_date(self, date):
+        return parse(date)
+
+    def has_occured(self, date):
+        return date >= datetime.now(due_date.tzinfo)
+
+    def push_date(date, days=0, hours=0):
+        return datetime.strftime(due_date + timedelta(days=days, hours=hours), self.timestring)
+
+    def extract_outstanding_players(self, standing_jason, status, inactive_players):
+        if status == 'ACCEPTING_SUBMISSIONS':
+           have_not = 'Submitted'
+        elif status == 'ACCEPTING_VOTES':
+            have_not = 'Voted'
+
+        outstanding_players = [i['id'] for i in standing_jason[f'haveNot{have_not}'] if i['id'] not in inactive_players]
+        return outstanding_players
+
+    def is_outstanding(self, due_date, hours_left=0):
+        time_diff = due_date - datetime.now(due_date.tzinfo)
+        hours_diff = (time_diff.days * 24) + (time_diff.seconds/60**2)
+        outstanding = hours_diff <= hours_left
+
+        return outstanding
+
+    def extract_open_rounds(self, round_jason):
+        open_rounds = DataFrame([[r['id'], r['status'], parse(r['startDate']),
+                            parse(r['submissionsDue']), parse(r['votesDue'])] \
+                            for r in round_jason if r['status'] != 'COMPLETED'],
+                        columns=['round_id', 'status', 'date', 'submit_date', 'vote_date'])
+
+        return open_rounds
+
+    def extract_deadline_types(self, status):
+        if status in ['NOT_STARTED', 'ACCEPTING_SUBMISSIONS']:
+            dl_types= ['submissions', 'votes']
+        elif status in ['ACCEPTING_VOTES']:
+            dl_types = ['votes']
+        else:
+            dl_types = []
+
+        return dl_types
+
+    def extract_status(self, status, submit_date, vote_date):
+        if 'ACCEPTING' in status:
+            if status == 'ACCEPTING_SUBMISSIONS':
+                period = 'submission'
+                due_date = submit_date
+            elif status == 'ACCEPTING_VOTES':
+                period = 'vote'
+                due_date = vote_date
+
+            return period, due_date
+
+    def is_complete(self, status):
+        return status == 'COMPLETE'
