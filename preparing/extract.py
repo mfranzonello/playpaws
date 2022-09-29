@@ -182,7 +182,7 @@ class Stripper(Streamable):
     def has_occured(self, date):
         return date >= datetime.now(date.tzinfo)
 
-    def push_date(date, days=0, hours=0):
+    def push_date(self, date, days=0, hours=0):
         return datetime.strftime(date + timedelta(days=days, hours=hours), self.timestring)
 
     def extract_outstanding_players(self, standing_jason, status, inactive_players):
