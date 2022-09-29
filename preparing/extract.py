@@ -180,10 +180,10 @@ class Stripper(Streamable):
         return parse(date)
 
     def has_occured(self, date):
-        return date >= datetime.now(due_date.tzinfo)
+        return date >= datetime.now(date.tzinfo)
 
     def push_date(date, days=0, hours=0):
-        return datetime.strftime(due_date + timedelta(days=days, hours=hours), self.timestring)
+        return datetime.strftime(date + timedelta(days=days, hours=hours), self.timestring)
 
     def extract_outstanding_players(self, standing_jason, status, inactive_players):
         if status == 'ACCEPTING_SUBMISSIONS':
@@ -194,8 +194,8 @@ class Stripper(Streamable):
         outstanding_players = [i['id'] for i in standing_jason[f'haveNot{have_not}'] if i['id'] not in inactive_players]
         return outstanding_players
 
-    def is_outstanding(self, due_date, hours_left=0):
-        time_diff = due_date - datetime.now(due_date.tzinfo)
+    def is_outstanding(self, date, hours_left=0):
+        time_diff = date - datetime.now(date.tzinfo)
         hours_diff = (time_diff.days * 24) + (time_diff.seconds/60**2)
         outstanding = hours_diff <= hours_left
 
