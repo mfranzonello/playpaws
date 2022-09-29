@@ -56,11 +56,11 @@ class Scraper(Streamable):
 
         return leagues_jason
 
-    def get_due_date(self, league_id, round_id):
+    def get_due_dates(self, league_id, round_id):
         _, round_jason = self.call_api('get', league_id=league_id, round_id=round_id)
         return round_jason
 
-    def post_due_date(self, league_id, round_id, round_jason):
+    def post_due_dates(self, league_id, round_id, round_jason):
         self.call_api('put', league_id=league_id, round_id=round_id, jason=round_jason)
 
     def get_round_details(self, league_id):

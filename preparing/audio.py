@@ -1,14 +1,14 @@
 from datetime import datetime, timedelta
 from math import ceil
 import time
+from base64 import b64encode
+from urllib import parse
 
 import requests
 import six
-from base64 import b64encode
 from spotipy import Spotify, SpotifyClientCredentials
 from spotipy.oauth2 import SpotifyOAuth
 from spotipy.cache_handler import MemoryCacheHandler
-from pylast import LastFMNetwork, NetworkError
 from pandas import DataFrame, isnull
 
 from common.secret import get_secret
@@ -29,6 +29,8 @@ class Spotter(Streamable):
                       'liveness',
                       'valence',
                       'tempo']
+
+    mosaic = 'https://mosaic.scdn.co' # default image
 
     def __init__(self, streamer=None):
         super().__init__()
@@ -408,8 +410,7 @@ class Spotter(Streamable):
         """check if a playlist has an image already or if the src has changed and update if necessary"""
         cover_src = self.get_playlist_cover(uri)
 
-        mosaic = 'https://mosaic.scdn.co'
-        if isnull(src) or isnull(cover_src) or (cover_src[:len(mosaic)] == mosaic):
+        if isnull(src) or isnull(cover_src) or (cover_src[:len(self.mosaic)] == self.mosaic):
             # needs an image
             league_title = self.database.get_league_name(league_id)
             image_src = self.boxer.get_cover(league_title)
@@ -476,14 +477,39 @@ class Spotter(Streamable):
         self.sp.playlist_replace_items(playlist_uri, track_uris)
 
 class FMer(Streamable):
+    fm_url = 'http://ws.audioscrobbler.com/2.0/'
+
     def __init__(self, streamer=None):
         super().__init__()
         self.fm = None
         self.add_streamer(streamer)
+        self.api_key = get_secret('LASTFM_API_KEY')
 
-    def connect_to_lastfm(self):
-        self.streamer.print('Connecting to LastFM API...')
-        self.fm = LastFMNetwork(api_key=get_secret('LASTFM_API_KEY'), api_secret=get_secret('LASTFM_API_SECRET'))
+    def call_api(self, artist=None, title=None):
+        if artist and not title:
+            method = 'artist'
+        if artist and title:
+            method = 'track'
+        else:
+            method = None
+
+        if method:
+            url = (f'{self.fm_url}?method={method}.getinfo'
+                   f'&api_key={self.api_key}&format=json'
+                   )
+            url += f'&artist={parse.quote(artist)}' if artist else ''
+            url += f'&track={parse.quote(title)}' if title else ''
+            
+            response = requests.get(url)
+            if response.ok:
+                content = response.content
+                jason = response.json() if len(content) and response.headers.get('Content-Type').startswith('application/json') else None
+
+        else:
+            content = None
+            jason = None
+
+        return content, jason
 
     def clean_title(self, title):
         # remove featuring artists and pull remixes
@@ -501,28 +527,25 @@ class FMer(Streamable):
 
         return title, mix
     
-    def get_track_info(self, artist, title):
-        track = self.fm.get_track(artist, title)
-
+    def get_track_info(self, artist, title, max_tags=5):
         self.streamer.print(f'\t...{artist} - {title}')
-
-        if len(track.info):
-            max_tags = 5
-            top_tags = track.get_top_tags()
-
-            elements = {'scrobbles': track.get_playcount(),
-                        'listeners': track.get_listener_count(),
-                        'top_tags': [tag.item.get_name() for tag in top_tags[:min(max_tags, len(top_tags))]],
-                        }
-        else: # ignore when Last.fm has no info
-            elements = {x: None for x in ['scrobbles', 'listeners', 'top_tags']}
+        _, track = self.call_api(artist, title)
         
+        if (not track) or track.get('error'):
+            # track not found
+            elements = {x: None for x in ['scrobbles', 'listeners', 'top_tags']}
+
+        else:
+            # extract elements from track
+            elements = {'scrobbles': int(track['track']['playcount']),
+                        'listeners': int(track['track']['listeners']),
+                        'top_tags': [tag['name'] for tag in track['track']['toptags']['tag'][:max_tags]],
+                        }
+            
         return elements
 
     def update_database(self, database):
         self.database = database
-
-        self.connect_to_lastfm()
 
         self.update_db_tracks()
 
@@ -541,47 +564,8 @@ class FMer(Streamable):
             segment_size = 50
             for tracks_update_db_segment in [tracks_update_db.loc[i*segment_size:(i+1)*segment_size-1].copy() \
                                             for i in range(ceil(len(tracks_update_db)/segment_size))]:
-                try:
-                    df_elements = [self.get_track_info(artist, title) for artist, title in tracks_update_db_segment[['artist', 'title']].values]
+                df_elements = [self.get_track_info(artist, title) for artist, title in tracks_update_db_segment[['artist', 'title']].values]
 
-                    df_to_update = DataFrame(df_elements, index=tracks_update_db_segment.index)
-                    tracks_update_db_segment.loc[:, df_to_update.columns] = df_to_update
-                    self.database.store_tracks(tracks_update_db_segment)
-
-                except NetworkError:
-                    self.streamer.print('Error: disconnected (possibly too many API calls)')
-                    break
-
-class Charter(Streamable):
-    def __init__(self):
-        super().__init__()
-        self.token = None
-        self.refresh = get_secret('CHARTMETRICS_RERESH_TOKEN')
-    def connect_to_chartmetrics(self):
-        endpoint = 'https://api.chartmetric.com/api/token'
-        data = {'refreshtoken': self.refresh}
-        headers = {'Content-Type': 'application/json'}
-        
-        response = requests.post(endpoint, data=data, headers=headers)
-        if response.ok:
-            self.token = response.json()['access_token']
-            self.refresh = response.json()['refresh_token']
-
-    def auth_header(self):
-        return {'Authorization': f'Bearer {self.token}'}
-
-    def get_json(self, endpoint, data):
-        response = requests.get(endpoint, data=data, headers=self.auth_header())
-        if response.ok:
-            json = response.json()
-
-        else:
-            json = None
-        return json
-
-    def get_monthly_listeners(self, uri):
-        endpoint = 'https://api.chartmetric.com/api/artist/anr/by/social-index'
-        data = {}
-
-        json = self.get_json(endpoint, data)
-        
+                df_to_update = DataFrame(df_elements, index=tracks_update_db_segment.index)
+                tracks_update_db_segment.loc[:, df_to_update.columns] = df_to_update
+                self.database.store_tracks(tracks_update_db_segment)
