@@ -1,5 +1,6 @@
 from base64 import b64encode
 from nacl import encoding, public
+from datetime import datetime, timedelta
 
 import browser_cookie3 as browsercookie
 import requests
@@ -84,22 +85,36 @@ class Baker:
 
     def mix_cookies(self):
         ''' get cookie values '''
+        print('Getting cookies...')
         cj = browsercookie.chrome(domain_name=self.domain_name)
         cookie_name = list(cj._cookies[f'.{self.domain_name}']['/'].keys())[0]
         cookie_value = cj._cookies[f'.{self.domain_name}']['/'][cookie_name].value
+        expiration_date = datetime.utcfromtimestamp(cj._cookies[f'.{self.domain_name}']['/'][cookie_name].expires)
         
-        return cookie_name, cookie_value
+        return cookie_name, cookie_value, expiration_date
 
     def bake_cookies(self, cookie_name, cookie_value, lockbox):
         ''' add new values to environments '''
         ##set_secret('ML_COOKIE_NAME', cookie_name)
+        print('\t\t...storing secrets locally')
         set_secret('ML_COOKIE_VALUE', cookie_value)
 
         if lockbox:
+            print('\t\t...storing secrets remotely')
             ##lockbox.store_secret('ML_COOKIE_NAME', cookie_name)
             lockbox.store_secret('ML_COOKIE_VALUE', cookie_value)
 
+    def is_stale(self, date, days_left=0):
+        return date <= datetime.utcnow() - timedelta(days=days_left)
+
     def reset_cookies(self, lockbox=None):
         ''' retrieve and store cookie values '''
-        cookie_name, cookie_value = self.mix_cookies()
+        cookie_name, cookie_value, expiration_date = self.mix_cookies()
+
+        if self.is_stale(expiration_date):
+            ## launch browser and get new cookie
+            print('\t...cookies have expired!')
+        else:
+            print('\t...cookies are still fresh!')
+
         self.bake_cookies(cookie_name, cookie_value, lockbox)
