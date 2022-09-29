@@ -232,3 +232,8 @@ class Stripper(Streamable):
 
     def is_complete(self, status):
         return status == 'COMPLETE'
+
+    def get_creator_phrases(self):
+        phrases = ['chosen by', 'created by ', 'submitted by ', 'theme is from ', 'theme from ']
+
+        return phrases

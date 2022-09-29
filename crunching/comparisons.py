@@ -201,41 +201,52 @@ class Members:
 
     def update_coordinates(self, pulse, xy_=None, max_iters=5000):
         # best fit player nodes
-        n = len(self.player_combinations)
-        max_iterations = max(1, min(max_iters, int(10**(8/log(n*(n+1)/2)))))
+        n_players = len(self.player_ids)
 
-        distances = DataFrame(data=self.player_combinations, columns=['p1_id', 'p2_id'])
-        distances['distance'] = distances.merge(pulse.df, on=['p1_id', 'p2_id'], how='left')['plot_distance']
-        
-        needed = distances['distance'].notna() # only include if pair voted together
+        if n_players <= 2:
+            # trivial case with only 2 or less players
+            self.df['x'] = [0, 1]
+            self.df['y'] = [0, 0]
 
-        # update from db if exists
-        if xy_ is not None:
-            self.df[['x', 'y']] = self.df.drop(columns=[c for c in ['x', 'y'] if c in self.df.columns]).merge(xy_, on='player_id')[['x', 'y']]
+            self.coordinates['success'] = True
+            self.coordinates['message'] = f'trivial case of {n_players} players'
 
-        ##if self.df[['x', 'y']].isna().all().all():
-        self.seed_xy(pulse)
-
-        xy0 = self.melt_xy(self.df)
-        print('\t...minimizing')
-        xy = minimize(self.distdiff, xy0, args=(distances['distance'], needed), options={'maxiter': max_iterations})
-
-        self.df['x'] = [0] + xy.x.tolist()[0:int(len(xy.x)/2)]
-        self.df['y'] = [0] + xy.x.tolist()[int(len(xy.x)/2):]
-
-        self.coordinates['success'] = xy.success
-        self.coordinates['message'] = xy.message
-
-        if xy.success:
-            print('\t\t...optimal solution found')
         else:
-            print(xy.message)
+            n = len(self.player_combinations)
+            max_iterations = max(1, min(max_iters, int(10**(8/log(n*(n+1)/2)))))
 
-        if xy_ is not None:
-            dist0 = self.distdiff(self.melt_xy(xy_), distances['distance'], needed)
-            dist1 = self.distdiff(self.melt_xy(self.df), distances['distance'], needed)
-            improvement = 1 - dist1/dist0
-            print(f'\t\t...improved by {improvement:.2%}')
+            distances = DataFrame(data=self.player_combinations, columns=['p1_id', 'p2_id'])
+            distances['distance'] = distances.merge(pulse.df, on=['p1_id', 'p2_id'], how='left')['plot_distance']
+        
+            needed = distances['distance'].notna() # only include if pair voted together
+
+            # update from db if exists
+            if xy_ is not None:
+                self.df[['x', 'y']] = self.df.drop(columns=[c for c in ['x', 'y'] if c in self.df.columns]).merge(xy_, on='player_id')[['x', 'y']]
+
+            ##if self.df[['x', 'y']].isna().all().all():
+            self.seed_xy(pulse)
+
+            xy0 = self.melt_xy(self.df)
+            print('\t...minimizing')
+            xy = minimize(self.distdiff, xy0, args=(distances['distance'], needed), options={'maxiter': max_iterations})
+
+            self.df['x'] = [0] + xy.x.tolist()[0:int(len(xy.x)/2)]
+            self.df['y'] = [0] + xy.x.tolist()[int(len(xy.x)/2):]
+
+            self.coordinates['success'] = xy.success
+            self.coordinates['message'] = xy.message
+
+            if xy.success:
+                print('\t\t...optimal solution found')
+            else:
+                print(xy.message)
+
+            if xy_ is not None:
+                dist0 = self.distdiff(self.melt_xy(xy_), distances['distance'], needed)
+                dist1 = self.distdiff(self.melt_xy(self.df), distances['distance'], needed)
+                improvement = 1 - dist1/dist0
+                print(f'\t\t...improved by {improvement:.2%}')
 
     def melt_xy(self, df):
         xy = df[['x','y']][1:].fillna(0).melt()['value']

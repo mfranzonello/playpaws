@@ -70,15 +70,14 @@ class Updater:
 
     def find_creator(self, description, players, league_creator_id):
         creator = None
-        creator_id = None
         captured = None
-        
+              
         if description:
+            # look for creator name in description
             player_names = players['player_name'].values
             # first look for item in Created By, Submitted By, etc
-            words = ['chosen by', 'created by ', 'submitted by ', 'theme is from ', 'theme from ']
             if not creator:
-                _, captured = self.texter.remove_parenthetical(description, words,
+                _, captured = self.texter.remove_parenthetical(description, self.scraper.get_creator_phrases(),
                                                                position='start', parentheses='all_end')
                 creator = self.texter.find_closest_match(captured, player_names)
 
@@ -91,11 +90,12 @@ class Updater:
 
             creator = self.texter.find_closest_match(creator, player_names)
 
-            # finally, default to league creator
-            if creator:
-                creator_id = players.query('player_name == @creator')['player_id'].iloc[0]
-            else:
-                creator_id = league_creator_id
+        # match creator name to ID
+        if creator:
+            creator_id = players.query('player_name == @creator')['player_id'].iloc[0]
+        # finally, default to league creator
+        else:
+            creator_id = league_creator_id
         
         return creator_id, captured
 
