@@ -4,12 +4,12 @@
 name: REPEAT - Deadline Extension
 
 on:
-#  push:
-#    branches: [ main ]
+  push:
+    branches: [ main ]
 #  pull_request:
 #    branches: [ main ]
   schedule:
-    - cron: '15 20 * * *'
+    - cron: '0 19 * * *'
     
 jobs:
 
