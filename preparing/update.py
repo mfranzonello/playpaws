@@ -115,7 +115,7 @@ class Extender:
                 due_date = self.stripper.parse_date(round_jason[f'{dl}Due'])
 
                 if self.stripper.has_occured(due_date):
-                    round_jason[f'{dl}Due'] = self.stripper.push_date(date, days, hours)
+                    round_jason[f'{dl}Due'] = self.stripper.push_date(due_date, days, hours)
                     
             self.scraper.post_due_dates(league_id, round_id, round_jason)
             
