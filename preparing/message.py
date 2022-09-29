@@ -34,4 +34,3 @@ class Mailer:
         for message in messages:
             self.mark_as_read(self, message)
 
-

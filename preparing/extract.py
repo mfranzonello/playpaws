@@ -4,7 +4,6 @@ from zipfile import ZipFile
 from datetime import datetime, timedelta
 
 import requests
-import browser_cookie3 as browsercookie
 from pandas import read_csv, DataFrame
 
 from common.secret import get_secret, set_secret
@@ -19,14 +18,6 @@ class Scraper(Streamable):
         
         self.cj = {get_secret('ML_COOKIE_NAME'): get_secret('ML_COOKIE_VALUE')}
         
-    def reset_cookie(self):
-        domain_name = self.app_url.replace('https://', '')
-        cj = browsercookie.chrome(domain_name=domain_name)
-        cookie_name = list(cj._cookies[f'.{domain_name}']['/'].keys())[0]
-        cookie_value = cj._cookies[f'.{domain_name}']['/'][cookie_name].value
-        set_secret('ML_COOKIE_NAME', cookie_name)
-        set_secret('ML_COOKIE_VALUE', cookie_value)
-
     def call_api(self, method, player_id=None, league_id=None, round_id=None, end=None, jason=None):
         call_method = {'get': requests.get,
                        'post': requests.post,
