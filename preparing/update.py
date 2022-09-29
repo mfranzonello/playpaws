@@ -70,6 +70,7 @@ class Updater:
 
     def find_creator(self, description, players, league_creator_id):
         creator = None
+        creator_id = None
         captured = None
         
         if description:
