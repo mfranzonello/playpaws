@@ -14,6 +14,7 @@ from wordcloud import WordCloud
 from numpy import unique, int64, float64, array, ndarray
 
 from common.words import Texter
+from common.locations import spotify_play_url
 from display.librarian import Library
 from display.artist import Canvas, Paintbrush
 from display.storage import Boxer
@@ -351,7 +352,7 @@ class Plotter(Streamable):
 
                 width = 380
                 height = 80
-                html = (f'<iframe src="https://open.spotify.com/embed/playlist/{playlist_uri}" '
+                html = (f'<iframe src="{spotify_play_url}/embed/playlist/{playlist_uri}" '
                         f'width="{width}" height="{height}" '
                         f'frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>'
                         )
@@ -1062,7 +1063,7 @@ class Plotter(Streamable):
 
         playlist_uri = playlists_df.query('theme == "complete"')['uri'].iloc[0].replace('spotify:playlist:', '')
 
-        html = (f'<iframe src="https://open.spotify.com/embed/playlist/{playlist_uri}" '
+        html = (f'<iframe src="{spotify_play_url}/embed/playlist/{playlist_uri}" '
                 f'width="{width}" height="{height}" '
                 f'frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>'
                 )

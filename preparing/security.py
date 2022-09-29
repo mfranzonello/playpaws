@@ -5,10 +5,9 @@ import browser_cookie3 as browsercookie
 import requests
 
 from common.secret import get_secret, set_secret
+from common.locations import github_url, app_url
 
 class Lockbox:
-    git_url = 'https://api.github.com'
-
     def __init__(self):
         self.repository_id = get_secret('GITHUB_REPOSITORY_ID')
         self.environment_name = get_secret('GITHUB_ENVIRONMENT_NAME')
@@ -41,7 +40,7 @@ class Lockbox:
 
     def get_public_key(self):
         ''' get public key for encryption '''
-        url = (f'{self.git_url}/repositories/{self.repository_id}/'
+        url = (f'{github_url}/repositories/{self.repository_id}/'
                f'environments/{self.environment_name}/secrets/public-key'
                )
 
@@ -66,7 +65,7 @@ class Lockbox:
 
     def store_secret(self, secret_name, secret_value):
         ''' store a secret using encryption '''
-        url = (f'{self.git_url}/repositories/{self.repository_id}/'
+        url = (f'{github_url}/repositories/{self.repository_id}/'
                f'environments/{self.environment_name}/secrets/{secret_name}'
                )
 
@@ -80,7 +79,7 @@ class Lockbox:
         self.call_api(url, 'put', jason=jason)
 
 class Baker:
-    def __init__(self, app_url):
+    def __init__(self):
         self.domain_name = app_url.replace('https://', '') 
 
     def mix_cookies(self):

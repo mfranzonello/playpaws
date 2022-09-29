@@ -8,11 +8,10 @@ from pandas import read_csv, DataFrame
 
 from common.secret import get_secret, set_secret
 from common.words import Texter
+from common.locations import app_url
 from display.streaming import Streamable
 
 class Scraper(Streamable):
-    app_url = 'https://app.musicleague.com' ## move this elsewhere?
-
     def __init__(self):
         super().__init__()
         
@@ -23,13 +22,13 @@ class Scraper(Streamable):
                        'post': requests.post,
                        'put': requests.put}[method]
         
-        url = f'{self.app_url}/api/v1'
+        url = f'{app_url}/api/v1'
         url += f'/users/{player_id}' if player_id else ''
         url += f'/leagues/{league_id}'if league_id else ''
         url += f'/rounds/{round_id}' if round_id else ''
         url += f'/{end}' if end else ''
 
-        self.streamer.print(f'\t...requesting {method} response from {url.replace(self.app_url, "")}')
+        self.streamer.print(f'\t...requesting {method} response from {url.replace(app_url, "")}')
 
         try:
             response = call_method(url=url, cookies=self.cj, json=jason, timeout=10)

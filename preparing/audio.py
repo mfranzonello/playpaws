@@ -13,6 +13,7 @@ from pandas import DataFrame, isnull
 
 from common.secret import get_secret
 from common.words import Texter
+from common.locations import mosaic_url, spotify_auth_url, lastfm_url
 from display.media import Gallery, Byter
 from display.storage import Boxer, Googler
 from display.streaming import Streamable
@@ -29,8 +30,6 @@ class Spotter(Streamable):
                       'liveness',
                       'valence',
                       'tempo']
-
-    mosaic = 'https://mosaic.scdn.co' # default image
 
     def __init__(self, streamer=None):
         super().__init__()
@@ -57,7 +56,7 @@ class Spotter(Streamable):
                                                   + ':'
                                                   + get_secret('SPOTIFY_CLIENT_SECRET')).encode('ascii'))
             headers = {'Authorization': f'Basic {auth_header.decode("ascii")}'}
-            response = requests.post('https://accounts.spotify.com/api/token', data=data, headers=headers)
+            response = requests.post(f'{spotify_auth_url}/api/token', data=data, headers=headers)
             if response.ok:
                 token_info = response.json()
                 token_info['expires_at'] = int(time.time()) + token_info['expires_in']
@@ -410,7 +409,7 @@ class Spotter(Streamable):
         """check if a playlist has an image already or if the src has changed and update if necessary"""
         cover_src = self.get_playlist_cover(uri)
 
-        if isnull(src) or isnull(cover_src) or (cover_src[:len(self.mosaic)] == self.mosaic):
+        if isnull(src) or isnull(cover_src) or (cover_src[:len(mosaic_url)] == mosaic_url):
             # needs an image
             league_title = self.database.get_league_name(league_id)
             image_src = self.boxer.get_cover(league_title)
@@ -477,8 +476,6 @@ class Spotter(Streamable):
         self.sp.playlist_replace_items(playlist_uri, track_uris)
 
 class FMer(Streamable):
-    fm_url = 'http://ws.audioscrobbler.com/2.0/'
-
     def __init__(self, streamer=None):
         super().__init__()
         self.fm = None
@@ -494,7 +491,7 @@ class FMer(Streamable):
             method = None
 
         if method:
-            url = (f'{self.fm_url}?method={method}.getinfo'
+            url = (f'{lastfm_url}?method={method}.getinfo'
                    f'&api_key={self.api_key}&format=json'
                    )
             url += f'&artist={parse.quote(artist)}' if artist else ''
