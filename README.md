@@ -5,7 +5,7 @@ Analyzer App for MusicLeague created by Michael Franzonello
 
 <img src="https://www.dropbox.com/s/u4t1p0xz5qcs5ia/musicleague.png?raw=1" width="200" height="200"/>
 
-This app takes data from a variety of sources to show you how you and your friends are doing in the [MusicLeague](https://app.musicleague.com/) app, giving insight into how you and your friends listen and vote together. You can see the results **[here](https://mfranzonello-playpaws-play-rzhfts.streamlitapp.com/)**.
+This app takes data from a variety of sources to show you how you and your friends are doing in the [MusicLeague](https://app.musicleague.com/) app, primarily pulling from MusicLeague's internal API, and giving insight into how you and your friends listen and vote together. You can see the results **[here](https://mfranzonello-playpaws-play-rzhfts.streamlitapp.com/)**.
 
 ## What Powers the Backend
 
@@ -21,7 +21,7 @@ All the code is written in [Python 3](https://www.python.org/), and using a fair
 
 <img src="https://www.dropbox.com/s/qe27d4l16f3383o/github.png?raw=1" width="200" height="200"/>
 
-Obviously, this app uses Github as a code repository, since that's where you're reading this, but it also uses [Github Actions](https://github.com/features/actions) to run at scheduled intervals based on a YAML file, to keep all the data up to date.
+Obviously, this app uses Github as a code repository, since that's where you're reading this, but it also uses [Github Actions](https://github.com/features/actions) to run at scheduled intervals based on a YAML file, to keep all the data up to date. Also, some of the environment secrets needed expire after a certain amount of time, so this app utilizes GitHub's API to keep those fresh.
 
 ### Storage
 
