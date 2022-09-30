@@ -279,15 +279,15 @@ class Plotter(Streamable):
             
                 self.streamer.print('Everything loaded! Close this sidebar to view.')
 
-    def place_image(self, ax, x, y, player_name=None, color=None, size=0.5,
+    def place_image(self, ax, x, y, player_id=None, color=None, size=0.5,
                     image_size=(0, 0), padding=0, text=None,
                     aspect=(1, 1), flipped=False, zorder=0,
                     border_color=None, border_padding=0.2):
         
         flip = -1 if flipped else 1
 
-        if player_name:
-            image = self.canvas.get_player_image(player_name)
+        if player_id:
+            image = self.canvas.get_player_image(player_id)
         elif color:
             image = self.canvas.get_color_image(color, image_size)
         else:
@@ -457,12 +457,13 @@ class Plotter(Streamable):
         self.streamer.pyplot(ax.figure, header='League Pulse', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('members', parameters=parameters))
 
+        plt.close()
+
     def place_member_nodes(self, ax, x_p, y_p, p_id, s_p, c_p, c_s, z):
         if not(isnull(s_p)):
             # plot if there is a size
             plot_size = (s_p/2)**0.5/pi/10
-            p_name = self.get_player_name(p_id)
-            image, _ = self.place_image(ax, x_p, y_p, player_name=p_name, size=plot_size, flipped=False,
+            image, _ = self.place_image(ax, x_p, y_p, player_id=p_id, size=plot_size, flipped=False,
                                         zorder=2*z+1)
             if image:
                 _, _ = self.place_image(ax, x_p, y_p, color=c_p, size=plot_size, image_size=image.size, padding=0.05,
@@ -634,6 +635,8 @@ class Plotter(Streamable):
         self.streamer.pyplot(ax.figure, header='Round Finishers', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('boards', parameters=parameters))
 
+        plt.close()
+
     def place_board_player(self, ax, xs, player_id, board, lowest_rank, ties_df, icon_scale):
         player_name = self.get_player_name(player_id)
         ys = board.where(board > 0).loc[player_id]
@@ -664,7 +667,7 @@ class Plotter(Streamable):
                 x_plot, y_plot = self.adjust_ties(x, y, t, ties_df.loc[x, y], size)
                 ties_df.loc[x, y] += 1
 
-                image, _ = self.place_image(ax, x_plot, y_plot, player_name=player_name, size=size, flipped=True,
+                image, _ = self.place_image(ax, x_plot, y_plot, player_id=player_id, size=size, flipped=True,
                                             zorder=3 if player_id==self.view_player else 2, border_color=border_color)
 
                 if not image:
@@ -673,7 +676,7 @@ class Plotter(Streamable):
 
             if d > lowest_rank + 1:
                 # plot DNFs
-                image, _ = self.place_image(ax, x, d, player_name=player_name, size=size, flipped=True,
+                image, _ = self.place_image(ax, x, d, player_id=player_id, size=size, flipped=True,
                                             zorder=1)
                 if not image:
                     ax.text(x, d, display_name)
@@ -788,6 +791,8 @@ class Plotter(Streamable):
         self.streamer.pyplot(ax.figure, header='Player Scores', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('rankings', parameters=parameters))
 
+        plt.close()
+
     def place_player_scores(self, ax, player_id, xs, y, rankings_df, max_score, rgb_df, marker_size):
         ys = [y] * len(xs)
         
@@ -796,7 +801,7 @@ class Plotter(Streamable):
             for score in scores]
         colors_scatter = self.paintbrush.get_scatter_colors(colors)
 
-        image, _ = self.place_image(ax, -1, y, player_name=self.get_player_name(player_id), size=marker_size)
+        image, _ = self.place_image(ax, -1, y, player_id=player_id, size=marker_size)
         if image:
             image_size = image.size
             for x, c, score in zip(xs, colors, scores):
@@ -902,6 +907,8 @@ class Plotter(Streamable):
 
         self.streamer.pyplot(ax.figure, header='Audio Features', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('features', parameters=parameters))
+
+        plt.close()
 
     def convert_axes(self, ax, z, y=True):
         if y:
@@ -1075,6 +1082,8 @@ class Plotter(Streamable):
         self.streamer.embed(html, height=height, header='League Playlist',
                             tooltip=self.library.get_tooltip('playlist', parameters=parameters))
 
+        plt.close()
+
     def plot_hoarding(self, league_title, hoarding_df):
         self.streamer.status(1/self.plot_counts)
         player_ids = hoarding_df.index
@@ -1115,6 +1124,8 @@ class Plotter(Streamable):
                       }
         self.streamer.pyplot(ax.figure, header='Vote Sharing', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('hoarding', parameters=parameters))
+
+        plt.close()
 
     def flip_angle(self, angle):
         if 0 <= angle <= pi:

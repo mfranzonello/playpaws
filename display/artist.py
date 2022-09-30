@@ -160,23 +160,23 @@ class Canvas(Imager, Streamable):
         
         self.ppt = 0.75
 
-    def get_player_image(self, player_name):
-        image = self.gallery.get_image(player_name)
+    def get_player_image(self, player_id):
+        image = self.gallery.get_image(player_id)
 
         if not image:
             # no Spotify profile exists
-            if player_name not in self.mobis:
+            if player_id not in self.mobis:
                 # get a random image of Mobi that hasn't been used already
                 mobi_byte = self.boxer.get_mobi()
                 mobi_image = Image.open(mobi_byte) if mobi_byte else None
-                self.mobis[player_name] = self.crop_image(mobi_image)
+                self.mobis[player_id] = self.crop_image(mobi_image)
 
-            image = self.mobis[player_name]
+            image = self.mobis[player_id]
 
         return image
 
-    def store_player_image(self, player_name, image):
-        self.gallery.store_image(player_name, image)
+    def store_player_image(self, player_id, image):
+        self.gallery.store_image(player_id, image)
 
     def add_text(self, image, text, font, color=(255, 255, 255), boundary=[0.75, 0.8], offset=(0, 0)):
         draw = ImageDraw.Draw(image)
