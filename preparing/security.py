@@ -10,9 +10,11 @@ import browser_cookie3 as browsercookie
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
 
 from common.secret import get_secret, set_secret
-from common.locations import GITHUB_URL, APP_URL, CHROME_DIRECTORY, DRIVER_DIRECTORY
+from common.locations import GITHUB_URL, APP_URL
 
 class Lockbox:
     def __init__(self):
@@ -139,13 +141,6 @@ class Selena:
         self.driver = None
         self.logged_in = False
 
-    def get_version(self):
-        versions = [re.match('\d*', d).group(0) for d in os.listdir(CHROME_DIRECTORY) \
-            if os.path.isdir(f'{CHROME_DIRECTORY}/{d}') and len(re.match('\d*', d).group(0))]
-        version = versions[0] if len(versions) else None
-
-        return version
-
     def get_options():
         options = Options()
         options.add_argument("--headless")
@@ -155,10 +150,8 @@ class Selena:
 
     def turn_on(self):
         print('Running Chrome in background...')
-        version = self.get_version()
-        if version:
-            self.driver = webdriver.Chrome(f'{DRIVER_DIRECTORY}/chromedriver{version}.exe',
-                                               options=self.options)
+        self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()),
+                                       options=self.options)
 
     def turn_off(self):
         print('Turning off background Chrome')
