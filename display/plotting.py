@@ -1,6 +1,7 @@
+''' Data visuals for Streamlit '''
+
 from math import sin, cos, atan2, pi, nan, ceil
 from collections import Counter
-from os import name
 from os.path import dirname, realpath
 from datetime import datetime
 from random import choice as rand_choice

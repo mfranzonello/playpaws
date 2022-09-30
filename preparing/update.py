@@ -1,3 +1,5 @@
+''' Getting data from and pushing data to MusicLeague and updating playlists  '''
+
 from common.words import Texter
 from preparing.extract import Stripper, Scraper
 from preparing.audio import Spotter, FMer

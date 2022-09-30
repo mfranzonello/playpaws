@@ -1,5 +1,4 @@
-﻿from pandas import isnull
-from pandas.core.dtypes import missing
+﻿''' Generating captions and descriptions for data visuals '''
 
 from common.words import Texter
 

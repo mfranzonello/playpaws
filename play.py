@@ -1,3 +1,5 @@
+''' Shows results using Streamlit '''
+
 from common.data import Database
 from display.plotting import Plotter
 from display.streaming import Printer, Streamer

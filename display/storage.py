@@ -1,3 +1,5 @@
+''' Accessing and storing image data '''
+
 from io import BytesIO
 from random import randint
 

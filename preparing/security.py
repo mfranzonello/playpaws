@@ -1,3 +1,5 @@
+''' Updating cookies locally and in GitHub '''
+
 from base64 import b64encode
 from nacl import encoding, public
 from datetime import datetime, timedelta

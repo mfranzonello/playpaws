@@ -6,7 +6,6 @@ pandas==1.3.3
 browser_cookie3==0.12.1
 SQLAlchemy==1.4.23
 matplotlib==3.4.3
-pylast==4.2.1
 scipy==1.7.1
 numpy==1.21.2
 Pillow==8.3.2

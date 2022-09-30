@@ -1,4 +1,5 @@
-''' resource locations '''
+''' Resource locations '''
+
 import os
 
 # URLs

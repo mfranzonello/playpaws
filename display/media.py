@@ -1,3 +1,5 @@
+''' Manipulating images for data visuals and playlists '''
+
 from urllib.request import urlopen
 from urllib.error import HTTPError
 from base64 import b64encode
@@ -5,7 +7,6 @@ from io import BytesIO
 
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
-from common.words import Texter
 from display.streaming import Streamer
 
 class Byter:

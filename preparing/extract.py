@@ -1,3 +1,5 @@
+''' Pull data from MusicLeague API and normalize '''
+
 from dateutil.parser import parse
 from io import BytesIO
 from zipfile import ZipFile
@@ -6,7 +8,7 @@ from datetime import datetime, timedelta
 import requests
 from pandas import read_csv, DataFrame
 
-from common.secret import get_secret, set_secret
+from common.secret import get_secret
 from common.words import Texter
 from common.locations import APP_URL
 from display.streaming import Streamable

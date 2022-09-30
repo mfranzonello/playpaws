@@ -1,3 +1,5 @@
+''' Creating playlists and getting additonal music info from Spotify and LastFM '''
+
 from datetime import datetime, timedelta
 from math import ceil
 import time

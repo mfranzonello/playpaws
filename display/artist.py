@@ -1,8 +1,10 @@
+''' Color and painting functions '''
+
 from colorsys import rgb_to_hsv
 from math import inf, nan, isnan
 from urllib.request import urlopen
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 from numpy import asarray
 from pandas import DataFrame
 from colorthief import ColorThief

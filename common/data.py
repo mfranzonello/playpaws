@@ -1,3 +1,5 @@
+''' Database structure and functions '''
+
 from datetime import date
 import json
 

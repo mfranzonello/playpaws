@@ -1,3 +1,5 @@
+''' Keeps cookies fresh and accessible '''
+
 from preparing.security import Lockbox, Baker, Selena
 
 def update_cookies():

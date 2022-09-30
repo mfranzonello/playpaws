@@ -1,3 +1,5 @@
+''' Number crunching for round results '''
+
 from crunching.results import Songs, Votes, Rounds, Leagues ##, Players
 from crunching.comparisons import Members, Rankings, Pulse
 

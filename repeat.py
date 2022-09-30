@@ -1,3 +1,5 @@
+''' Pushes out deadlines as needed '''
+
 from preparing.update import Extender
 from common.data import Database
 

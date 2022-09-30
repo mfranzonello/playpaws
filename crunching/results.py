@@ -1,3 +1,5 @@
+''' Round results '''
+
 from pandas import DataFrame
 
 from crunching.comparisons import Patternizer

@@ -1,3 +1,5 @@
+''' Environment secrets '''
+
 from os import getenv
 
 from dotenv import find_dotenv, load_dotenv, set_key

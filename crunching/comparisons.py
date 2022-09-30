@@ -1,3 +1,5 @@
+''' Round comparisons '''
+
 from itertools import permutations, combinations
 from math import pi, sin, cos, log
 

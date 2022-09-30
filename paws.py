@@ -1,3 +1,5 @@
+''' Updates from MusicLeague and analyzes data '''
+
 from common.data import Database
 from preparing.update import Updater, Musician
 from crunching.analyze import Analyzer
