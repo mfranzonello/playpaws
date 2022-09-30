@@ -9,7 +9,7 @@ def plot_data(database, streamer):
     plotter.plot_results()
 
 def main():
-    printer = Printer('display.max_columns', 'display.max_rows')
+    printer = Printer()
     streamer = Streamer()
 
     # prepare database

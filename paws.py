@@ -26,7 +26,7 @@ def output_playlists(database):
     musician.output_playlists()
 
 def main():
-    printer = Printer('display.max_columns', 'display.max_rows')
+    printer = Printer()
 
     # prepare database
     database = Database()

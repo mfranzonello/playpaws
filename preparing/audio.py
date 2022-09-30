@@ -13,7 +13,7 @@ from pandas import DataFrame, isnull
 
 from common.secret import get_secret
 from common.words import Texter
-from common.locations import mosaic_url, spotify_auth_url, lastfm_url
+from common.locations import MOSAIC_URL, SPOTIFY_AUTH_URL, LASTFM_URL
 from display.media import Gallery, Byter
 from display.storage import Boxer, Googler
 from display.streaming import Streamable
@@ -56,7 +56,7 @@ class Spotter(Streamable):
                                                   + ':'
                                                   + get_secret('SPOTIFY_CLIENT_SECRET')).encode('ascii'))
             headers = {'Authorization': f'Basic {auth_header.decode("ascii")}'}
-            response = requests.post(f'{spotify_auth_url}/api/token', data=data, headers=headers)
+            response = requests.post(f'{SPOTIFY_AUTH_URL}/api/token', data=data, headers=headers)
             if response.ok:
                 token_info = response.json()
                 token_info['expires_at'] = int(time.time()) + token_info['expires_in']
@@ -409,7 +409,7 @@ class Spotter(Streamable):
         """check if a playlist has an image already or if the src has changed and update if necessary"""
         cover_src = self.get_playlist_cover(uri)
 
-        if isnull(src) or isnull(cover_src) or (cover_src[:len(mosaic_url)] == mosaic_url):
+        if isnull(src) or isnull(cover_src) or (cover_src[:len(MOSAIC_URL)] == MOSAIC_URL):
             # needs an image
             league_title = self.database.get_league_name(league_id)
             image_src = self.boxer.get_cover(league_title)
@@ -491,7 +491,7 @@ class FMer(Streamable):
             method = None
 
         if method:
-            url = (f'{lastfm_url}?method={method}.getinfo'
+            url = (f'{LASTFM_URL}?method={method}.getinfo'
                    f'&api_key={self.api_key}&format=json'
                    )
             url += f'&artist={parse.quote(artist)}' if artist else ''

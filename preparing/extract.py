@@ -8,7 +8,7 @@ from pandas import read_csv, DataFrame
 
 from common.secret import get_secret, set_secret
 from common.words import Texter
-from common.locations import app_url
+from common.locations import APP_URL
 from display.streaming import Streamable
 
 class Scraper(Streamable):
@@ -22,13 +22,13 @@ class Scraper(Streamable):
                        'post': requests.post,
                        'put': requests.put}[method]
         
-        url = f'{app_url}/api/v1'
+        url = f'{APP_URL}/api/v1'
         url += f'/users/{player_id}' if player_id else ''
         url += f'/leagues/{league_id}'if league_id else ''
         url += f'/rounds/{round_id}' if round_id else ''
         url += f'/{end}' if end else ''
 
-        self.streamer.print(f'\t...requesting {method} response from {url.replace(app_url, "")}')
+        self.streamer.print(f'\t...requesting {method} response from {url.replace(APP_URL, "")}')
 
         try:
             response = call_method(url=url, cookies=self.cj, json=jason, timeout=10)

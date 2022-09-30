@@ -1,12 +1,16 @@
 from base64 import b64encode
 from nacl import encoding, public
 from datetime import datetime, timedelta
+import re
+import os
 
 import browser_cookie3 as browsercookie
 import requests
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 
 from common.secret import get_secret, set_secret
-from common.locations import github_url, app_url
+from common.locations import GITHUB_URL, APP_URL, CHROME_DIRECTORY, DRIVER_DIRECTORY
 
 class Lockbox:
     def __init__(self):
@@ -41,7 +45,7 @@ class Lockbox:
 
     def get_public_key(self):
         ''' get public key for encryption '''
-        url = (f'{github_url}/repositories/{self.repository_id}/'
+        url = (f'{GITHUB_URL}/repositories/{self.repository_id}/'
                f'environments/{self.environment_name}/secrets/public-key'
                )
 
@@ -66,7 +70,7 @@ class Lockbox:
 
     def store_secret(self, secret_name, secret_value):
         ''' store a secret using encryption '''
-        url = (f'{github_url}/repositories/{self.repository_id}/'
+        url = (f'{GITHUB_URL}/repositories/{self.repository_id}/'
                f'environments/{self.environment_name}/secrets/{secret_name}'
                )
 
@@ -81,7 +85,7 @@ class Lockbox:
 
 class Baker:
     def __init__(self):
-        self.domain_name = app_url.replace('https://', '') 
+        self.domain_name = APP_URL.replace('https://', '') 
 
     def mix_cookies(self):
         ''' get cookie values '''
@@ -96,25 +100,105 @@ class Baker:
     def bake_cookies(self, cookie_name, cookie_value, lockbox):
         ''' add new values to environments '''
         ##set_secret('ML_COOKIE_NAME', cookie_name)
-        print('\t\t...storing secrets locally')
+        print('\t...storing secrets locally')
         set_secret('ML_COOKIE_VALUE', cookie_value)
 
         if lockbox:
-            print('\t\t...storing secrets remotely')
+            print('\t...storing secrets remotely')
             ##lockbox.store_secret('ML_COOKIE_NAME', cookie_name)
             lockbox.store_secret('ML_COOKIE_VALUE', cookie_value)
 
     def is_stale(self, date, days_left=0):
         return date <= datetime.utcnow() - timedelta(days=days_left)
 
-    def reset_cookies(self, lockbox=None):
-        ''' retrieve and store cookie values '''
-        cookie_name, cookie_value, expiration_date = self.mix_cookies()
-
-        if self.is_stale(expiration_date):
+    def check_freshness(self):
+        _, _, expiration_date = self.mix_cookies()
+        stale = self.is_stale(expiration_date)
+        if stale:
             ## launch browser and get new cookie
             print('\t...cookies have expired!')
         else:
             print('\t...cookies are still fresh!')
 
+        return stale
+
+    def reset_cookies(self, lockbox=None):
+        ''' retrieve and store cookie values '''
+        cookie_name, cookie_value, _ = self.mix_cookies()
+
         self.bake_cookies(cookie_name, cookie_value, lockbox)
+
+class Selena:
+    def __init__(self, credentials=None):
+        self.main_url = APP_URL
+        self.credentials = credentials
+
+        self.options = Selena.get_options()
+        self.driver = None
+        self.logged_in = False
+
+    def get_version(self):
+        versions = [re.match('\d*', d).group(0) for d in os.listdir(CHROME_DIRECTORY) \
+            if os.path.isdir(f'{CHROME_DIRECTORY}/{d}') and len(re.match('\d*', d).group(0))]
+        version = versions[0] if len(versions) else None
+
+        return version
+
+    def get_options():
+        options = Options()
+        options.add_argument("--headless")
+        options.add_argument("--window-size=%s" % '1920,1080')
+
+        return options
+
+    def turn_on(self):
+        print('Running Chrome in background...')
+        version = self.get_version()
+        if version:
+            self.driver = webdriver.Chrome(f'{DRIVER_DIRECTORY}/chromedriver{version}.exe',
+                                               options=self.options)
+
+    def turn_off(self):
+        print('Turning off background Chrome')
+        if self.driver is not None:
+            self.driver.close()
+            self.driver = None
+
+    def go_to_site(self, url=None):
+        if not url:
+            url = APP_URL
+
+        print(f'\t...going to {url}')
+        self.driver.get(url)
+
+    def login(self, attempts=5):
+        attempt = 0
+        while (attempt < attempts) and (not self.logged_in):
+            if self.driver is None:
+                self.turn_on()
+
+            self.go_to_site()\
+
+            pre_url = self.driver.current_url
+
+            self.driver.find_element_by_link_text('Log In!').click()
+
+            if self.credentials:
+                for credential in self.credentials:
+                    self.driver.find_element_by_id(credential).send_keys(self.credentials[credential])
+
+            self.driver.find_element_by_id('login-button').click()
+
+            post_url = self.driver.current_url
+
+            # log in is successful if the page looks different but has same starting HTTPS
+            self.logged_in = (pre_url != post_url) & (pre_url in post_url)
+
+            if self.logged_in:
+                print('Log in successful!')
+                print(f'pre: {pre_url}, post: {post_url}')
+            else:
+                self.turn_off()
+                print(f'Log in failed! (attempt {attempt+1}/{attempts}')
+
+            attempt += 1

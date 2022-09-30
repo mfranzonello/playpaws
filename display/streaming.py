@@ -17,7 +17,7 @@ def cache(**args):
 
 class Printer:
     def __init__(self, *options):
-        self.options = [*options]
+        self.options = [*options] if len(options) else ['display.max_columns', 'display.max_rows']
 
         for option in self.options:
             set_option(option, None)

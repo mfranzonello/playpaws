@@ -1,8 +1,14 @@
-''' url locations '''
+''' resource locations '''
+import os
 
-app_url = 'https://app.musicleague.com'
-github_url = 'https://api.github.com'
-spotify_play_url = 'https://open.spotify.com'
-spotify_auth_url = 'https://accounts.spotify.com'
-mosaic_url = 'https://mosaic.scdn.co'
-lastfm_url = 'http://ws.audioscrobbler.com'
+# URLs
+APP_URL = 'https://app.musicleague.com'
+GITHUB_URL = 'https://api.github.com'
+SPOTIFY_PLAY_URL = 'https://open.spotify.com'
+SPOTIFY_AUTH_URL = 'https://accounts.spotify.com'
+MOSAIC_URL = 'https://mosaic.scdn.co'
+LASTFM_URL = 'http://ws.audioscrobbler.com'
+
+# local
+DRIVER_DIRECTORY = f'C:/Users/{os.getlogin()}/OneDrive/Projects/Play Paws/chromedriver'
+CHROME_DIRECTORY = f'C:/Program Files (x86)/Google/Chrome/Application'
