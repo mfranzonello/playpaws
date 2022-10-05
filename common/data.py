@@ -934,7 +934,7 @@ class Database(Streamable):
                f'(SELECT jsonb_array_elements(a.genres) as tag '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t '
-               f'ON s.track_uri = t.uri ' #track_url
+               f'ON s.track_uri = t.uri ' 
                f'LEFT JOIN {self.table_name("Artists")} AS a '
                f'ON t.artist_uri ? a.uri '
                f'WHERE s.league_id = {self.needs_quotes(league_id)} '
@@ -942,13 +942,13 @@ class Database(Streamable):
                f'SELECT jsonb_array_elements(t.top_tags) AS tag '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t '
-               f'ON s.track_uri = t.uri ' #track_url
+               f'ON s.track_uri = t.uri ' 
                f'WHERE s.league_id = {self.needs_quotes(league_id)}) AS q '
                f'WHERE q.tag NOT IN '
                f'(SELECT jsonb_array_elements(a.genres) as tag '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t '
-               f'ON s.track_uri = t.uri ' #track_url
+               f'ON s.track_uri = t.uri ' 
                f'LEFT JOIN {self.table_name("Artists")} AS a '
                f'ON t.artist_uri ? a.uri '
                f'WHERE s.league_id != {self.needs_quotes(league_id)} '
@@ -956,7 +956,7 @@ class Database(Streamable):
                f'SELECT jsonb_array_elements(t.top_tags) AS tag '
                f'FROM {self.table_name("Songs")} AS s '
                f'LEFT JOIN {self.table_name("Tracks")} AS t '
-               f'ON s.track_uri = t.uri ' #track_url
+               f'ON s.track_uri = t.uri ' 
                f'WHERE s.league_id != {self.needs_quotes(league_id)});'
                )
 
@@ -965,31 +965,45 @@ class Database(Streamable):
         return exclusives
 
     def get_song_results(self, league_id):
-        sql = (f'SELECT s.round_id, s.song_id, s.submitter_id, '
-               f't.title, ttt.artist, b.release_date, b.src, r.closed, r.points '
-               f'FROM {self.table_name("Results")} AS r '
+        sql = (# convert artist URIs to artist names
+               f'WITH expanded AS ('
+               f'SELECT t.uri AS track_uri, t.name AS track, '
+               f'value as artist_uri, ordinality '
+               f'FROM {self.table_name("Tracks")} AS t, '
+               f'jsonb_array_elements_text(t.artist_uri) WITh ORDINALITY), '
+
+               # group artist names
+               f'combined AS ('
+               f'SELECT r.league_id, r.round_id, expanded.track_uri, '
+               f'jsonb_agg(a.name ORDER BY expanded.ordinality) AS artist '
+               f'FROM {self.table_name("Rounds")} AS r '
                f'LEFT JOIN {self.table_name("Songs")} AS s '
-               f'ON (s.league_id = r.league_id) AND (s.song_id = r.song_id) '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t '
-               f'ON s.track_uri = t.uri ' 
-               f'LEFT JOIN {self.table_name("Albums")} AS b '
-               f'ON t.album_uri = b.uri '
-               f'LEFT JOIN '
-               f'(SELECT tt.uri, json_agg(a.name) AS artist FROM ' 
-               f'(SELECT jsonb_array_elements(artist_uri) AS a_uri, uri ' 
-               f'FROM {self.table_name("Tracks")}) AS tt '
+               f'ON r.league_id = s.league_id AND r.round_id = s.round_id '
+               f'LEFT JOIN expanded ON s.track_uri = expanded.track_uri '
                f'LEFT JOIN {self.table_name("Artists")} AS a '
-               f'ON tt.a_uri ? a.uri '
-               f'GROUP BY tt.uri) AS ttt ON t.uri = ttt.uri ' 
+               f'ON expanded.artist_uri = a.uri '
+               f'GROUP BY r.league_id, r.round_id, expanded.track_uri) '
+
+               # combine with other tables
+               f'SELECT c.round_id, s.song_id, s.submitter_id, '
+               f'c.artist, t.title, b.release_date, b.src, r.closed, r.points '
+               f'FROM combined AS c '
+               f'LEFT JOIN {self.table_name("Songs")} AS s '
+               f'ON c.league_id = s.league_id AND c.round_id = s.round_id '
+               f'AND c.track_uri = s.track_uri '
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON c.track_uri = t.uri '
+               f'LEFT JOIN {self.table_name("Albums")} AS b ON t.album_uri = b.uri '
+               f'LEFT JOIN {self.table_name("Results")} AS r '
+               f'ON r.league_id = s.league_id AND r.song_id = s.song_id '
                f'LEFT JOIN {self.table_name("Leagues")} AS l '
-               f'ON s.league_id = l.league_id '
+               f'ON r.league_id = l.league_id '
                f'LEFT JOIN {self.table_name("Rounds")} AS d '
-               f'ON (s.league_id = d.league_id) AND (s.round_id = d.round_id) '
-               f'WHERE s.league_id = {self.needs_quotes(league_id)} '
+               f'ON r.league_id = d.league_id AND c.round_id = d.round_id '
+               f'WHERE l.league_id = {self.needs_quotes(league_id)} '
                f'ORDER BY l.date ASC, d.date ASC, r.points DESC;'
                )
 
-        results_df = self.read_sql(sql).drop_duplicates(subset='song_id')
+        results_df = self.read_sql(sql) ##.drop_duplicates(subset='song_id')
 
         return results_df
 
@@ -1018,7 +1032,7 @@ class Database(Streamable):
     def get_all_artists(self, league_id):
         sql = (f'SELECT s.league_id, s.song_id, json_agg(DISTINCT a.name) as arist '
                f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")}AS t ON s.track_uri = t.uri ' #track_url
+               f'LEFT JOIN {self.table_name("Tracks")}AS t ON s.track_uri = t.uri ' 
                f'LEFT JOIN {self.table_name("Artists")} AS a ON t.artist_uri ? a.uri '
                f'WHERE s.league_id = {self.needs_quotes(league_id)} '
                f'GROUP BY s.song_id, s.league;'
@@ -1032,7 +1046,7 @@ class Database(Streamable):
         sql = (f'SELECT q.league_id, x.song_id, q.round_id, x.artist, q.title, q.submitter_id FROM '
                f'(SELECT s.league_id, s.song_id, json_agg(DISTINCT a.name) as artist '
                f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' #track_url
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' 
                f'LEFT JOIN {self.table_name("Artists")} AS a ON t.artist_uri ? a.uri '
                f'GROUP BY s.song_id, s.league_id) x '
                f'LEFT JOIN {self.table_name("Songs")} AS q '
