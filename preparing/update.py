@@ -80,7 +80,7 @@ class Updater:
             player_names = players['player_name'].values
             # first look for item in Created By, Submitted By, etc
             if not creator:
-                _, captured = self.texter.remove_parenthetical(description, self.scraper.get_creator_phrases(),
+                _, captured = self.texter.remove_parenthetical(description, self.stripper.get_creator_phrases(),
                                                                position='start', parentheses='all_end')
                 creator = self.texter.find_closest_match(captured, player_names)
 

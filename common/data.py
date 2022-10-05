@@ -12,7 +12,6 @@ from display.streaming import Streamable, cache
 
 class Engineer:
     def __init__(self):
-        self.db = f'"{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}"'
         self.engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}'
                               f':{get_secret("BITIO_PASSWORD")}@{get_secret("BITIO_HOST")}'
                               f'/{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}')
@@ -24,84 +23,78 @@ class Engineer:
         return connection
 
 class Database(Streamable):
-    tables = {# MusicLeague data
-              'Leagues': {'keys': ['league_id'],
-                          'values': ['creator_id', 'date', 'league_name', 'extendable']},
-              'Players': {'keys': ['player_id'],
-                          'values': ['player_name', 'username', 'src', 'uri', 'followers', 'flagged', 'inactive']},
-              'Rounds': {'keys': ['league_id', 'round_id'],
-                         'values': ['round_name', 'creator_id', 'date', 'playlist_url', 'description', 'capture']},
-              'Songs': {'keys': ['league_id', 'song_id'],
-                        'values': ['round_id', 'submitter_id', 'track_uri']}, # comment
-              'Votes': {'keys': ['league_id', 'player_id', 'song_id'],
-                        'values': ['vote']}, # comment
-
-              'Playlists': {'keys': ['league_id', 'theme', 'player_id'],
-                            'values': ['uri', 'src', 'round_ids']},
-
-              # Spotify data
-              'Tracks': {'keys': ['uri'],
-                         'values': ['name', 'title', 'mix', 'artist_uri', 'album_uri', 'explicit', 'popularity',
-                                    'duration', 'key', 'mode', 'loudness', 'tempo',
-                                    'danceability', 'energy', 'liveness', 'valence', 'speechiness', 'acousticness', 'instrumentalness',
-                                    'scrobbles', 'listeners', 'top_tags']},
-              'Artists': {'keys': ['uri'],
-                          'values': ['name', 'genres', 'popularity', 'followers', 'src']},
-              'Albums': {'keys': ['uri'],
-                         'values': ['name', 'genres', 'popularity', 'release_date', 'src']},
-              'Genres': {'keys': ['name'],
-                         'values': ['category']},
-              
-              # analytics
-              'Members': {'keys': ['league_id', 'player_id'],
-                          'values': ['x', 'y', 'wins', 'dfc', 'likes_id', 'liked_id']},
-              'Pulse': {'keys': ['league_id', 'p1_id', 'p2_id'],
-                        'values': ['distance']},
-              'Results': {'keys': ['league_id', 'song_id'],
-                          'values': ['people', 'votes', 'closed', 'discovery', 'points']},
-              'Rankings': {'keys': ['league_id', 'round_id', 'player_id'],
-                           'values': ['points', 'score']},
-              'Boards': {'keys': ['league_id', 'round_id', 'player_id'],
-                         'values': ['place']},
-              'Competitions': {'keys': ['league_id', 'competition'],
-                               'values': ['start', 'finish']},
-              'Analyses': {'keys': ['league_id'],
-                           'values': ['date', 'round_ids', 'version']},
-              
-              # settings
-              'Weights': {'keys': ['parameter', 'version'],
-                          'values': ['value']},
-              }
-
     god_id = '777'
 
     def __init__(self, streamer=None):
         super().__init__()
-        self.db = f'"{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}"'
+        self.db = f'{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}'
         
         self.add_streamer(streamer)
         
-        self.keys = {table_name: self.tables[table_name]['keys'] for table_name in self.tables}
-        self.values = {table_name: self.tables[table_name]['values'] for table_name in self.tables}
-        self.columns = {table_name: self.tables[table_name]['keys'] + self.tables[table_name]['values'] for table_name in self.tables}
- 
         self.streamer.print(f'Connecting to database {self.db}...')
 
         engineer = Engineer()
         self.connection = engineer.connect()
         self.streamer.print(f'\t...success!')
+
+        self.schema = self.get_schema()
           
     def table_name(self, table_name:str) -> str:
-        full_table_name = f'{self.db}."{table_name.lower()}"'
+        full_table_name = f'"{self.db}"."{table_name.lower()}"'
 
         return full_table_name
 
     def read_sql(self, sql, **kwargs):
         return read_sql(sql, self.connection, **kwargs)
 
+    def get_schema(self):
+        sql = (f'SELECT sc.table_name, sc.column_name, kc.constraint_name, '
+               f'(CASE WHEN tc.constraint_type IN ({self.needs_quotes("PRIMARY KEY")}, '
+               f'{self.needs_quotes("FOREIGN KEY")}) THEN tc.constraint_type '
+               f'WHEN tc.constraint_type IS NULL THEN {self.needs_quotes("VALUE")} '
+               f'ELSE NULL END) AS column_type '
+               f'FROM information_schema.columns AS sc '
+               f'LEFT JOIN information_schema.key_column_usage AS kc '
+               f'ON sc.table_name = kc.table_name '
+               f'AND sc.column_name = kc.column_name '
+               f'AND sc.table_schema = kc.table_schema '
+               f'LEFT JOIN information_schema.table_constraints AS tc '
+               f'ON sc.table_name = tc.table_name '
+               f'AND sc.table_schema = tc.table_schema '
+               f'AND kc.constraint_name = tc.constraint_name '
+               f'WHERE sc.table_schema = {self.needs_quotes(self.db)} '
+               f'ORDER BY '
+               f'sc.table_name, '
+               f'tc.constraint_type DESC NULLS LAST; '
+               )
+
+        schema = self.read_sql(sql)
+
+        return schema
+
+    def get_keys(self, table_name):
+        q = '(column_type == "PRIMARY KEY") & (table_name == @table_name.lower())'
+        keys = self.schema.query(q)['column_name'].to_list()
+
+        return keys
+
+    def get_values(self, table_name, match_cols=None):
+        q = '(column_type != "PRIMARY KEY") & (table_name == @table_name.lower())'
+        if len(match_cols):
+            q += ' & (column_name in @match_cols)'
+        values = self.schema.drop_duplicates(['table_name', 'column_name'])\
+            .query(q)['column_name'].to_list()
+
+        return values
+
+    def get_columns(self, table_name):
+        q = 'table_name == @table_name.lower()'
+        columns = self.schema.drop_duplicates(['table_name', 'column_name'])\
+            .query(q)['column_name'].to_list()
+        return columns
+
     def get_table(self, table_name, columns=None, league_id=None, order_by=None, drop_league=False):
         # get values from database
-
         if order_by and order_by.get('other'):
             other_table = order_by['other']
             m_ = 'm.'
@@ -122,10 +115,6 @@ class Database(Streamable):
             # return only specific rows, like finding keys
             cols = ', '.join(f'{m_}{col}' for col in columns)
 
-        # check if league specific
-        ##if league is not None:
-        ##    # return only league values based on title
-        ##    wheres = f' WHERE {m_}league = {self.needs_quotes(league)}'
         if league_id is not None:
             # return only league values based on ID
             wheres = f' WHERE {m_}league_id = {self.needs_quotes(league_id)}'
@@ -233,19 +222,6 @@ class Database(Streamable):
        
         return df_updates, df_inserts
 
-    def get_keys(self, table_name):
-        keys = self.keys[table_name]
-
-        return keys
-
-    def get_values(self, table_name, match=None):
-        values = self.values[table_name]
-
-        if len(match):
-            values = [v for v in values if v in match]
-
-        return values
-
     def execute_sql(self, sql):
         if len(sql):
             self.connection.execute(sql)
@@ -258,7 +234,7 @@ class Database(Streamable):
 
             # only store columns that have values, so as to not overwrite with NA
             # retain key columns that have NA values, such as Votes table
-            value_columns = self.get_values(table_name, match=df.columns)
+            value_columns = self.get_values(table_name, match_cols=df.columns)
             df_store = df.drop(columns=df[value_columns].columns[df[value_columns].isna().all()])
             
             # get current league if not upserting Leagues or table that doesn't have league as a key
@@ -337,10 +313,6 @@ class Database(Streamable):
             if song_id not in existing_song_ids.values][0:n_retrieve]
         return next_song_ids
 
-    def store_columns(self, table_name):
-        columns = self.columns[table_name]
-        return columns
-
     def get_leagues(self):
         # get league IDs
         leagues_df = self.get_table('Leagues', order_by={'column': 'date', 'sort': 'ASC'})
@@ -348,7 +320,7 @@ class Database(Streamable):
 
     def store_leagues(self, leagues_df):
         # store league names
-        df = leagues_df.reindex(columns=self.store_columns('Leagues'))
+        df = leagues_df.reindex(columns=self.get_columns('Leagues'))
         self.upsert_table('Leagues', df)
 
     def get_league_creator(self, league_id):
@@ -402,13 +374,13 @@ class Database(Streamable):
         return rounds_df 
 
     def store_rounds(self, rounds_df, league_id):
-        df = rounds_df.reindex(columns=self.store_columns('Rounds'))
+        df = rounds_df.reindex(columns=self.get_columns('Rounds'))
         df['league_id'] = league_id
 
         self.upsert_table('Rounds', df)
 
     def store_songs(self, songs_df, league_id):
-        df = songs_df.reindex(columns=self.store_columns('Songs'))
+        df = songs_df.reindex(columns=self.get_columns('Songs'))
         df['league_id'] = league_id
         self.upsert_table('Songs', df)
 
@@ -416,13 +388,8 @@ class Database(Streamable):
         songs_df = self.get_table('Songs', league_id=league_id, drop_league=True)
         return songs_df
 
-    ##def get_song_urls(self):
-    ##    # get just the URLS for all songs
-    ##    songs_df = self.get_table('Songs', columns=['track_url'])
-    ##    return songs_df
-
     def store_votes(self, votes_df, league_id):
-        df = votes_df.reindex(columns=self.store_columns('Votes'))
+        df = votes_df.reindex(columns=self.get_columns('Votes'))
         df['league_id'] = league_id
         self.upsert_table('Votes', df)
 
@@ -431,7 +398,7 @@ class Database(Streamable):
         return votes_df
         
     def store_members(self, members_df, league_id):
-        df = members_df.reindex(columns=self.store_columns('Members'))
+        df = members_df.reindex(columns=self.get_columns('Members'))
         df['league_id'] = league_id
         self.upsert_table('Members', df)
 
@@ -440,7 +407,7 @@ class Database(Streamable):
         return songs_df
 
     def store_results(self, results_df, league_id):
-        df = results_df.reindex(columns=self.store_columns('Results'))
+        df = results_df.reindex(columns=self.get_columns('Results'))
         df['league_id'] = league_id
         self.upsert_table('Results', df)
 
@@ -449,7 +416,7 @@ class Database(Streamable):
         return members_df
 
     def store_pulse(self, pulse_df, league_id):
-        df = pulse_df.reindex(columns=self.store_columns('Pulse'))
+        df = pulse_df.reindex(columns=self.get_columns('Pulse'))
         df['league_id'] = league_id
         self.upsert_table('Pulse', df)
 
@@ -458,7 +425,7 @@ class Database(Streamable):
         return pulse_df
 
     def store_players(self, players_df, league_id=None):
-        df = players_df.reindex(columns=self.store_columns('Players'))
+        df = players_df.reindex(columns=self.get_columns('Players'))
         self.upsert_table('Players', df)
 
         if league_id:
@@ -499,8 +466,6 @@ class Database(Streamable):
                    )
 
             player_ids = self.read_sql(sql)['player_id'].to_list()
-
-            ##player_ids = self.get_table('Players', order_by='player_name')['player_id'].to_list()
 
         return player_ids
 
@@ -550,7 +515,7 @@ class Database(Streamable):
 
     # Spotify functions
     def store_spotify(self, df, table_name):
-        df = df.reindex(columns=self.store_columns(table_name))
+        df = df.reindex(columns=self.get_columns(table_name))
         self.upsert_table(table_name, df)
 
     def store_tracks(self, tracks_df):
@@ -674,7 +639,7 @@ class Database(Streamable):
         return rounds_df, playlists_df
 
     def store_playlists(self, playlists_df, theme=None):
-        df = playlists_df.reindex(columns=self.store_columns('Playlists'))
+        df = playlists_df.reindex(columns=self.get_columns('Playlists'))
         if theme:
             df['theme'] = theme
         if theme in ['complete', 'best']:
@@ -816,7 +781,7 @@ class Database(Streamable):
         return optimized
 
     def store_rankings(self, rankings_df, league_id):
-        df = rankings_df.reset_index().reindex(columns=self.store_columns('Rankings'))
+        df = rankings_df.reset_index().reindex(columns=self.get_columns('Rankings'))
         df['league_id'] = league_id
         self.upsert_table('Rankings', df)
 
@@ -838,7 +803,7 @@ class Database(Streamable):
         df = boards_df.reset_index().melt(id_vars='player_id',
                                           value_vars=boards_df.columns,
                                           var_name='round_id',
-                                          value_name='place').dropna(subset=['place']).reindex(columns=self.store_columns('Boards'))
+                                          value_name='place').dropna(subset=['place']).reindex(columns=self.get_columns('Boards'))
         df['league_id'] = league_id
 
         self.upsert_table('Boards', df)
@@ -1136,42 +1101,47 @@ class Database(Streamable):
                f'(r.dirtiest = 1) as dirtiest, (z.generous > 0.5) AS generous, (n.clean = 0) AS clean, '
                f'j.win_rate, k.play_rate '
                
+               # most mainstream songs
                f'FROM '
                f'(SELECT v.popular FROM (SELECT s.submitter_id, RANK() OVER '
                f'(ORDER BY AVG(t.popularity::real/100) DESC) AS popular '
                f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' #track_url
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' 
                f'WHERE s.league_id = {self.needs_quotes(league_id)} ' 
                f'GROUP BY s.submitter_id) AS v '
                f'WHERE v.submitter_id = {self.needs_quotes(player_id)}) as p '
 
+               # least played songs
                f'CROSS JOIN'
                f'(SELECT u.discoverer FROM (SELECT s.submitter_id, RANK() OVER '
                f'(ORDER BY AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) DESC) AS discoverer '
                f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' #track_url
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' 
                f'WHERE s.league_id = {self.needs_quotes(league_id)} ' 
                f'GROUP BY s.submitter_id) AS u '
                f'WHERE u.submitter_id = {self.needs_quotes(player_id)}) as q '
 
+               # most explicit songs
                f'CROSS JOIN '
                f'(SELECT w.dirtiest FROM (SELECT s.submitter_id, RANK() OVER '
                f'(ORDER BY AVG(CASE WHEN t.explicit THEN 1 ELSE 0 END) DESC) AS dirtiest '
                f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' #track_url
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri '
                f'WHERE s.league_id = {self.needs_quotes(league_id)} '
                f'GROUP BY s.submitter_id) AS w '
                f'WHERE w.submitter_id = {self.needs_quotes(player_id)}) AS r '
 
+               # least explicit songs
                f'CROSS JOIN '
                f'(SELECT w.clean FROM (SELECT s.submitter_id, '
                f'SUM(CASE WHEN t.explicit THEN 1 ELSE 0 END) AS clean '
                f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' #track_url
+               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri '
                f'WHERE s.league_id = {self.needs_quotes(league_id)} '
                f'GROUP BY s.submitter_id) AS w '
                f'WHERE w.submitter_id = {self.needs_quotes(player_id)}) AS n '
 
+               # how often won
                f'CROSS JOIN '
                f'(SELECT q.wins / p.total AS win_rate FROM '
                f'(SELECT COUNT(round_id)::real AS wins FROM {self.table_name("Boards")} '
@@ -1182,6 +1152,7 @@ class Database(Streamable):
                f'WHERE (player_id = {self.needs_quotes(player_id)}) '
                f'AND (league_id = {self.needs_quotes(league_id)})) AS p) AS j '
 
+               # how often played
                f'CROSS JOIN '
                f'(SELECT q.plays / p.total AS play_rate FROM '
                f'(SELECT COUNT(round_id)::real AS plays FROM {self.table_name("Boards")} '
@@ -1193,6 +1164,7 @@ class Database(Streamable):
                f') '
                f'AS p) AS k '
 
+               # how many votes given out
                f'CROSS JOIN '
                f'(SELECT p.player_id, AVG(CASE WHEN p.votes/q.songs::real > r.avg_generosity THEN 1 ELSE 0 END) AS generous '
                f'FROM (SELECT v.player_id, count(v.player_id) AS votes, s.round_id, s.league_id '
