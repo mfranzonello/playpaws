@@ -109,13 +109,15 @@ class Plotter(Streamable):
             name = [self.get_name(n_id, table, clean, full, display) for n_id in name_id]
 
         else:
-            if (len(name_id) == 0) or (name_id == placeholder):
+            if (not name_id) or (isinstance(name_id, str) and ((len(name_id) == 0) or (name_id == placeholder))):
                 name = name_id
 
             else:
                 name = {'player': self.database.get_player_name,
                         'round': self.database.get_round_name,
-                        'league': self.database.get_league_name}[table](name_id)
+                        'league': self.database.get_league_name,
+                        'competition': self.database.get_competition_name,
+                        }[table](name_id)
 
                 if clean:
                     name = self.texter.clean_text(name)
@@ -132,13 +134,16 @@ class Plotter(Streamable):
         return name
 
     def get_player_name(self, player_id, full=False, display=False):
-        return self.get_name(player_id, 'player', full=full, display=display)
+        return self.get_name(player_id, table='player', full=full, display=display)
 
     def get_round_title(self, round_id, clean=False):
-        return self.get_name(round_id, 'round', clean=clean)
+        return self.get_name(round_id, table='round', clean=clean)
 
     def get_league_title(self, league_id, clean=False, feel=False):
-        return self.get_name(league_id, 'league', clean=clean, feel=feel, placeholder=self.blank_league)    
+        return self.get_name(league_id, table='league', clean=clean, feel=feel, placeholder=self.blank_league)    
+
+    def get_competition_title(self, competition_id):
+        return self.get_name(competition_id, table='competition')    
 
     def plot_results(self):
         player_ids = self.database.get_player_ids()
@@ -198,7 +203,7 @@ class Plotter(Streamable):
                                                        self.database.get_competition_results, league_title,
                                                        competition_id=None)
                     competition_id = self.database.get_current_competition(league_title)
-                    competition_title = self.database.get_competition_name(competition_id)
+                    competition_title = self.get_competition_title(competition_id)
                     competition_wins = self.prepare_dfs(('competitions_wins', league_title, self.view_player),
                                                        self.database.get_competition_wins, league_title,
                                                        self.view_player)
@@ -388,7 +393,7 @@ class Plotter(Streamable):
         parameters['leagues'] = [self.get_league_title(l, feel=True) for l in self.view_league_titles if l != league_title]
         parameters['other_leagues'] = (league_title is not None)
         
-        parameters['competition_wins'] = competition_wins #competitions_df
+        parameters['competition_wins'] = self.get_competition_title(competition_wins) ##competitions_df
 
         self.streamer.player_caption.markdown(self.library.get_column(parameters))
 

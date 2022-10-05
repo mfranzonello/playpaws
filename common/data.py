@@ -455,6 +455,9 @@ class Database(Streamable):
     def get_league_name(self, league_id):  
         return self.get_name(league_id, 'league')
 
+    def get_competition_name(self, competition_id):
+        return self.get_name(competition_id, 'competition')
+
     def get_player_ids(self, league_id=None):
         if league_id:
             members_df = self.get_members(league_id)
@@ -1223,15 +1226,6 @@ class Database(Streamable):
             badge = None
 
         return badge
-
-    def get_competition_name(self, competition_id):
-        sql = (f'SELECT competition_name FROM {self.table_name("Competitions")} '
-               f'WHERE competition_id = {self.needs_quotes(competition_id)};'
-               )
-
-        competition_name = self.read_sql(sql).squeeze()
-
-        return competition_name
 
     def get_competitions(self, league_id):
         sql = (f'SELECT c.competition_id, c.competition_name, d.round_id '
