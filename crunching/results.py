@@ -79,7 +79,7 @@ class Songs(Results):
             counted = 1
 
         self.df['votes'] = self.df.merge(votes.df.groupby('song_id').sum()[['vote']], on='song_id', how='left')['vote']
-        self.df['people'] = self.df.merge(votes.df.groupby('song_id').count()[['player_id']].reset_index(), on='song_id', how='left')['player_id']
+        self.df['people'] = self.df.merge(votes.df[votes.df['vote'].gt(0)].groupby('song_id').count()[['player_id']].reset_index(), on='song_id', how='left')['player_id']
         self.df['closed'] = self.df['people'] == self.df.merge(rounds.df, on='round_id')['player_count']-1
 
         points_columns = ['votes', 'people', 'closed']

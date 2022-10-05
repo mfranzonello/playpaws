@@ -311,7 +311,7 @@ class Spotter(Streamable):
         # trim to best songs
         rounds_db = rounds_db.set_index(['league_id', 'round_id'])[\
             rounds_db.set_index(['league_id', 'round_id'])['points'] >= rounds_db.groupby(['league_id', 'round_id'])[['points']].quantile(1-quantile).reindex_like(\
-            rounds_db.set_index(['league_id', 'round_id']))['points']].dropna().reset_index().sort_values(['date', 'points'], ascending=[True, False])
+            rounds_db.set_index(['league_id', 'round_id']))['points']].dropna().reset_index().sort_values(['created_date', 'points'], ascending=[True, False])
 
         for league_id in rounds_db['league_id'].unique():
         
@@ -344,7 +344,7 @@ class Spotter(Streamable):
     def update_favorite_playlists(self):
         rounds_db, playlists_db = self.database.get_theme_playlists(theme='favorite')
 
-        rounds_db = rounds_db.sort_values(['date', 'vote'], ascending=[True, False])
+        rounds_db = rounds_db.sort_values(['created_date', 'vote'], ascending=[True, False])
 
         for league_id in rounds_db['league_id'].unique():
             for player_id in rounds_db.query('(league_id == @league_id)')['player_id'].unique():

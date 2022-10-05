@@ -142,27 +142,34 @@ class Stripper(Streamable):
             rounds = dfs['rounds'].rename(columns={'ID': 'round_id', 'Name': 'round_name', 
                                                    'Description': 'description', 'Playlist URL': 'playlist_url'})
         
-            rounds.loc[:, 'date'] = rounds.apply(lambda x: parse(x['Created']).date(),
+            rounds.loc[:, 'created_date'] = rounds.apply(lambda x: parse(x['Created']).date(),
                                                  axis=1)
         
             # clean up songs
             songs = dfs['submissions'].rename(columns={'Submitter ID': 'player_id', 'Round ID': 'round_id',
-                                                       'Spotify URI': 'track_uri'})        
+                                                       'Spotify URI': 'track_uri', 'Comment': 'comment',
+                                                       'Created': 'Created_s'})        
             songs.loc[:, 'song_id'] = songs.index
             songs = songs.merge(players, on=['player_id']).merge(rounds, on=['round_id']).rename(columns={'player_id': 'submitter_id'})
+            songs.loc[:, 'created_date'] = songs.apply(lambda x: parse(x['Created_s']).date(),
+                                        axis=1)
 
             # clean up votes
             votes = dfs['votes'].rename(columns={'Voter ID': 'player_id', 'Round ID': 'round_id', 'Points Assigned': 'vote',
-                                                 'Spotify URI': 'track_uri'})
-            votes = votes.merge(players, on=['player_id']).merge(rounds, on=['round_id']).merge(songs, on=['round_id', 'track_uri'])
+                                                 'Spotify URI': 'track_uri', 'Comment': 'comment',
+                                                 'Created': 'Created_v'})
+            votes = votes.merge(players, on=['player_id']).merge(rounds, on=['round_id']).merge(songs.drop(columns=['comment']), on=['round_id', 'track_uri'])
+            votes.loc[:, 'created_date'] = votes.apply(lambda x: parse(x['Created_v']).date(),
+                            axis=1)
 
             # drop columns
             players = players[['player_id', 'player_name']]
-            rounds = rounds[['round_id', 'round_name', 'description', 'playlist_url', 'date']]
-            songs = songs[['round_id', 'song_id', 'submitter_id', 'track_uri']]
-            votes = votes[votes['vote']!=0][['player_id', 'song_id', 'vote']]
+            rounds = rounds[['round_id', 'round_name', 'description', 'playlist_url', 'created_date']]
+            songs = songs[['round_id', 'song_id', 'submitter_id', 'track_uri', 'comment', 'created_date']]
+            votes = votes[['player_id', 'song_id', 'vote', 'comment', 'created_date']] ##[votes['vote']!=0]
+            tracks = songs[['track_uri']].rename(columns={'track_uri': 'uri'}).drop_duplicates()
             
-            return players, rounds, songs, votes
+            return players, rounds, songs, votes, tracks
 
         else:
             self.streamer.print('\t...league results are empty')
@@ -173,7 +180,7 @@ class Stripper(Streamable):
                             [m['user']['id'] for m in l['members'] if m['isAdmin']][0],
                             parse(l['created']),
                             l['name']] for l in leagues_jason],
-                        columns=['league_id', 'creator_id', 'date', 'league_name'])
+                        columns=['league_id', 'creator_id', 'created_date', 'league_name'])
 
         return leagues_df
 

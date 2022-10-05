@@ -315,7 +315,7 @@ class Database(Streamable):
 
     def get_leagues(self):
         # get league IDs
-        leagues_df = self.get_table('Leagues', order_by={'column': 'date', 'sort': 'ASC'})
+        leagues_df = self.get_table('Leagues', order_by={'column': 'created_date', 'sort': 'ASC'})
         return leagues_df
 
     def store_leagues(self, leagues_df):
@@ -361,7 +361,7 @@ class Database(Streamable):
         return check
 
     def get_rounds(self, league_id):
-        rounds_df = self.get_table('Rounds', league_id=league_id, order_by={'column': 'date', 'sort': 'ASC'}, drop_league=True)
+        rounds_df = self.get_table('Rounds', league_id=league_id, order_by={'column': 'created_date', 'sort': 'ASC'}, drop_league=True)
         return rounds_df
 
 
@@ -494,12 +494,12 @@ class Database(Streamable):
         return league_ids
 
     def get_weights(self, version):
-        sql = (f'SELECT DISTINCT ON(parameter) version, parameter, value '
+        sql = (f'SELECT DISTINCT ON(parameter) version, parameter, weight_value '
                f'FROM {self.table_name("Weights")} WHERE version >= FLOOR({version}::real) '
                f'ORDER BY parameter, version DESC;'
                )
 
-        weights = self.read_sql(sql, index_col='parameter')['value']
+        weights = self.read_sql(sql, index_col='parameter')['weight_value']
         weights = weights.apply(self.clean_up_weight)
         return weights
 
@@ -596,14 +596,14 @@ class Database(Streamable):
             # all songs
             sql = (f'SELECT league_id, round_id, playlist_url AS url FROM {self.table_name("Rounds")} '
                    f'WHERE playlist_url IS NOT NULL '
-                   f'ORDER BY date;'
+                   f'ORDER BY created_date;'
                    )
 
             wheres = f'theme = {self.needs_quotes(theme)}'
             
         elif theme == 'best':
             # based on performance
-            sql = (f'SELECT s.league_id, s.round_id, t.uri, r.points, d.date FROM {self.table_name("Results")} as r ' 
+            sql = (f'SELECT s.league_id, s.round_id, t.uri, r.points, d.created_date FROM {self.table_name("Results")} as r ' 
                    f'LEFT JOIN {self.table_name("Songs")} as s ON (r.league_id = s.league_id) AND (r.song_id = s.song_id) '
                    f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_uri = t.uri '
                    f'LEFT JOIN {self.table_name("Rounds")} as d ON (s.league_id = d.league_id) AND (s.round_id = d.round_id) '
@@ -614,14 +614,14 @@ class Database(Streamable):
 
         elif theme == 'favorite':
             # player favorite
-            sql = (f'SELECT * FROM (SELECT s.league_id, s.round_id, t.uri, v.player_id, v.vote, d.date '
+            sql = (f'SELECT * FROM (SELECT s.league_id, s.round_id, t.uri, v.player_id, v.vote, d.created_date '
                    f'FROM {self.table_name("Votes")} as v '
                    f'LEFT JOIN {self.table_name("Songs")} as s ON (v.league_id = s.league_id) AND (v.song_id = s.song_id) '
-                   f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_uri = t.uri ' #track_url, url
+                   f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_uri = t.uri '
                    f'LEFT JOIN {self.table_name("Rounds")} AS d ON (s.league_id = d.league_id) AND (s.round_id = d.round_id) '
-                   f'UNION SELECT s.league_id, s.round_id, t.uri, s.submitter_id, -1 as vote,  d.date ' 
+                   f'UNION SELECT s.league_id, s.round_id, t.uri, s.submitter_id, -1 as vote,  d.created_date ' 
                    f'FROM {self.table_name("Songs")} as s '
-                   f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_uri = t.uri ' #track_url, url
+                   f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_uri = t.uri '
                    f'LEFT JOIN {self.table_name("Rounds")} AS d ON (s.league_id = d.league_id) AND (s.round_id = d.round_id)) AS q '
                    f'WHERE q.player_id IS NOT NULL;'
                    )
@@ -743,7 +743,7 @@ class Database(Streamable):
     def store_analysis(self, league_id, version, round_ids=None, optimized=None): 
         today = date.today()
         d = {'league_id': [league_id],
-             'date': [today],
+             'created_date': [today],
              'version': [version]}
 
         d['round_ids'] = [round_ids]
@@ -758,7 +758,7 @@ class Database(Streamable):
     def get_analyses(self):
         analyses_df = self.get_table('Analyses', order_by={'other': 'Leagues',
                                                            'on': ['league_id'],
-                                                           'column': 'date',
+                                                           'column': 'created_date',
                                                            'sort': 'ASC'})
         return analyses_df
     
@@ -798,7 +798,7 @@ class Database(Streamable):
 
     def get_round_order(self, league_id):
         reindexer = self.get_table('Rounds', columns=['round_id'], league_id=league_id,
-                                   order_by={'column': 'date', 'sort': 'ASC'})['round_id']
+                                   order_by={'column': 'created_date', 'sort': 'ASC'})['round_id']
 
         return reindexer
 
@@ -815,7 +815,7 @@ class Database(Streamable):
         reindexer = self.get_round_order(league_id)
         boards_df = self.get_table('Boards', league_id=league_id, order_by={'other': 'Rounds', 
                                                                             'on': ['league_id', 'round_id'],
-                                                                            'column': 'date',
+                                                                            'column': 'created_date',
                                                                             'sort': 'ASC'},
                                    drop_league=True)\
             .pivot(index='player_id', columns='round_id', values='place')
@@ -873,7 +873,7 @@ class Database(Streamable):
                    f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' #track_url
                    f'LEFT JOIN {self.table_name("Rounds")} AS r ON s.round_id = r.round_id '
                    f'WHERE s.league_id = {self.needs_quotes(league_id)} '
-                   f'GROUP BY s.round_id, r.date ORDER BY r.date;'
+                   f'GROUP BY s.round_id, r.date ORDER BY r.created_date;'
                    )
 
         features_df = self.read_sql(sql)
@@ -1000,7 +1000,7 @@ class Database(Streamable):
                f'LEFT JOIN {self.table_name("Rounds")} AS d '
                f'ON r.league_id = d.league_id AND c.round_id = d.round_id '
                f'WHERE l.league_id = {self.needs_quotes(league_id)} '
-               f'ORDER BY l.date ASC, d.date ASC, r.points DESC;'
+               f'ORDER BY l.date ASC, d.created_date ASC, r.points DESC;'
                )
 
         results_df = self.read_sql(sql) ##.drop_duplicates(subset='song_id')
@@ -1009,7 +1009,7 @@ class Database(Streamable):
 
     def get_round_descriptions(self, league_id):
         descriptions_df = self.get_table('Rounds', columns=['round_id', 'description'],
-                                         league_id=league_id, order_by={'column': 'date',
+                                         league_id=league_id, order_by={'column': 'created_date',
                                                                         'sort': 'ASC'})
 
         return descriptions_df
@@ -1021,8 +1021,8 @@ class Database(Streamable):
                f'ON (r.league_id = b.league_id) AND (r.round_id = b.round_id) '
                f'WHERE (r.league_id = {self.needs_quotes(league_id)}) '
                f'AND ((b.place < 2) OR (b.place IS NULL)) ' ## can this be MIN without GROUP BY?
-               f'GROUP BY r.round_id, r.creator_id, r.date '
-               f'ORDER BY r.date;'
+               f'GROUP BY r.round_id, r.creator_id, r.created_date '
+               f'ORDER BY r.created_date;'
                )
         
         creators_winners_df = self.read_sql(sql)
@@ -1106,6 +1106,7 @@ class Database(Streamable):
         ## Note that Discoverer, Dirtiest, etc should be based on MAX/MIN and not LIMIT 1
         sql = (f'SELECT (p.popular = 1) AS popular, (q.discoverer = 1) AS discoverer, '
                f'(r.dirtiest = 1) as dirtiest, (z.generous > 0.5) AS generous, (n.clean = 0) AS clean, '
+               ##f'(c.chattiest = 1) AS chattiest, '
                f'j.win_rate, k.play_rate '
                
                # most mainstream songs
@@ -1127,6 +1128,16 @@ class Database(Streamable):
                f'WHERE s.league_id = {self.needs_quotes(league_id)} ' 
                f'GROUP BY s.submitter_id) AS u '
                f'WHERE u.submitter_id = {self.needs_quotes(player_id)}) as q '
+
+               ### most comments
+               ##f'CROSS JOIN'
+               ##f'(SELECT u.discoverer FROM (SELECT s.submitter_id, RANK() OVER '
+               ##f'(ORDER BY COUNT(comment) DESC) AS chattiest '
+               ##f'FROM {self.table_name("Songs")} AS s '
+               ##f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' 
+               ##f'WHERE s.league_id = {self.needs_quotes(league_id)} ' 
+               ##f'GROUP BY s.submitter_id) AS u '
+               ##f'WHERE u.submitter_id = {self.needs_quotes(player_id)}) as q '
 
                # most explicit songs
                f'CROSS JOIN '
@@ -1248,7 +1259,7 @@ class Database(Streamable):
                f'ON d.league_id = c.league_id '
                f'AND c.round_ids ? d.round_id '
                f'WHERE c.league_id = {self.needs_quotes(league_id)} '
-               f'ORDER BY d.date;'
+               f'ORDER BY d.created_date;'
                )
 
         competitions_df = self.read_sql(sql)

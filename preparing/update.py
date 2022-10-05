@@ -40,7 +40,7 @@ class Updater:
 
         if results is not None:
 
-            players, rounds, songs, votes = results
+            players, rounds, songs, votes, tracks = results
 
             # update song_ids
             song_ids = self.database.get_song_ids(league_id, songs)
@@ -48,9 +48,10 @@ class Updater:
             songs = songs.merge(song_ids, on='song_id').drop(columns=['song_id']).rename(columns={'new_song_id': 'song_id'})
             votes = votes.merge(song_ids, on='song_id').drop(columns=['song_id']).rename(columns={'new_song_id': 'song_id'})
 
-            # store data
+            # store data in order
             self.database.store_players(players, league_id=league_id)
             self.database.store_rounds(rounds, league_id)
+            self.database.store_tracks(tracks)
             self.database.store_songs(songs, league_id)
             self.database.store_votes(votes, league_id)
 
