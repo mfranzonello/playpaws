@@ -196,8 +196,9 @@ class Plotter(Streamable):
                                                  self.database.get_awards, league_title, self.view_player)
                     competitions_df = self.prepare_dfs(('competitions_df', league_title, self.view_player),
                                                        self.database.get_competition_results, league_title,
-                                                       competition_title=None)
-                    competition_title = self.database.get_current_competition(league_title)
+                                                       competition_id=None)
+                    competition_id = self.database.get_current_competition(league_title)
+                    competition_title = self.database.get_competition_name(competition_id)
                     competition_wins = self.prepare_dfs(('competitions_wins', league_title, self.view_player),
                                                        self.database.get_competition_wins, league_title,
                                                        self.view_player)
@@ -697,12 +698,12 @@ class Plotter(Streamable):
         return x_plot, y_plot
 
     def add_backgrounds(self, ax, round_titles, competitions_df, scaling=[1, 1], x_offset=0):
-        competition_titles = competitions_df['competition'].unique().tolist()
-        cgb = competitions_df.groupby('competition')['round_id']
+        competition_titles = competitions_df['competition_name'].unique().tolist()
+        cgb = competitions_df.groupby('competition_name')['round_id']
         competition_colors = self.paintbrush.get_scatter_colors(self.separate_colors)
         
         y0, y1 = ax.get_ylim()
-        for c_round in competitions_df['competition'].unique():
+        for c_round in competitions_df['competition_name'].unique():
             c_first = cgb.first()[c_round]
             c_last = cgb.last()[c_round]
             

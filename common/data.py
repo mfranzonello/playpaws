@@ -1085,16 +1085,6 @@ class Database(Streamable):
 
         return player_wins_df
 
-    def get_competition_wins(self, league_id, player_id):
-        competition_titles = self.get_competitions(league_id)['competition'].unique()
-        competition_wins = [competition for competition in competition_titles \
-            if self.get_badge(league_id, player_id, competition_title=competition) == 1]
-
-        if not len(competition_wins):
-            competition_wins = None
-
-        return competition_wins
-
     def get_awards(self, league_id, player_id, base=1000):
         ## Note that Discoverer, Dirtiest, etc should be based on MAX/MIN and not LIMIT 1
         sql = (f'SELECT (p.popular = 1) AS popular, (q.discoverer = 1) AS discoverer, '
@@ -1200,8 +1190,8 @@ class Database(Streamable):
 
         return awards_df
 
-    def get_badge(self, league_id, player_id, competition=None, competition_title=None):
-        if (not competition) and (not competition_title):
+    def get_badge(self, league_id, player_id, competition=None, competition_id=None):
+        if (not competition) and (not competition_id):
             sql = (f'SELECT q.badge FROM '
                    f'(SELECT player_id, RANK() OVER (ORDER BY wins DESC) AS badge '
                    f'FROM {self.table_name("Members")} '
@@ -1209,24 +1199,19 @@ class Database(Streamable):
                    f'WHERE q.player_id = {self.needs_quotes(player_id)};'
                    )
         else:
-            if not competition_title:
-                competition_title = self.get_current_competition(league_id)
+            if not competition_id:
+                competition_id = self.get_current_competition(league_id)
             
-            if competition_title:
+            if competition_id:
                 sql = (f'SELECT q.badge FROM (SELECT r.player_id, RANK() '
                        f'OVER(ORDER BY SUM(r.points) DESC) AS badge '
                        f'FROM {self.table_name("Rounds")} AS d '
                        f'RIGHT JOIN {self.table_name("Competitions")} AS c '
-                       f'ON d.league_id = c.league_id AND d.date >= c.start '
-                       f'AND d.date <= (CASE WHEN c.finish IS NOT NULL THEN c.finish ELSE '
-                       f'(SELECT MAX(date) FROM {self.table_name("Rounds")} '
-                       f'WHERE c.league_id = {self.needs_quotes(league_id)} '
-                       f') '
-                       f'END) '
+                       f'ON d.league_id = c.league_id AND c.round_ids ? d.round_id '
                        f'RIGHT JOIN {self.table_name("Rankings")} AS r '
                        f'ON d.league_id = r.league_id AND d.round_id = r.round_id '
                        f'WHERE c.league_id = {self.needs_quotes(league_id)} '
-                       f'AND c.competition = {self.needs_quotes(competition_title)} '
+                       f'AND c.competition_id = {self.needs_quotes(competition_id)} '
                        f'GROUP BY r.player_id) AS q WHERE q.player_id = {self.needs_quotes(player_id)};'
                        )
             else:
@@ -1239,16 +1224,21 @@ class Database(Streamable):
 
         return badge
 
+    def get_competition_name(self, competition_id):
+        sql = (f'SELECT competition_name FROM {self.table_name("Competitions")} '
+               f'WHERE competition_id = {self.needs_quotes(competition_id)};'
+               )
+
+        competition_name = self.read_sql(sql).squeeze()
+
+        return competition_name
+
     def get_competitions(self, league_id):
-        sql = (f'SELECT c.competition, d.round_id '
+        sql = (f'SELECT c.competition_id, c.competition_name, d.round_id '
                f'FROM {self.table_name("Rounds")} AS d '
                f'RIGHT JOIN {self.table_name("Competitions")} AS c '
                f'ON d.league_id = c.league_id '
-               f'AND d.date >= c.start AND d.date <= (CASE WHEN c.finish IS NOT NULL '
-               f'THEN c.finish ELSE (SELECT MAX(date) FROM {self.table_name("Rounds")} '
-               f'WHERE c.league_id = {self.needs_quotes(league_id)} '
-               f') '
-               f'END) '
+               f'AND c.round_ids ? d.round_id '
                f'WHERE c.league_id = {self.needs_quotes(league_id)} '
                f'ORDER BY d.date;'
                )
@@ -1258,39 +1248,35 @@ class Database(Streamable):
         return competitions_df
 
     def get_current_competition(self, league_id):
-        sql = (f'SELECT competition FROM {self.table_name("Competitions")} '
-               f'WHERE (start <= CURRENT_DATE) AND (finish >= CURRENT_DATE OR finish IS NULL) '
+        sql = (f'SELECT competition_id, competition_name FROM {self.table_name("Competitions")} '
+               f'WHERE finished = FALSE '
                f'AND (league_id = {self.needs_quotes(league_id)})'
                f'LIMIT 1;' )
 
-        competition_title = self.read_sql(sql)
+        competitions_df = self.read_sql(sql)
         
-        if len(competition_title):
-            competition_title = competition_title.squeeze()
+        if len(competitions_df):
+            competition_id = competitions_df['competition_id'].squeeze()
         else:
-            competition_title = None
+            competition_id = None
 
-        return competition_title
+        return competition_id
 
-    def get_competition_results(self, league_id, competition_title=None):
-        if competition_title is None:
+    def get_competition_results(self, league_id, competition_id=None):
+        if competition_id is None:
             # get current competition
-            competition_title = self.get_current_competition(league_id)
+            competition_id = self.get_current_competition(league_id)
 
-        if competition_title:
+        if competition_id:
             sql = (f'SELECT r.player_id, RANK() '
                    f'OVER(ORDER BY SUM(r.points) DESC) AS place '
                    f'FROM {self.table_name("Rounds")} AS d '
                    f'RIGHT JOIN {self.table_name("Competitions")} AS c '
-                   f'ON d.league_id = c.league_id AND d.date >= c.start '
-                   f'AND d.date <= (CASE WHEN c.finish IS NOT NULL THEN c.finish ELSE '
-                   f'(SELECT MAX(date) FROM {self.table_name("Rounds")} '
-                   f'WHERE c.league_id = {self.needs_quotes(league_id)} '
-                   f') END) '
+                   f'ON d.league_id = c.league_id AND c.round_ids ? d.round_id '
                    f'RIGHT JOIN {self.table_name("Rankings")} AS r '
                    f'ON d.league_id = r.league_id AND d.round_id = r.round_id '
                    f'WHERE c.league_id = {self.needs_quotes(league_id)} '
-                   f'AND c.competition = {self.needs_quotes(competition_title)} '
+                   f'AND c.competition_id = {self.needs_quotes(competition_id)} '
                    f'GROUP BY r.player_id;'
                    )
                
@@ -1300,6 +1286,16 @@ class Database(Streamable):
             results_df = None
 
         return results_df
+
+    def get_competition_wins(self, league_id, player_id):
+        competition_ids = self.get_competitions(league_id)['competition_id'].unique()
+        competition_wins = [competition_id for competition_id in competition_ids \
+            if self.get_badge(league_id, player_id, competition_id=competition_id) == 1]
+
+        if not len(competition_wins):
+            competition_wins = None
+
+        return competition_wins
 
     def get_hoarding(self, league_id):
         sql = (f'SELECT q.round_id, q.player_id, q.votes/p.total::real*n.player_ids/(n.player_ids-1) AS pct '
