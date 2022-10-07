@@ -31,6 +31,9 @@ class Updater:
 
             self.update_creators(league_id)
 
+        # update all competitions
+        self.update_competitions()
+
     def update_league(self, league_id):
         # get the zip file from each league
         data_zip = self.scraper.get_data_zip(league_id)
@@ -99,6 +102,11 @@ class Updater:
             creator_id = league_creator_id
         
         return creator_id, captured
+
+    def update_competitions(self):
+        # extend ongoing competitions
+        ## requires manual intervention to start or end a competition
+        self.database.update_competitions()
 
 class Extender:
     def __init__(self, database):

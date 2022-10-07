@@ -18,7 +18,7 @@ class Analyzer:
                 rounds_db = self.database.get_rounds(league_id)
 
                 round_ids = rounds_db['round_id'].to_list()
-                
+
                 if self.database.get_analyzed(league_id, round_ids, self.version):
                     print(f'Analysis for {league_title} already up to date')
 

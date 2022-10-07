@@ -773,13 +773,26 @@ class Database(Streamable):
         return analyses_df
     
     def get_analyzed(self, league_id, round_ids, version):
-        sql = (f'SELECT COUNT(*) FROM {self.table_name("analyses")} '
-               f'WHERE (league_id = {self.needs_quotes(league_id)}) '
-               f'AND (round_ids = {self.needs_quotes(round_ids)}) '
-               f'AND (version = {version}::real);'
+        sql = (f'WITH '
+
+               # sort round_ids
+               f'e AS ('
+               f'SELECT league_id, version, jsonb_array_elements(round_ids) AS elem '
+               f'FROM {self.table_name("analyses")} ORDER BY elem), '
+
+               f'el AS ('
+               f'SELECT league_id, version, jsonb_agg(elem ORDER BY elem) AS round_ids '
+               f'FROM e GROUP BY league_id, version) '
+
+               f'SELECT el.league_id, el.round_ids, el.version '
+               f'FROM el JOIN {self.table_name("analyses")} AS a '
+               f'ON el.league_id = a.league_id AND el.version = a.version '
+               f'WHERE el.league_id = {self.needs_quotes(league_id)} '
+               f'AND el.round_ids = {self.needs_quotes(sorted(round_ids))} '
+               f'AND el.version = {self.needs_quotes(version)}::real;'
                )
 
-        analyzed = self.read_sql(sql)['count'].iloc[0] > 0
+        analyzed = len(self.read_sql(sql)) > 0
 
         return analyzed
 
@@ -1502,7 +1515,7 @@ class Database(Streamable):
 
     def get_current_competition(self, league_id):
         sql = (f'SELECT competition_id, competition_name FROM {self.table_name("competitions")} '
-               f'WHERE finished = FALSE OR finished IS NULL '
+               f'WHERE finished IS NOT TRUE '
                f'AND (league_id = {self.needs_quotes(league_id)})'
                f'LIMIT 1;' )
 
@@ -1537,6 +1550,55 @@ class Database(Streamable):
         competition_wins = self.get_competition_placement(league_id, player_id=player_id)['competition_id'].to_list()
         
         return competition_wins
+
+    def update_competitions(self):
+        ''' add sequential non-bonus rounds if there is a started, unfinished competition '''
+        sql = (# add new rounds
+               f'WITH '
+               f'cs AS ('
+               f'SELECT c.league_id, c.competition_id, MIN(r.created_date) AS start_date '
+               f'FROM {self.table_name("competitions")} AS c '
+               f'JOIN {self.table_name("rounds")} AS r ON c.round_ids ? r.round_id '
+               f'WHERE c.finished IS NOT TRUE '
+               f'GROUP BY c.competition_id), '
+               
+               f'js AS ('
+               f'SELECT cs.competition_id, r.league_id, r.round_id '
+               f'FROM {self.table_name("rounds")} AS r '
+               f'JOIN cs ON r.league_id = cs.league_id '
+               f'WHERE r.created_date >= cs.start_date AND r.bonus IS NOT TRUE), '
+
+               f'up AS ('
+               f'SELECT js.competition_id AS cid, jsonb_agg(js.round_id) AS round_ids '
+               f'FROM js GROUP BY js.competition_id) '
+               
+               f'UPDATE {self.table_name("competitions")} '
+               f'SET round_ids = up.round_ids FROM up '
+               f'WHERE competition_id = up.cid; '
+               
+               # remove bonus rounds
+               f'WITH '
+               f'bo AS ('
+               f'SELECT c.league_id, c.competition_id, '
+               f'jsonb_array_elements_text(jsonb_agg(b.round_id)) AS bonus_rounds '
+               f'FROM "mfranzonello/playpaws"."competitions" AS c '
+               f'JOIN "mfranzonello/playpaws"."rounds" AS b ON c.league_id = b.league_id '
+               f'WHERE b.bonus = TRUE GROUP BY c.competition_id, c.league_id), '
+
+               f'new_values AS ('
+               f'SELECT c.competition_id AS cid, '
+               f'c.round_ids - array_agg(bo.bonus_rounds) AS new_round_ids '
+               f'FROM "mfranzonello/playpaws"."competitions" AS c '
+               f'JOIN bo ON c.league_id = bo.league_id '
+               f'AND c.competition_id = bo.competition_id '
+               f'GROUP BY c.competition_id, bo.league_id) '
+
+               f'UPDATE "mfranzonello/playpaws"."competitions" '
+               f'SET round_ids = new_values.new_round_ids '
+               f'FROM new_values WHERE competition_id = new_values.cid;'
+               )
+
+        self.execute_sql(sql)
 
     def get_hoarding(self, league_id):
         awards_round_df = self.get_round_awards(league_id, round_id=True)
