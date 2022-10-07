@@ -11,6 +11,7 @@ import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.common.by import By
 from webdriver_manager.chrome import ChromeDriverManager
 
 from common.secret import get_secret, set_secret
@@ -197,3 +198,29 @@ class Selena:
                 print(f'Log in failed! (attempt {attempt+1}/{attempts}')
 
             attempt += 1
+
+
+    def login_and_get_cookie(self):
+        # go to MusicLeague
+        driver.get(APP_URL)
+        driver.find_element(By.CLASS_NAME, 'loginButton').click()
+
+        # log in to Spotify
+        driver.find_element(By.ID, 'login-username').send_keys(get_secret('SPOTIFY_USERNAME'))
+        driver.find_element(By.ID, 'login-password').send_keys(get_secret('SPOTIFY_PASSWORD'))
+        driver.find_element(BY.ID, 'login-button').click()
+
+        # authorize Spotify
+        driver.find_element(By.X_PATH, '//*[@id="root"]/div/div[2]/div/div/div[3]/button/div[1]').click()
+
+        # get MusicLeague cookie
+        found_cookie = None
+
+        cookies = driver.get_cookies()
+        for cookie in cookies:
+            if cookie['domain'] in APP_URL.replace('https://', '.'):
+                found_cookie = {'name': cookie['name'],
+                                'value': cookie['value']}
+                break
+
+        return found_cookie
