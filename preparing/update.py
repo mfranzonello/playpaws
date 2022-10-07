@@ -7,11 +7,9 @@ from preparing.audio import Spotter, FMer
 class Updater:
     def __init__(self, database):
         self.database = database
-        self.stripper = Stripper()
         self.scraper = Scraper()
+        self.stripper = Stripper()
         self.texter = Texter()
-
-        self.spotter = Spotter()
 
     def update_musicleague(self):
         print('Updating database')
@@ -29,11 +27,11 @@ class Updater:
             print(f'Investigating {league_title}...')
             
             # get information from league page
-            self.update_league(league_title, league_id) 
+            self.update_league(league_id) 
 
             self.update_creators(league_id)
 
-    def update_league(self, league_title, league_id):
+    def update_league(self, league_id):
         # get the zip file from each league
         data_zip = self.scraper.get_data_zip(league_id)
         results = self.stripper.unzip_results(data_zip)
@@ -54,7 +52,6 @@ class Updater:
             self.database.store_tracks(tracks)
             self.database.store_songs(songs, league_id)
             self.database.store_votes(votes, league_id)
-
 
     def update_creators(self, league_id):
         rounds_df = self.database.get_uncreated_rounds(league_id)
@@ -105,9 +102,9 @@ class Updater:
 
 class Extender:
     def __init__(self, database):
-        self.stripper = Stripper()
-        self.scraper = Scraper()
         self.database = database
+        self.scraper = Scraper()
+        self.stripper = Stripper()
 
     def update_deadlines(self, league_id, round_id, status, days=0, hours=0):
         ''' move out deadlines for a round '''
@@ -183,12 +180,15 @@ class Extender:
 class Musician:
     def __init__(self, database):
         self.database = database
-
+        self.stripper = Stripper()
         self.spotter = Spotter()
         self.fmer = FMer()
 
     def update_spotify(self):
         self.spotter.update_database(self.database)
+        tracks_df = self.database.get_tracks_update_titles()
+        tracks_df = self.stripper.clean_tracks(tracks_df)
+        self.database.store_tracks(tracks_df)
 
     def update_lastfm(self):
         self.fmer.update_database(self.database)

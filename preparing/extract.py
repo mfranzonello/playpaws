@@ -246,3 +246,47 @@ class Stripper(Streamable):
         phrases = ['chosen by', 'created by ', 'submitted by ', 'theme is from ', 'theme from ']
 
         return phrases
+
+    def clean_tracks(self, tracks_df):
+        # strip featured artists and remix call outs from track title
+        ## add binary for Remix status?
+        tracks_df[['title', 'mix']] = tracks_df.apply(lambda x: self.clean_title(x['unclean']),
+                                                      axis=1, result_type='expand')
+
+        return tracks_df
+
+    def clean_title(self, title):
+        ''' remove featuring artists and pull remixes '''
+        # remove remixes
+        original_title = title
+        title, mix1 = self.texter.remove_parenthetical(title, ['Remix', 'Mix'], position='end', case_sensitive=True)
+        title, mix2 = self.texter.remove_parenthetical(title, ['Remix', 'Mix'], position='end', parentheses=[['- ', '$']], case_sensitive=True)
+        title, mix3 = self.texter.remove_parenthetical(title, ['Remix', 'Mix'], position='end', parentheses=[['- ', ';']], case_sensitive=True)
+
+        mixes = list(filter(None, [mix1, mix2, mix3]))
+        mix = mixes[0] if len(mixes) else None
+        if mix and (mix[-1] == '-'):
+            # leftover hash
+            mix = mix[:-1]
+        if (title != original_title) and not mix:
+            # default remix
+            mix = '< remix >'
+
+        # remove live versions
+        original_title = title
+        title, _ = self.texter.remove_parenthetical(title, ['Live'], position='start', parentheses=[['- ', '$']], middle=[' with '])
+        title, _ = self.texter.remove_parenthetical(title, ['Live'], position='end', parentheses=[['- ', '$']], case_sensitive=True)
+        title, _ = self.texter.remove_parenthetical(title, ['Live'], position='start', case_sensitive=True)
+        if (title != original_title) and not mix:
+            # default remix
+            mix = '< live >'
+
+        # remove featured artists
+        title, _ = self.texter.remove_parenthetical(title, ['with ', 'Duet with '], position='start') ##<- should with only be for []?
+        title, _ = self.texter.remove_parenthetical(title, ['feat'], position='start') # there can be with and feat together
+        title, _ = self.texter.remove_parenthetical(title, ['feat. '], position='start', parentheses=[['', '$']])
+        
+        # remove radio edit and remasters
+        title = self.texter.drop_dash(title)
+
+        return title, mix

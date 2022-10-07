@@ -725,10 +725,20 @@ class Database(Streamable):
 
 
     # LastFM functions
+    def get_tracks_update_titles(self):
+        sql = (f'SELECT uri, name AS unclean ' 
+               f'FROM {self.table_name("Tracks")} '
+               f'WHERE title IS NULL;'
+               )
+
+        tracks_df = self.read_sql(sql)
+
+        return tracks_df
+
     def get_tracks_update_fm(self):
-        wheres = ' OR '.join(f'(t.{v} IS NULL)' for v in ['title', 'scrobbles', 'listeners',
+        wheres = ' OR '.join(f'(t.{v} IS NULL)' for v in ['scrobbles', 'listeners',
                                                           'top_tags'])
-        sql = (f'SELECT t.uri, t.name AS unclean, t.title, t.mix, a.name AS artist, ' #t.url
+        sql = (f'SELECT t.uri, t.title, a.name AS artist, '
                f't.scrobbles, t.listeners, t.top_tags '
                f'FROM {self.table_name("Tracks")} as t '
                f'LEFT JOIN {self.table_name("Artists")} AS a '

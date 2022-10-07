@@ -553,12 +553,7 @@ class FMer(Streamable):
         self.streamer.print('\t...updating track information')
         tracks_update_db = self.database.get_tracks_update_fm()
 
-        # strip featured artists and remix call outs from track title
-        ## add binary for Remix status?
         if len(tracks_update_db):
-            tracks_update_db[['title', 'mix']] = tracks_update_db.apply(lambda x: self.clean_title(x['unclean']),
-                                                                        axis=1, result_type='expand')
-
             # get LastFM elements
             # limit how many are updated in one go to keep under rate limites
             segment_size = 50
