@@ -1423,27 +1423,40 @@ class Database(Streamable):
     def get_competition_placement(self, league_id, competition_id=None, player_id=None):
         if competition_id:
             # look at specific competition
-            wheres1 = f'AND c.competition_id = {self.needs_quotes(competition_id)} '
+            wheres1 = f'cr.competition_id = {self.needs_quotes(competition_id)} '
         else:
             # look at all finished competition
-            wheres1 = f'AND c.finished = TRUE '
+            wheres1 = f'cr.finished = TRUE '
 
         # find competitions won by a player
-        wheres2 = f'WHERE player_id = {self.needs_quotes(player_id)} AND place = 1 ' if player_id else ''
+        wheres2 = f'AND player_id = {self.needs_quotes(player_id)} AND place = 1 ' if player_id else ''
         
-        sql = (f'WITH cr AS ('
-               f'SELECT r.league_id, r.player_id, c.competition_id, '
+        sql = (f'WITH '
+
+               # placements
+               f'cr AS ('
+               f'SELECT r.league_id, r.player_id, c.competition_id, c.finished '
                f'RANK() OVER(PARTITION BY r.league_id, c.competition_id '
                f'ORDER BY SUM(r.points) DESC) AS place '
                f'FROM {self.table_name("rankings")} AS r '
                f'JOIN {self.table_name("competitions")} AS c '
                f'ON c.round_ids ? r.round_id '
+               f'GROUP BY r.league_id, c.competition_id, r.player_id), '
+
+               # start dates
+               f'cr2 AS ('
+               f'SELECT c.competition_id, MIN(d.created_date) AS start_date '
+               f'FROM {self.table_name("competitions")} AS c '
+               f'JOIN {self.table_name("rounds")} AS d '
+               f'ON c.round_ids ? d.round_id '
+               f'GROUP BY c.competition_id) '
+      
+               # combined
+               f'SELECT cr.league_id, cr.player_id, c.competition_id, cr.place FROM cr '
+               f'JOIN cr2 ON cr.competition_id = cr2.competition_id '
                f'WHERE c.league_id = {self.needs_quotes(league_id)} '
-               f'{wheres1}'
-               f'GROUP BY r.league_id, c.competition_id, r.player_id) '
-               f'SELECT * FROM cr '
-               f'{wheres2}'
-               f'ORDER BY competition_id;'
+               f'{wheres1}{wheres2}'
+               f'ORDER BY cr2.start_date;'
                )
 
         places_df = self.read_sql(sql)
