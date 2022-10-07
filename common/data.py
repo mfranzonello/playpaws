@@ -1421,12 +1421,13 @@ class Database(Streamable):
         return places_df
 
     def get_competition_placement(self, league_id, competition_id=None, player_id=None):
+        wheres1 = 'AND '
         if competition_id:
             # look at specific competition
-            wheres1 = f'cr.competition_id = {self.needs_quotes(competition_id)} '
+            wheres1 += f'cr.competition_id = {self.needs_quotes(competition_id)} '
         else:
             # look at all finished competition
-            wheres1 = f'cr.finished = TRUE '
+            wheres1 += f'cr.finished = TRUE '
 
         # find competitions won by a player
         wheres2 = f'AND player_id = {self.needs_quotes(player_id)} AND place = 1 ' if player_id else ''
@@ -1435,7 +1436,7 @@ class Database(Streamable):
 
                # placements
                f'cr AS ('
-               f'SELECT r.league_id, r.player_id, c.competition_id, c.finished '
+               f'SELECT r.league_id, r.player_id, c.competition_id, c.finished, '
                f'RANK() OVER(PARTITION BY r.league_id, c.competition_id '
                f'ORDER BY SUM(r.points) DESC) AS place '
                f'FROM {self.table_name("rankings")} AS r '
@@ -1452,9 +1453,9 @@ class Database(Streamable):
                f'GROUP BY c.competition_id) '
       
                # combined
-               f'SELECT cr.league_id, cr.player_id, c.competition_id, cr.place FROM cr '
+               f'SELECT cr.league_id, cr.player_id, cr.competition_id, cr.place FROM cr '
                f'JOIN cr2 ON cr.competition_id = cr2.competition_id '
-               f'WHERE c.league_id = {self.needs_quotes(league_id)} '
+               f'WHERE cr.league_id = {self.needs_quotes(league_id)} '
                f'{wheres1}{wheres2}'
                f'ORDER BY cr2.start_date;'
                )

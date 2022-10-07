@@ -725,25 +725,28 @@ class Plotter(Streamable):
         return x_plot, y_plot
 
     def add_backgrounds(self, ax, round_titles, competitions_df, scaling=[1, 1], x_offset=0):
-        competition_titles = competitions_df['competition_name'].unique().tolist()
-        cgb = competitions_df.groupby('competition_name')['round_id']
         competition_colors = self.paintbrush.get_scatter_colors(self.separate_colors)
+        n_colors = len(competition_colors)
+
+        cids = competitions_df[['competition_id']].drop_duplicates()\
+            .reset_index(drop=True).reset_index().rename(columns={'index': 'c'})
+        competitions_df = competitions_df.merge(cids, on='competition_id')
+        competitions_df.loc[:, 'color'] = competitions_df.apply(lambda x: competition_colors[x['c'] % n_colors],
+                                                                axis=1)
         
         y0, y1 = ax.get_ylim()
 
-        ## rewrite so that each round in a competiton gets the same color, this can handle gaps
-        for c_round in competitions_df['competition_name'].unique():
-            c_first = cgb.first()[c_round]
-            c_last = cgb.last()[c_round]
-            
-            if c_first in round_titles:
-                x0 = (round_titles.index(c_first) if c_first in round_titles else 0) + 1 - 1/2 + x_offset
-                x1 = (round_titles.index(c_last) if c_last in round_titles else len(round_titles)) + 1 + 1/2 + x_offset
+        for i in competitions_df.index:
+            x_ = i + 1 + x_offset
+            x0 = x_ - 1/2
+            x1 = x_ + 1/2
 
-                color = competition_colors[competition_titles.index(c_round) % len(competition_colors)]
-                facecolor = tuple([c for c in color] + [0.4])
-                edgecolor = tuple([c for c in color] + [0.3])
-                ax.fill_between([scaling[0]*x0, scaling[0]*x1], y0, y1, facecolor=facecolor, edgecolor=edgecolor, hatch='///', zorder=-1) #edgecolor=None,  
+            color = competitions_df['color'][i]
+            facecolor = tuple([c for c in color] + [0.4])
+            edgecolor = tuple([c for c in color] + [0.3])
+            ax.fill_between([scaling[0]*x0, scaling[0]*x1], y0, y1,
+                            facecolor=facecolor, edgecolor=edgecolor,
+                            hatch='///', zorder=-1)
 
     def plot_rankings(self, league_title, rankings, dirty_df, discovery_df):
         plot_key = (league_title, 'rankings_ax', self.view_player)
