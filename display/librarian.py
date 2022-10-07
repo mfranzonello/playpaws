@@ -24,6 +24,11 @@ class Library:
              'closest_dfc': '🎯',
              'tbd': '❔',
              'winner': '🏆',
+             'stingy': '🖖',
+             'fast': '🐇',
+             'slow': '🐢',
+             'chatty': '🗣️',
+             'quiet': '🤫',
              
              'tag': '🗨️',
              'tag_ex': '💬',
@@ -284,76 +289,110 @@ class Library:
         return tooltip
 
     def get_column(self, parameters={}):
-        leagues_list = []
-        league_titles = parameters.get('leagues')
-        if len(league_titles):
-            league_titles = [self.feel_title(t, markdown='**') for t in league_titles]
-            leagues_in = self.texter.get_plurals(league_titles)['text']
-            other_leagues = 'Other ' if parameters.get('other_leagues') else ''
-            leagues_list.append(f'{other_leagues}Leagues Played In: {leagues_in}')
-        leagues = self.bar_list(leagues_list, indent=False, bar=False)
+        award_titles = [{'item': 'dirtitest', 'title': 'Most Explicit Player'},
+                {'item': 'clean', 'title': 'Squeaky Clean Lyrics'},
+                {'item': 'discoverer', 'title': 'Best Music Discoverer'},
+                {'item': 'popular', 'title': 'Most Hep Tracks'},
+                {'item': 'generous', 'title': 'Equal Opportunity Voter'},
+                {'item': 'stingy', 'title': 'Doesn\'t Like to Share'},
+                # {'item': 'maxed_out', 'title': '', 'feel': ''},
+                {'item': 'chatty', 'title': 'Chatty Cathy'},
+                {'item': 'quiet', 'title': 'Stealth Mode'},
+                {'item': 'fast_submit', 'title': 'Fastest Shooting Submitter', 'feel': 'fast'},
+                {'item': 'slow_submit', 'title': 'Slow Poke Submitter', 'feel': 'slow'},
+                {'item': 'fast_vote', 'title': 'Decisive Voter Mind', 'feel': 'fast'},
+                {'item': 'slow_vote', 'title': 'Voting Analysis Paralysis', 'feel': 'slow'},
+                # {'item': 'delay', 'title': 'Hold Up', 'feel': ''},
+                ]
 
-        competitions_list = []
-        if parameters.get('current_competition'):
-            place = self.texter.get_ordinal(parameters['badge2'])
-            total = parameters['n_players']
-            competitions_list.append(f'Currently competing in {self.feel("competitions")}'
-                                     f'{parameters["current_competition"]}{self.feel("competitions")}'
-                                     f'{self.newline(1)}{self.indent()}(ranked {place} of {total})')
-        competitions = self.bar_list(competitions_list, indent=False)
+        pulse_titles = [{'item': 'likes', 'title': 'Likes best'},
+                        {'item': 'liked', 'title': 'Most liked by'},
+                        {'item': 'closest', 'title': 'Most similar to'}
+                        ]
 
-        awards_list = []
-        if parameters.get('dirtiest'):
-            awards_list.append(f'{self.feel("dirtiest")}**Most Explicit Player**{self.feel("dirtiest")}')
-        if parameters.get('clean'):
-            awards_list.append(f'{self.feel("clean")}**Squeaky Clean Lyrics**{self.feel("clean")}')
-        if parameters.get('discoverer'):
-            awards_list.append(f'{self.feel("discoverer")}**Best Music Discoverer**{self.feel("discoverer")}')
-        if parameters.get('popular'):
-            awards_list.append(f'{self.feel("popular")}**Most Hep Tracks**{self.feel("popular")}')
-        if parameters.get('generous'):
-            awards_list.append(f'{self.feel("generous")}**Equal Opportunity Voter**{self.feel("generous")}')
-        # stingy, maxed_out
-        if not len(awards_list):
-            awards_list.append(f'{self.feel("participant")}**Participation Trophy**{self.feel("participant")}')
-        awards = self.bar_list(awards_list)
+        stats_titles = [{'item': 'win_rate', 'title': 'Batting Average'},
+                        {'item': 'play_rate', 'title': 'Games Played'},
+                        ]
 
-        pulse_list = []
-        if parameters.get('likes'):
-            pulse_list.append(f'Likes best: {self.feel("likes")}**{self.texter.get_display_name(parameters["likes"])}**{self.feel("likes")}')
-        if parameters.get('liked'):
-            pulse_list.append(f'Most liked by: {self.feel("liked")}**{self.texter.get_display_name(parameters["liked"])}**{self.feel("liked")}')
-        if parameters.get('closest'):
-            pulse_list.append(f'Most similar to: {self.feel("closest")}**{self.texter.get_display_name(parameters["closest"])}**{self.feel("closest")}')
-        pulse = self.bar_list(pulse_list)
+        if parameters.get('god'):
+            awards_list = [(f'{self.feel(it.get("feel", it["item"]))}'
+                            f'{it["title"]}{self.feel(it.get("feel", it["item"]))}: '
+                            f'{self.texter.get_plurals(parameters[it["item"]], markdown="**")["text"]}'
+                            ) \
+                for it in award_titles if parameters.get(it['item'])]
+        
+            awards = self.bar_list(awards_list)
+   
+            text = (f'## League Stats'
+                    f'{awards}'
+            )
 
-        stats_list = []
-        if parameters.get('win_rate'):
-            stats_list.append(f'Batting Average: {self.feel("win_rate")}**{parameters["win_rate"]:.3f}**{self.feel("win_rate")}')
-        if parameters.get('play_rate'):
-            stats_list.append(f'Games Played: {self.feel("play_rate")}**{parameters["play_rate"]:.3f}**{self.feel("play_rate")}')
-        stats = self.bar_list(stats_list)
+        else:
+            leagues_list = []
+            league_titles = parameters.get('leagues')
+            if len(league_titles):
+                league_titles = [self.feel_title(t, markdown='**') for t in league_titles]
+                leagues_in = self.texter.get_plurals(league_titles)['text']
+                other_leagues = 'Other ' if parameters.get('other_leagues') else ''
+                leagues_list.append(f'{other_leagues}Leagues Played In: {leagues_in}')
+            leagues = self.bar_list(leagues_list, indent=False, bar=False)
 
-        wins_list = []
-        if parameters.get('wins'):
-            round_titles = [self.texter.clean_text(t) for t in parameters['wins']]
-            rounds_won = self.texter.get_plurals(round_titles, markdown='**')
-            wins_list.append(f'Round{rounds_won["s"]} won: {self.feel("wins")}{rounds_won["text"]}{self.feel("wins")}')
-        if parameters.get('competition_wins'):
-            competition_titles = [self.texter.clean_text(t) for t in parameters['competition_wins']]
-            competitions_won = self.texter.get_plurals(competition_titles, markdown='**')
-            wins_list.append(f'Competition{competitions_won["s"]} won: {self.feel("competitions")}{competitions_won["text"]}{self.feel("competitions")}')
-        wins = self.bar_list(wins_list)
+            competitions_list = []
+            if parameters.get('current_competition'):
+                place = self.texter.get_ordinal(parameters['badge2'])
+                total = parameters['n_players']
+                competitions_list.append(f'Currently competing in {self.feel("competitions")}'
+                                         f'{parameters["current_competition"]}{self.feel("competitions")}'
+                                         f'{self.newline(1)}{self.indent()}(ranked {place} of {total})')
+            competitions = self.bar_list(competitions_list, indent=False)
 
-        text = (f'## Player Stats'
-                f'{leagues}{competitions}{awards}{pulse}{stats}{wins}'
-                )
+
+            awards_list = [(f'{self.feel(it.get("feel", it["item"]))}'
+                            f'**{it["title"]}**'
+                            f'{self.feel(it.get("feel", it["item"]))}') \
+                for it in award_titles if parameters.get(it['item'])]
+
+            if not len(awards_list):
+                awards_list.append(f'{self.feel("participant")}**Participation Trophy**{self.feel("participant")}')
+            awards = self.bar_list(awards_list)
+        
+            pulse_list = [(f'{it["title"]}: {self.feel(it.get("feel", it["item"]))}'
+                           f'**{parameters[it["pulse"]]}**'
+                           f'{self.feel(it.get("feel", it["item"]))}') \
+                for it in pulse_titles if parameters.get(it['item'])]
+
+            pulse = self.bar_list(pulse_list)
+
+            stats_list = [(f'{it["title"]}: {self.feel(it.get("feel", it["item"]))}'
+                           f'**{parameters[it["item"]]:.3f}**'
+                           f'{self.feel(it.get("feel", it["item"]))}') \
+                for it in stats_titles if parameters.get(it['item'])]
+
+            stats = self.bar_list(stats_list)
+
+            wins_titles = [{'item': 'wins', 'title': 'Round'},
+                           {'item': 'competition_wins', 'title': 'Competition', 'feel': 'competitions'},
+                           ]
+
+            wins_list = [(f'{it["title"]}'
+                          f'{self.texter.get_plurals([self.texter.clean_text(t) for t in parameters[it["item"]]])["s"]}'
+                          f' won: {self.feel(it.get("feel", it["item"]))}'
+                          f'{self.texter.get_plurals([self.texter.clean_text(t) for t in parameters[it["item"]]], markdown="**")["text"]}'
+                          f'{self.feel(it.get("feel", it["item"]))}') \
+                for it in wins_titles if parameters.get(it['item'])]
+
+            wins = self.bar_list(wins_list)
+
+            text = (f'## Player Stats'
+                    f'{leagues}{competitions}{awards}{pulse}{stats}{wins}'
+                    )
 
         return text
 
     def bar_list(self, items_list, indent=True, bar=True):
         if len(items_list):
             indent_me = self.indent() if indent else ''
+            ##newline_num = 2 if self.indent() else 1
             bar_me = self.bar() if bar else self.newline(1)
             items = (f'{bar_me}' + 
                      ''.join(f'{indent_me}{x}{self.newline(1)}' for x in items_list) +

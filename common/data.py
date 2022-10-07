@@ -4,7 +4,7 @@ from datetime import date
 import json
 
 from sqlalchemy import create_engine
-from pandas import read_sql, DataFrame, isnull
+from pandas import read_sql, DataFrame, Series, isnull
 from pandas.api.types import is_numeric_dtype
 
 from common.secret import get_secret
@@ -873,7 +873,7 @@ class Database(Streamable):
                    f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' #track_url
                    f'LEFT JOIN {self.table_name("Rounds")} AS r ON s.round_id = r.round_id '
                    f'WHERE s.league_id = {self.needs_quotes(league_id)} '
-                   f'GROUP BY s.round_id, r.date ORDER BY r.created_date;'
+                   f'GROUP BY s.round_id, r.created_date ORDER BY r.created_date;'
                    )
 
         features_df = self.read_sql(sql)
@@ -1000,10 +1000,10 @@ class Database(Streamable):
                f'LEFT JOIN {self.table_name("Rounds")} AS d '
                f'ON r.league_id = d.league_id AND c.round_id = d.round_id '
                f'WHERE l.league_id = {self.needs_quotes(league_id)} '
-               f'ORDER BY l.date ASC, d.created_date ASC, r.points DESC;'
+               f'ORDER BY l.created_date ASC, d.created_date ASC, r.points DESC;'
                )
 
-        results_df = self.read_sql(sql) ##.drop_duplicates(subset='song_id')
+        results_df = self.read_sql(sql)
 
         return results_df
 
@@ -1102,121 +1102,299 @@ class Database(Streamable):
 
         return player_wins_df
 
-    def get_awards(self, league_id, player_id, base=1000):
-        ## Note that Discoverer, Dirtiest, etc should be based on MAX/MIN and not LIMIT 1
-        sql = (f'SELECT (p.popular = 1) AS popular, (q.discoverer = 1) AS discoverer, '
-               f'(r.dirtiest = 1) as dirtiest, (z.generous > 0.5) AS generous, (n.clean = 0) AS clean, '
-               ##f'(c.chattiest = 1) AS chattiest, '
-               f'j.win_rate, k.play_rate '
+    def add_on(self, add_type, alias, alias2=None, value=None,
+               comma=False, conjunction=None):
+        if not add_type:
+            add_on = ''
+
+        else:
+            sp = ' ' if (comma or conjunction) else ''
+            period = '.' if alias else ''
+            add_on = (f'{conjunction if conjunction else ""}{"," if comma else ""}'
+                      f'{sp}{alias}{period}{add_type}')
+            if (value or alias2):
+                add_on += f' = '
+                if value:
+                    add_on += f'{self.needs_quotes(value)}'
+                else:
+                    add_on += f'{alias2}{period}{add_type}'
+
+            add_on += ' '
+            
+        return add_on
+
+    def add_on1(self, add_type, alias, alias2):
+        return self.add_on(add_type, alias, alias2=alias2, conjunction='AND')
+
+    def add_on2(self, add_type, alias):
+        return self.add_on(add_type, alias, comma=True)
+
+    def add_on3(self, add_type, alias, value):
+        return self.add_on(add_type, alias, value=value, comma=True)
+
+    def get_round_awards(self, league_id, round_id=None, base=1000,
+                         categories=None):
+        add_type = 'round_id' if round_id else None
+        
+        sqls = {# all players
+                'rd': {'cols': [x for x in ['league_id',
+                                            add_type if add_type else None,
+                                            'player_id'] if x],
+                       'sql':
+                       (f'rd AS ('
+                       f'SELECT r.league_id, r.round_id, m.player_id '
+                       f'FROM {self.table_name("Rounds")} AS r '
+                       f'JOIN {self.table_name("Members")} AS m '
+                       f'ON r.league_id = m.league_id)'
+                       )},
+            
+                # commenting
+                'ch': {'cols': ['comments', 'chatty'],
+                       'sql':
+                       (f'ch AS ('
+                       f'SELECT c.league_id{self.add_on2(add_type, "c")}, c.player_id, '
+                       f'count(c.comment) AS comments, '
+                       f'RANK() OVER (PARTITION BY c.league_id{self.add_on2(add_type, "c")} '
+                       f'ORDER BY count(c.comment) DESC) AS chatty '
+                       f'FROM ('
+                       f'SELECT league_id{self.add_on2(add_type, "")}, submitter_id AS player_id, comment '
+                       f'FROM {self.table_name("Songs")} '
+                       f'UNION ALL '
+                       f'SELECT v.league_id{self.add_on2(add_type, "s")}, v.player_id, v.comment '
+                       f'FROM {self.table_name("Votes")} AS v '
+                       f'LEFT JOIN {self.table_name("Songs")} AS s '
+                       f'ON s.league_id = v.league_id AND s.song_id = v.song_id) AS c '
+                       f'GROUP BY c.league_id{self.add_on2(add_type, "c")}, c.player_id)'
+                       )},
+
+                # mainstream
+                'po': {'cols': ['popularity', 'popular'],
+                       'sql':
+                       (f'po AS (SELECT s.league_id{self.add_on2(add_type, "s")}, s.submitter_id AS player_id, '
+                       f'AVG(t.popularity::real/100) AS popularity, '
+                       f'RANK() OVER (PARTITION BY s.league_id{self.add_on2(add_type, "s")} '
+                       f'ORDER BY AVG(t.popularity::real/100) DESC) AS popular '
+                       f'FROM {self.table_name("Songs")} AS s '
+                       f'LEFT JOIN {self.table_name("Tracks")} AS t '
+                       f'ON s.track_uri = t.uri '
+                       f'GROUP BY s.league_id{self.add_on2(add_type, "s")}, s.submitter_id)'
+                       )},
+
+                # undiscovered
+                'di': {'cols': ['discovery', 'discoverer'],
+                       'sql':
+                       (f'di AS ('
+                       f'SELECT s.league_id{self.add_on2(add_type, "s")}, s.submitter_id AS player_id, '
+                       f'AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) AS discovery, '
+                       f'RANK() OVER (PARTITION BY s.league_id{self.add_on2(add_type, "s")} '
+                       f'ORDER BY AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) DESC) AS discoverer '
+                       f'FROM {self.table_name("Songs")} AS s '
+                       f'LEFT JOIN {self.table_name("Tracks")} AS t '
+                       f'ON s.track_uri = t.uri '
+                       f'GROUP BY s.league_id{self.add_on2(add_type, "s")}, s.submitter_id)'
+                       )},
+
+                # explicitness
+                'dr': {'cols': ['dirtiness', 'dirtiest'],
+                       'sql':
+                       (f'dr AS ('
+                       f'SELECT s.league_id{self.add_on2(add_type, "s")}, s.submitter_id AS player_id, '
+                       f'AVG(CASE WHEN t.explicit THEN 1 ELSE 0 END) AS dirtiness, '
+                       f'RANK() OVER (PARTITION BY s.league_id{self.add_on2(add_type, "s")} '
+                       f'ORDER BY AVG(CASE WHEN t.explicit THEN 1 ELSE 0 END) DESC) AS dirtiest '
+                       f'FROM {self.table_name("Songs")} AS s '
+                       f'LEFT JOIN {self.table_name("Tracks")} AS t '
+                       f'ON s.track_uri = t.uri '
+                       f'GROUP BY s.league_id{self.add_on2(add_type, "s")}, s.submitter_id)'
+                       )},
+
+               # hoarding
+               f'sv{"" if add_type else "l"}': {'cols': ['generosity', 'generous'],
+                      'sql':
+                      (f'vo AS ('
+                      f'SELECT v.league_id, s.round_id, v.player_id, '
+                      f'SUM(CASE WHEN v.vote > 0 THEN 1 ELSE 0 END) AS votes '
+                      f'FROM {self.table_name("Votes")} AS v '
+                      f'JOIN {self.table_name("Songs")} AS s '
+                      f'ON v.league_id = s.league_id AND v.song_id = s.song_id '
+                      f'GROUP BY v.league_id, s.round_id, v.player_id), '
+
+                      f'so AS ('
+                      f'SELECT s.league_id, s.round_id, '
+                      f'COUNT(s.song_id) AS songs, COUNT(DISTINCT s.submitter_id) AS players '
+                      f'FROM {self.table_name("Songs")} AS s '
+                      f'GROUP BY s.league_id, s.round_id), '
                
-               # most mainstream songs
-               f'FROM '
-               f'(SELECT v.popular FROM (SELECT s.submitter_id, RANK() OVER '
-               f'(ORDER BY AVG(t.popularity::real/100) DESC) AS popular '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' 
-               f'WHERE s.league_id = {self.needs_quotes(league_id)} ' 
-               f'GROUP BY s.submitter_id) AS v '
-               f'WHERE v.submitter_id = {self.needs_quotes(player_id)}) as p '
+                      f'sv AS ('
+                      f'SELECT vo.league_id, vo.round_id, vo.player_id, '
+                      f'vo.votes, so.songs, so.players, '
+                      f'vo.votes/(so.songs*(so.players-1)/(so.players))::real AS generosity, '
+                      f'RANK() OVER(PARTITION BY vo.league_id, vo.round_id '
+                      f'ORDER BY vo.votes/(so.songs*(so.players-1)/(so.players))::real DESC) AS generous '
+                      f'FROM vo JOIN so ON vo.league_id = so.league_id AND vo.round_id = so.round_id), '
 
-               # least played songs
-               f'CROSS JOIN'
-               f'(SELECT u.discoverer FROM (SELECT s.submitter_id, RANK() OVER '
-               f'(ORDER BY AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) DESC) AS discoverer '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' 
-               f'WHERE s.league_id = {self.needs_quotes(league_id)} ' 
-               f'GROUP BY s.submitter_id) AS u '
-               f'WHERE u.submitter_id = {self.needs_quotes(player_id)}) as q '
+                      f'svl AS ('
+                      f'SELECT sv.league_id, sv.player_id, '
+                      f'SUM(sv.players * sv.generosity)/SUM(sv.players)::real AS generosity, '
+                      f'RANK() OVER(PARTITION BY sv.league_id '
+                      f'ORDER BY SUM(sv.players * sv.generosity)/SUM(sv.players)::real DESC) AS generous '
+                      f'FROM sv GROUP BY sv.league_id, sv.player_id)'
+                      )},
 
-               ### most comments
-               ##f'CROSS JOIN'
-               ##f'(SELECT u.discoverer FROM (SELECT s.submitter_id, RANK() OVER '
-               ##f'(ORDER BY COUNT(comment) DESC) AS chattiest '
-               ##f'FROM {self.table_name("Songs")} AS s '
-               ##f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' 
-               ##f'WHERE s.league_id = {self.needs_quotes(league_id)} ' 
-               ##f'GROUP BY s.submitter_id) AS u '
-               ##f'WHERE u.submitter_id = {self.needs_quotes(player_id)}) as q '
+               # speed
+               f'svdr{"" if add_type else "l"}': {'cols': ['submit_speed', 'submit_fastest',
+                                                          'vote_speed', 'vote_fastest'],
+                                                  'sql':
+                     (f'sd AS ('
+                      f'SELECT league_id, round_id, submitter_id AS player_id, '
+                      f'to_timestamp(AVG(extract(epoch FROM created_date)))::date AS submit_date '
+                      f'FROM {self.table_name("Songs")} '
+                      f'GROUP BY league_id, round_id, submitter_id), '
+               
+                      f'vd AS ('
+                      f'SELECT v.league_id, s.round_id, v.player_id, '
+                      f'to_timestamp(AVG(extract(epoch FROM v.created_date)))::date AS vote_date '
+                      f'FROM {self.table_name("Votes")} AS v '
+                      f'JOIN {self.table_name("Songs")} AS s '
+                      f'ON v.league_id = s.league_id AND v.song_id = s.song_id '
+                      f'GROUP BY v.league_id, s.round_id, v.player_id), '
 
-               # most explicit songs
-               f'CROSS JOIN '
-               f'(SELECT w.dirtiest FROM (SELECT s.submitter_id, RANK() OVER '
-               f'(ORDER BY AVG(CASE WHEN t.explicit THEN 1 ELSE 0 END) DESC) AS dirtiest '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri '
-               f'WHERE s.league_id = {self.needs_quotes(league_id)} '
-               f'GROUP BY s.submitter_id) AS w '
-               f'WHERE w.submitter_id = {self.needs_quotes(player_id)}) AS r '
+                      f'svd AS ('
+                      f'SELECT sd.league_id, sd.round_id, sd.player_id, '
+                      f'sd.submit_date, vd.vote_date '
+                      f'FROM sd JOIN vd '
+                      f'ON sd.league_id = vd.league_id AND sd.round_id = vd.round_id '
+                      f'AND sd.player_id = vd.player_id), '
 
-               # least explicit songs
-               f'CROSS JOIN '
-               f'(SELECT w.clean FROM (SELECT s.submitter_id, '
-               f'SUM(CASE WHEN t.explicit THEN 1 ELSE 0 END) AS clean '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri '
-               f'WHERE s.league_id = {self.needs_quotes(league_id)} '
-               f'GROUP BY s.submitter_id) AS w '
-               f'WHERE w.submitter_id = {self.needs_quotes(player_id)}) AS n '
+                      f'svdr AS ('
+                      f'SELECT r.league_id, r.round_id, svd.player_id, '
+                      f'r.created_date, svd.submit_date, svd.vote_date, '
+                      f'svd.submit_date - r.created_date AS submit_speed, '
+                      f'svd.vote_date - r.created_date AS vote_speed, '
+                      f'RANK() OVER (PARTITION BY r.league_id, r.round_id '
+                      f'ORDER BY svd.submit_date - r.created_date ASC) AS submit_fastest, '
+                      f'RANK() OVER (PARTITION BY r.league_id, r.round_id '
+                      f'ORDER BY svd.vote_date - r.created_date ASC) AS vote_fastest '
+                      f'FROM {self.table_name("Rounds")} AS r '
+                      f'RIGHT JOIN svd '
+                      f'ON r.league_id = svd.league_id AND r.round_id = svd.round_id), '
+               
+                      f'svdrl AS ('
+                      f'SELECT svdr.league_id, svdr.player_id, '
+                      f'AVG(svdr.submit_speed) AS submit_speed, '
+                      f'AVG(svdr.vote_speed) AS vote_speed, '
+                      f'RANK() OVER (PARTITION BY svdr.league_id '
+                      f'ORDER BY AVG(svdr.submit_speed)) AS submit_fastest, '
+                      f'RANK() OVER (PARTITION BY svdr.league_id '
+                      f'ORDER BY AVG(svdr.vote_speed)) AS vote_fastest '
+                      f'FROM svdr GROUP BY svdr.league_id, svdr.player_id)'
+                      )},
+                }
 
-               # how often won
-               f'CROSS JOIN '
-               f'(SELECT q.wins / p.total AS win_rate FROM '
-               f'(SELECT COUNT(round_id)::real AS wins FROM {self.table_name("Boards")} '
-               f'WHERE (player_id = {self.needs_quotes(player_id)}) '
-               f'AND (league_id = {self.needs_quotes(league_id)}) AND (place = 1)) AS q '
-               f'CROSS JOIN '
-               f'(SELECT COUNT(round_id)::real AS total FROM {self.table_name("Boards")} '
-               f'WHERE (player_id = {self.needs_quotes(player_id)}) '
-               f'AND (league_id = {self.needs_quotes(league_id)})) AS p) AS j '
+        if categories:
+            cats = ['rd'] + categories
+        else:
+            cats = list(sqls.keys())
 
-               # how often played
-               f'CROSS JOIN '
-               f'(SELECT q.plays / p.total AS play_rate FROM '
-               f'(SELECT COUNT(round_id)::real AS plays FROM {self.table_name("Boards")} '
-               f'WHERE (player_id = {self.needs_quotes(player_id)}) '
-               f'AND (league_id = {self.needs_quotes(league_id)}) AND (place > 0)) AS q '
-               f'CROSS JOIN '
-               f'(SELECT COUNT(round_id)::real AS total FROM {self.table_name("Rounds")} '
-               f'WHERE (league_id = {self.needs_quotes(league_id)}) '
-               f') '
-               f'AS p) AS k '
+        sql_withs = ', '.join(sqls[s]['sql'] for s in cats)
+        sql_joins = ' '.join(f'JOIN {a} ON rd.league_id = {a}.league_id {self.add_on1(add_type, "rd", a)}'
+                             f'AND rd.player_id = {a}.player_id' for a in cats[1:])
+        sql_selects = ', '.join(f'{a}.{c}' for a in cats for c in sqls[a]['cols'])
+        sql_where = '{self.add_on3(add_type, "rd", self.needs_quotes(round_id))}' \
+            if isinstance(round_id, str) else ''
 
-               # how many votes given out
-               f'CROSS JOIN '
-               f'(SELECT p.player_id, AVG(CASE WHEN p.votes/q.songs::real > r.avg_generosity THEN 1 ELSE 0 END) AS generous '
-               f'FROM (SELECT v.player_id, count(v.player_id) AS votes, s.round_id, s.league_id '
-               f'FROM {self.table_name("Votes")} AS v '
-               f'LEFT JOIN {self.table_name("Songs")} AS s '
-               f'ON (s.league_id = v.league_id) AND (s.song_id = v.song_id) '
-               f'WHERE v.player_id IS NOT NULL '
-               f'GROUP BY s.league_id, s.round_id, v.player_id) AS p '
-               f'LEFT JOIN '
-               f'(SELECT count(s.song_id) AS songs, s.round_id FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Rounds")} AS d '
-               f'ON s.round_id = d.round_id '
-               f'GROUP BY s.league_id, s.round_id) AS q ON p.round_id = q.round_id ' 
-               f'LEFT JOIN (SELECT p.round_id, AVG(p.votes/q.songs::real) AS avg_generosity '
-               f'FROM (SELECT v.player_id, COUNT(v.player_id) AS votes, s.round_id FROM {self.table_name("Votes")} AS v '
-               f'LEFT JOIN {self.table_name("Songs")} AS s '
-               f'ON (s.league_id = v.league_id) AND (s.song_id = v.song_id) '
-               f'WHERE v.player_id IS NOT NULL '
-               f'GROUP BY s.league_id, s.round_id, v.player_id) AS p '
-               f'LEFT JOIN (SELECT count(s.song_id) AS songs, s.round_id FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Rounds")} AS d '
-               f'ON s.round_id = d.round_id '
-               f'GROUP BY s.league_id, s.round_id) AS q '
-               f'ON p.round_id = q.round_id GROUP BY p.round_id) AS r '
-               f'ON p.round_id = r.round_id '
-               f'WHERE p.player_id = {self.needs_quotes(player_id)} AND p.league_id = {self.needs_quotes(league_id)} '
-               f'GROUP BY p.player_id) AS z '
-
-               f';'
+        sql = (# get results
+               f'WITH {sql_withs} '
+               f'SELECT {sql_selects} '
+               f'FROM rd {sql_joins} '
+               f'WHERE rd.league_id = {self.needs_quotes(league_id)} '
+               f'{sql_where}'
+               f'ORDER BY rd.league_id{self.add_on2(add_type, "rd")}, rd.player_id;'
                )
 
-        awards_df = self.read_sql(sql).squeeze(0)
+        round_awards = self.read_sql(sql)
 
-        return awards_df
+        if not add_type:
+            round_awards.drop_duplicates(inplace=True)
+       
+        return round_awards
+
+    def get_league_awards(self, league_id, base=1000):
+        round_awards = self.get_round_awards(league_id, base=base)
+
+        sql = (# win
+               f'WITH wipl AS ('
+               f'SELECT league_id, player_id, '
+               f'SUM(CASE WHEN place = 1 THEN 1 ELSE 0 END) AS wins, '
+               f'COUNT(round_id)::real AS plays '
+               f'FROM {self.table_name("Boards")} '
+               f'GROUP BY league_id, player_id), '
+
+               # plays
+               f'ro AS ('
+               f'SELECT league_id, COUNT(round_id) AS total_rounds '
+               f'FROM {self.table_name("Rounds")} '
+               f'GROUP BY league_id) '
+
+               # win and play rates
+               f'SELECT wipl.league_id, wipl.player_id, '
+               f'wipl.wins, wipl.plays, ro.total_rounds, '
+               f'(wipl.wins/wipl.plays)::real AS win_rate, '
+               f'(wipl.plays/ro.total_rounds)::real AS play_rate '
+               f'FROM wipl LEFT JOIN ro ON wipl.league_id = ro.league_id;')
+
+        league_awards = self.read_sql(sql).merge(round_awards, on=['league_id', 'player_id']).drop_duplicates()
+
+        return league_awards
+
+    def get_awards(self, league_id, player_id=None, round_id=None, base=1000):
+        god_mode = player_id == self.get_god_id()
+             
+        if round_id:
+            awards_df = self.get_round_awards(league_id, round_id, base=base)
+        else:
+            awards_df = self.get_league_awards(league_id, base=base)
+
+        award_labels = {'chatty': ['chatty', True], 'quiet': ['chatty', False],
+                        'popular': ['popular', True], 'discoverer': ['discoverer', True],
+                        'dirtiest': ['dirtiest', True], 'clean': ['dirtiest', 0],
+                        'generous': ['generosity', 0.66], 'stingy': ['generous', False],
+                        'fast_submit': ['submit_fastest', True], 'slow_submit': ['submit_fastest', False],
+                        'fast_vote': ['vote_fastest', True], 'slow_vote': ['vote_fastest', False],
+                        }
+        if (not round_id) and (not god_mode):
+            award_labels.update({'win_rate': ['win_rate', None],
+                                 'play_rate': ['play_rate', None],
+                                 })
+
+        awards_s = Series(index=award_labels.keys())
+
+        for label in award_labels:
+            col, pos = award_labels[label]
+            if col in awards_df.columns:
+                # highest value
+                if pos is True:
+                    value = awards_df[awards_df[col] == awards_df[col].min()]['player_id'].to_list()
+                # lowest value
+                elif pos is False:
+                    value = awards_df[awards_df[col] == awards_df[col].max()]['player_id'].to_list()
+                # exact match
+                elif isinstance(pos, int):
+                    value = awards_df[awards_df[col] == pos]['player_id'].to_list()
+                # threshold
+                elif isinstance(pos, float):
+                    value = awards_df[awards_df[col].ge(pos)]['player_id'].to_list()
+                # stat
+                elif pos is None:
+                    value = awards_df[awards_df['player_id'] == player_id][col].iloc[0]
+
+                # is player
+                if (not god_mode) and isinstance(pos, (bool, int, float)):
+                    value = player_id in value
+                    
+                awards_s.loc[label] = value
+
+        return awards_s
 
     def get_badge(self, league_id, player_id, competition=None, competition_id=None):
         if (not competition) and (not competition_id):
@@ -1317,24 +1495,14 @@ class Database(Streamable):
         return competition_wins
 
     def get_hoarding(self, league_id):
-        sql = (f'SELECT q.round_id, q.player_id, q.votes/p.total::real*n.player_ids/(n.player_ids-1) AS pct '
-               f'FROM (SELECT s.round_id, v.player_id, COUNT(v.song_id) AS votes '
-               f'FROM {self.table_name("Votes")} AS v '
-               f'LEFT JOIN {self.table_name("Songs")} AS s '
-               f'ON v.song_id = s.song_id AND v.league_id = s.league_id '
-               f'WHERE v.league_id = {self.needs_quotes(league_id)} AND v.player_id IS NOT NULL '
-               f'GROUP BY s.round_id, v.player_id) AS q '
-               f'LEFT JOIN (SELECT round_id, COUNT(song_id) AS total '
-               f'FROM {self.table_name("Songs")} WHERE league_id = {self.needs_quotes(league_id)} '
-               f'GROUP BY round_id) AS p ON q.round_id = p.round_id '
-               f'LEFT JOIN (SELECT round_id, COUNT(DISTINCT submitter_id) AS player_ids '
-               f'FROM {self.table_name("Songs")} WHERE league_id = {self.needs_quotes(league_id)} '
-               f'GROUP BY round_id) AS n ON q.round_id = n.round_id;'
-               )
+        awards_round_df = self.get_round_awards(league_id, round_id=True)
+        hoarding_df = awards_round_df.pivot(index='player_id', columns='round_id', values='generosity')
 
-        hoarding_df = self.read_sql(sql).pivot(index='player_id', columns='round_id', values='pct')
-
+        awards_league_df = self.get_round_awards(league_id)
+        most_generous = awards_league_df[awards_league_df['generous']==awards_league_df['generous'].min()]['player_id'].to_list()
+        least_generous = awards_league_df[awards_league_df['generous']==awards_league_df['generous'].max()]['player_id'].to_list()
+        
         reindexer = [c for c in self.get_round_order(league_id) if c in hoarding_df.columns]
         hoarding_df = hoarding_df.reindex(columns=reindexer)
-                
-        return hoarding_df
+                        
+        return hoarding_df, most_generous, least_generous

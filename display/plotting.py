@@ -148,7 +148,7 @@ class Plotter(Streamable):
     def plot_results(self):
         player_ids = self.database.get_player_ids()
         self.view_player = self.streamer.player_box.selectbox('Who are you?',
-                                                              player_ids + [self.god_player, self.blank_player],
+                                                              [self.god_player] + player_ids + [self.blank_player],
                                                               index=len(player_ids) + 1,
                                                               format_func=lambda x: self.get_player_name(x, full=True))
 
@@ -191,8 +191,14 @@ class Plotter(Streamable):
                                                 self.database.get_playlists, league_title)
                 self.plot_viewer(badge=badge, badge2=badge2, playlists_df=playlists_df)
 
+                # plot the league stats
+                if self.view_player == self.god_player:
+                    awards_df = self.prepare_dfs(('awards_df', league_title, self.view_player),
+                                                 self.database.get_awards, league_title, self.view_player)
+                    self.plot_caption(league_title=league_title, god_mode=True, awards_df=awards_df)
+
                 # plot the viewer stats
-                if self.view_player != self.god_player:
+                else:
                     viewer_df = self.prepare_dfs(('viewer_df', league_title, self.view_player),
                                                  self.database.get_player_pulse, league_title, self.view_player)
                     wins_df = self.prepare_dfs(('player_wins_df', league_title, self.view_player),
@@ -239,9 +245,10 @@ class Plotter(Streamable):
                 self.plot_rankings(league_title, rankings_df, dirtiness_df, discovery_df)
                                    
                 # plot vote hoarding
-                hoarding_df = self.prepare_dfs(('hoarding_df', league_title),
-                                               self.database.get_hoarding, league_title)
-                self.plot_hoarding(league_title, hoarding_df)
+                hoarding_df, most_generous, least_generous = \
+                    self.prepare_dfs(('hoarding_df', league_title),
+                                     self.database.get_hoarding, league_title)
+                self.plot_hoarding(league_title, hoarding_df, most_generous, least_generous)
 
                 # plot league pulse
                 members_df = self.prepare_dfs(('members_df', league_title),
@@ -377,23 +384,38 @@ class Plotter(Streamable):
         return image
 
     def plot_caption(self, league_title=None, viewer_df=None, wins_df=None, awards_df=None,
-                     competition_title=None, competitions_df=None, competition_wins=None):
-        parameters = {}
-        keys = ['likes', 'liked', 'closest', 'dirtiest', 'discoverer', 'popular',
-                'win_rate', 'play_rate', 'generous', 'clean'] #'stingy' 'maxed_out' 'chatty'
-        for df in [viewer_df, awards_df]:
-            if (df is not None) and len(df):
-                parameters.update({k: df[k] for k in keys if k in df})
-        if (wins_df is not None) and len(wins_df):
-            parameters['wins'] = self.get_round_title(wins_df['round_id'].to_list())
-        if (competitions_df is not None) and len(competitions_df):
-            parameters.update({'current_competition': competition_title,
-                               'badge2': competitions_df.query('player == @self.view_player')['place'].squeeze(),
-                               'n_players': len(competitions_df)})
-        parameters['leagues'] = [self.get_league_title(l, feel=True) for l in self.view_league_titles if l != league_title]
-        parameters['other_leagues'] = (league_title is not None)
+                     competition_title=None, competitions_df=None, competition_wins=None,
+                     god_mode=False):
+        pulse_keys = ['likes', 'liked', 'closest']
+        award_keys = ['chatty', 'quiet', 'popular', 'discoverer',
+                      'dirtiest', 'clean', 'generous', 'stingy', 
+                      'fast_submit', 'slow_submit', 'fast_vote', 'slow_vote']
+        stat_keys = ['win_rate', 'play_rate']
+
+        if god_mode:
+            parameters = {'god': True}
+            keys = award_keys
+
+            parameters.update({k: self.get_player_name(awards_df[k]) \
+                for k in keys if k in awards_df})
+
+        else:
+            parameters = {}
+            keys = award_keys + pulse_keys + stat_keys
+
+            for df in [viewer_df, awards_df]:
+                if (df is not None) and len(df):
+                    parameters.update({k: df[k] for k in keys if k in df})
+            if (wins_df is not None) and len(wins_df):
+                parameters['wins'] = self.get_round_title(wins_df['round_id'].to_list())
+            if (competitions_df is not None) and len(competitions_df):
+                parameters.update({'current_competition': competition_title,
+                                   'badge2': competitions_df.query('player == @self.view_player')['place'].squeeze(),
+                                   'n_players': len(competitions_df)})
+            parameters['leagues'] = [self.get_league_title(l, feel=True) for l in self.view_league_titles if l != league_title]
+            parameters['other_leagues'] = (league_title is not None)
         
-        parameters['competition_wins'] = self.get_competition_title(competition_wins) ##competitions_df
+            parameters['competition_wins'] = self.get_competition_title(competition_wins) ##competitions_df
 
         self.streamer.player_caption.markdown(self.library.get_column(parameters))
 
@@ -1090,7 +1112,7 @@ class Plotter(Streamable):
 
         plt.close()
 
-    def plot_hoarding(self, league_title, hoarding_df):
+    def plot_hoarding(self, league_title, hoarding_df, most_generous, least_generous):
         self.streamer.status(1/self.plot_counts)
         player_ids = hoarding_df.index
         round_ids = hoarding_df.columns
@@ -1125,8 +1147,8 @@ class Plotter(Streamable):
         ax.set_xticklabels(self.get_round_title(round_ids, clean=True))
         ax.legend()
 
-        parameters = {'generous': self.get_player_name(hoarding_df[hoarding_df.sum(1) == hoarding_df.sum(1).max()].index[0]),
-                      'hoarder': self.get_player_name(hoarding_df[hoarding_df.sum(1) == hoarding_df.sum(1).min()].index[0]),
+        parameters = {'generous': self.get_player_name(most_generous),
+                      'hoarder': self.get_player_name(least_generous),
                       }
         self.streamer.pyplot(ax.figure, header='Vote Sharing', #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('hoarding', parameters=parameters))
