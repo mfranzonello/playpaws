@@ -75,6 +75,9 @@ class Streamer:
             self.base_status = 0.0
             self.base_text = ''
 
+            self.tabs = None
+            self.tab_n = 0
+
     def get_session_state(self, key):
         item = st.session_state.get(key)
         ok = (item is not None)
@@ -83,7 +86,7 @@ class Streamer:
     def store_session_state(self, key, item):
         st.session_state[key] = item
                
-    def wrapper(self, header, tooltip, header2=None):
+    def wrapper(self, header, tooltip, header2=None, tab_n=None):
         self.header(header)
         self.header2(header2)
         self.tooltip(tooltip)
@@ -130,7 +133,18 @@ class Streamer:
         self.wrapper(header, tooltip, header2=header2)
         self.in_expander(in_expander, st.ploty_chart, figure, transparent=True)
 
-    def pyplot(self, figure, header=None, header2=None, tooltip=None, in_expander=False):
+    def pyplot(self, figure, header=None, header2=None, tooltip=None, in_expander=False,
+               tab=False):
+ 
+        if tab:
+            self.tab_n += 1
+            with self.tabs[self.tab_n - 1]:
+                self.tabbed_plot(header, tooltip, header2, in_expander, figure)
+                
+        else:
+            self.tabbed_plot(header, tooltip, header2, in_expander, figure)
+
+    def tabbed_plot(self, header, tooltip, header2, in_expander, figure):
         self.wrapper(header, tooltip, header2=header2)
         self.in_expander(in_expander, st.pyplot, figure, transparent=True)
         

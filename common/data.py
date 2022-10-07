@@ -269,7 +269,7 @@ class Database(Streamable):
                 like_name = f'{partial_name}%%'
                 wheres = f'(league_id = {self.needs_quotes(league_id)}) AND (player_id LIKE {self.needs_quotes(like_name)})'
 
-            sql = f'SELECT player_id FROM {self.table_name("Members")} WHERE {wheres}'
+            sql = f'SELECT player_id FROM {self.table_name("members")} WHERE {wheres}'
 
             names_df = self.read_sql(sql)
             if len(names_df):
@@ -325,7 +325,7 @@ class Database(Streamable):
 
     def get_league_creator(self, league_id):
         # get name of league creator
-        sql = f'SELECT creator_id FROM {self.table_name("Leagues")} WHERE league_id = {self.needs_quotes(league_id)}' 
+        sql = f'SELECT creator_id FROM {self.table_name("leagues")} WHERE league_id = {self.needs_quotes(league_id)}' 
         creators_df = self.read_sql(sql)
         if len(creators_df):
             creator_id = creators_df['creator_id'].iloc[0]
@@ -334,7 +334,7 @@ class Database(Streamable):
         return creator_id 
 
     def get_player_leagues(self, player_id):
-        sql = (f'SELECT league_id FROM {self.table_name("Members")} '
+        sql = (f'SELECT league_id FROM {self.table_name("members")} '
                f'WHERE player_id = {self.needs_quotes(player_id)};'
                )
                
@@ -366,7 +366,7 @@ class Database(Streamable):
 
 
     def get_uncreated_rounds(self, league_id):
-        sql = (f'SELECT round_id, description, creator_id FROM {self.table_name("Rounds")} '
+        sql = (f'SELECT round_id, description, creator_id FROM {self.table_name("rounds")} '
                f'WHERE (league_id = {self.needs_quotes(league_id)}) AND (creator_id IS NULL);') 
 
         rounds_df = self.read_sql(sql)
@@ -441,7 +441,7 @@ class Database(Streamable):
         return player_names
 
     def get_name(self, id, table):
-        sql = f'SELECT {table}_name FROM {self.table_name(table.title() + "s")} WHERE {table}_id = {self.needs_quotes(id)}'
+        sql = f'SELECT {table}_name FROM {self.table_name(table + "s")} WHERE {table}_id = {self.needs_quotes(id)}'
         name = self.read_sql(sql)[f'{table}_name'].squeeze()
 
         return name
@@ -463,7 +463,7 @@ class Database(Streamable):
             members_df = self.get_members(league_id)
             player_ids = members_df['player_id'].to_list()
         else:
-            sql = (f'SELECT player_id FROM {self.table_name("Players")} '
+            sql = (f'SELECT player_id FROM {self.table_name("players")} '
                    f'WHERE player_ID != {self.needs_quotes(self.god_id)} '
                    f'ORDER BY player_name;'
                    )
@@ -476,8 +476,8 @@ class Database(Streamable):
         return self.god_id
 
     def get_inactive_players(self):
-        sql = (f'SELECT player_id FROM {self.table_name("Players")} '
-               f'WHERE inactive = {self.needs_quotes("True")};'
+        sql = (f'SELECT player_id FROM {self.table_name("players")} '
+               f'WHERE inactive = {self.needs_quotes(True)};'
                )
 
         player_ids = self.read_sql(sql)['player_id'].to_list()
@@ -485,8 +485,8 @@ class Database(Streamable):
         return player_ids
 
     def get_extendable_leagues(self):
-        sql = (f'SELECT league_id FROM {self.table_name("Leagues")} '
-               f'WHERE extendable = {self.needs_quotes("True")};'
+        sql = (f'SELECT league_id FROM {self.table_name("leagues")} '
+               f'WHERE extendable = {self.needs_quotes(True)};'
                )
 
         league_ids = self.read_sql(sql)['league_id'].to_list()
@@ -495,7 +495,7 @@ class Database(Streamable):
 
     def get_weights(self, version):
         sql = (f'SELECT DISTINCT ON(parameter) version, parameter, weight_value '
-               f'FROM {self.table_name("Weights")} WHERE version >= FLOOR({version}::real) '
+               f'FROM {self.table_name("weights")} WHERE version >= FLOOR({version}::real) '
                f'ORDER BY parameter, version DESC;'
                )
 
@@ -554,7 +554,7 @@ class Database(Streamable):
         return df
 
     def get_round_playlist(self, league_id, round_id):
-        sql = (f'SELECT playlist_url AS url FROM {self.table_name("Rounds")} '
+        sql = (f'SELECT playlist_url AS url FROM {self.table_name("rounds")} '
                f'WHERE (league_id = {self.needs_quotes(league_id)}) AND (round_id = {self.needs_quotes(round_id)}) '
                f'AND (playlist_url IS NOT NULL);')
 
@@ -571,7 +571,7 @@ class Database(Streamable):
         return playlists_df
 
     def get_track_count(self, league_id):
-        sql = (f'SELECT COUNT(DISTINCT track_uri) FROM {self.table_name("Songs")} ' #track_url
+        sql = (f'SELECT COUNT(DISTINCT track_uri) FROM {self.table_name("songs")} '
                f'WHERE league_id = {self.needs_quotes(league_id)};'
                )
 
@@ -581,9 +581,9 @@ class Database(Streamable):
 
     def get_track_durations(self, league_id):
         sql = (f'SELECT SUM(t.duration) AS duration FROM '
-               f'(SELECT DISTINCT track_uri FROM {self.table_name("Songs")} ' #track_url
+               f'(SELECT DISTINCT track_uri FROM {self.table_name("songs")} '
                f'WHERE league_id = {self.needs_quotes(league_id)}) as s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri;' #track_url
+               f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri;'
                )
 
         duration = self.read_sql(sql)['duration'].iloc[0]
@@ -594,7 +594,7 @@ class Database(Streamable):
         # get playlists or track URIs to pull songs from
         if theme == 'complete':
             # all songs
-            sql = (f'SELECT league_id, round_id, playlist_url AS url FROM {self.table_name("Rounds")} '
+            sql = (f'SELECT league_id, round_id, playlist_url AS url FROM {self.table_name("rounds")} '
                    f'WHERE playlist_url IS NOT NULL '
                    f'ORDER BY created_date;'
                    )
@@ -603,10 +603,10 @@ class Database(Streamable):
             
         elif theme == 'best':
             # based on performance
-            sql = (f'SELECT s.league_id, s.round_id, t.uri, r.points, d.created_date FROM {self.table_name("Results")} as r ' 
-                   f'LEFT JOIN {self.table_name("Songs")} as s ON (r.league_id = s.league_id) AND (r.song_id = s.song_id) '
-                   f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_uri = t.uri '
-                   f'LEFT JOIN {self.table_name("Rounds")} as d ON (s.league_id = d.league_id) AND (s.round_id = d.round_id) '
+            sql = (f'SELECT s.league_id, s.round_id, t.uri, r.points, d.created_date FROM {self.table_name("results")} as r ' 
+                   f'LEFT JOIN {self.table_name("songs")} as s ON (r.league_id = s.league_id) AND (r.song_id = s.song_id) '
+                   f'LEFT JOIN {self.table_name("tracks")} as t ON s.track_uri = t.uri '
+                   f'LEFT JOIN {self.table_name("rounds")} as d ON (s.league_id = d.league_id) AND (s.round_id = d.round_id) '
                    f';'
                    )
 
@@ -615,14 +615,14 @@ class Database(Streamable):
         elif theme == 'favorite':
             # player favorite
             sql = (f'SELECT * FROM (SELECT s.league_id, s.round_id, t.uri, v.player_id, v.vote, d.created_date '
-                   f'FROM {self.table_name("Votes")} as v '
-                   f'LEFT JOIN {self.table_name("Songs")} as s ON (v.league_id = s.league_id) AND (v.song_id = s.song_id) '
-                   f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_uri = t.uri '
-                   f'LEFT JOIN {self.table_name("Rounds")} AS d ON (s.league_id = d.league_id) AND (s.round_id = d.round_id) '
+                   f'FROM {self.table_name("votes")} as v '
+                   f'LEFT JOIN {self.table_name("songs")} as s ON (v.league_id = s.league_id) AND (v.song_id = s.song_id) '
+                   f'LEFT JOIN {self.table_name("tracks")} as t ON s.track_uri = t.uri '
+                   f'LEFT JOIN {self.table_name("rounds")} AS d ON (s.league_id = d.league_id) AND (s.round_id = d.round_id) '
                    f'UNION SELECT s.league_id, s.round_id, t.uri, s.submitter_id, -1 as vote,  d.created_date ' 
-                   f'FROM {self.table_name("Songs")} as s '
-                   f'LEFT JOIN {self.table_name("Tracks")} as t ON s.track_uri = t.uri '
-                   f'LEFT JOIN {self.table_name("Rounds")} AS d ON (s.league_id = d.league_id) AND (s.round_id = d.round_id)) AS q '
+                   f'FROM {self.table_name("songs")} as s '
+                   f'LEFT JOIN {self.table_name("tracks")} as t ON s.track_uri = t.uri '
+                   f'LEFT JOIN {self.table_name("rounds")} AS d ON (s.league_id = d.league_id) AND (s.round_id = d.round_id)) AS q '
                    f'WHERE q.player_id IS NOT NULL;'
                    )
 
@@ -633,7 +633,7 @@ class Database(Streamable):
         # get comprehensive playlists
         selects = ', player_id' if theme == 'favorite' else ''
 
-        sql = (f'SELECT league_id, uri, src, round_ids{selects} FROM {self.table_name("Playlists")} '
+        sql = (f'SELECT league_id, uri, src, round_ids{selects} FROM {self.table_name("playlists")} '
                f'WHERE {wheres};'
                )
 
@@ -651,7 +651,7 @@ class Database(Streamable):
         self.upsert_table('Playlists', df)
 
     def flag_player_image(self, player_id):
-        sql = (f'UPDATE {self.table_name("Players")} '
+        sql = (f'UPDATE {self.table_name("players")} '
                f'SET flagged = {self.needs_quotes(date.today())} '
                f'WHERE player_id = {self.needs_quotes(player_id)};'
                )
@@ -660,7 +660,7 @@ class Database(Streamable):
 
     def get_players_update_sp(self):
         wheres = ' OR '.join(f'({v} IS NULL)' for v in ['src', 'uri', 'followers'])
-        sql = (f'SELECT player_id, username FROM {self.table_name("Players")} '
+        sql = (f'SELECT player_id, username FROM {self.table_name("players")} '
                f'WHERE ({wheres} OR (flagged <= {self.needs_quotes(date.today())})) '
                f'AND (username IS NOT NULL);')
 
@@ -674,10 +674,10 @@ class Database(Streamable):
                                                         'key', 'mode', 'loudness', 'tempo',
                                                         'danceability', 'energy', 'liveness', 'valence',
                                                         'speechiness', 'acousticness', 'instrumentalness'])
-        sql = (f'SELECT DISTINCT track_uri AS url FROM {self.table_name("Songs")} ' # track_url
-               f'WHERE track_uri NOT IN ' # track_url
-               f'(SELECT uri FROM {self.table_name("Tracks")}) '
-               f'UNION SELECT uri FROM {self.table_name("Tracks")} WHERE {wheres};'
+        sql = (f'SELECT DISTINCT track_uri AS url FROM {self.table_name("songs")} '
+               f'WHERE track_uri NOT IN ' 
+               f'(SELECT uri FROM {self.table_name("tracks")}) '
+               f'UNION SELECT uri FROM {self.table_name("tracks")} WHERE {wheres};'
                )
 
         tracks_df = self.read_sql(sql)
@@ -689,9 +689,9 @@ class Database(Streamable):
                                                         'genres', 'followers'])
         sql = (f'SELECT t.a_uri as uri FROM '
                f'(SELECT DISTINCT jsonb_array_elements(artist_uri)->>0 AS a_uri '
-               f'FROM {self.table_name("Tracks")}) AS t '
-               f'WHERE t.a_uri NOT IN (SELECT uri FROM {self.table_name("Artists")}) '
-               f'UNION SELECT uri FROM {self.table_name("Artists")} WHERE {wheres};'
+               f'FROM {self.table_name("tracks")}) AS t '
+               f'WHERE t.a_uri NOT IN (SELECT uri FROM {self.table_name("artists")}) '
+               f'UNION SELECT uri FROM {self.table_name("artists")} WHERE {wheres};'
                )
 
         artists_df = self.read_sql(sql)
@@ -701,9 +701,9 @@ class Database(Streamable):
     def get_albums_update_sp(self):
         wheres = ' OR '.join(f'({v} IS NULL)' for v in ['src', 'name', 'popularity',
                                                         'release_date', 'genres'])
-        sql = (f'SELECT DISTINCT album_uri AS uri FROM {self.table_name("Tracks")} '
-               f'WHERE (album_uri NOT IN (SELECT uri FROM {self.table_name("Albums")})) '
-               f'UNION SELECT uri FROM {self.table_name("Albums")} WHERE {wheres};'
+        sql = (f'SELECT DISTINCT album_uri AS uri FROM {self.table_name("tracks")} '
+               f'WHERE (album_uri NOT IN (SELECT uri FROM {self.table_name("albums")})) '
+               f'UNION SELECT uri FROM {self.table_name("albums")} WHERE {wheres};'
                )
 
         albums_df = self.read_sql(sql)
@@ -713,10 +713,10 @@ class Database(Streamable):
     def get_genres_update_sp(self):
         sql = (f'SELECT u.genre FROM (SELECT DISTINCT '
                f'jsonb_array_elements(genres)->>0 AS genre '
-               f'FROM {self.table_name("Artists")} '
+               f'FROM {self.table_name("artists")} '
                f'UNION SELECT jsonb_array_elements(genres)->>0 AS genre '
-               f'FROM {self.table_name("Albums")}) AS u '
-               f'WHERE u.genre NOT IN (SELECT name FROM {self.table_name("Genres")});'
+               f'FROM {self.table_name("albums")}) AS u '
+               f'WHERE u.genre NOT IN (SELECT name FROM {self.table_name("genres")});'
                )
 
         genres_df = self.read_sql(sql)
@@ -727,7 +727,7 @@ class Database(Streamable):
     # LastFM functions
     def get_tracks_update_titles(self):
         sql = (f'SELECT uri, name AS unclean ' 
-               f'FROM {self.table_name("Tracks")} '
+               f'FROM {self.table_name("tracks")} '
                f'WHERE title IS NULL;'
                )
 
@@ -740,8 +740,8 @@ class Database(Streamable):
                                                           'top_tags'])
         sql = (f'SELECT t.uri, t.title, a.name AS artist, '
                f't.scrobbles, t.listeners, t.top_tags '
-               f'FROM {self.table_name("Tracks")} as t '
-               f'LEFT JOIN {self.table_name("Artists")} AS a '
+               f'FROM {self.table_name("tracks")} as t '
+               f'LEFT JOIN {self.table_name("artists")} AS a '
                f'ON (t.artist_uri->>0) = a.uri WHERE {wheres};'
                )
 
@@ -773,7 +773,7 @@ class Database(Streamable):
         return analyses_df
     
     def get_analyzed(self, league_id, round_ids, version):
-        sql = (f'SELECT COUNT(*) FROM {self.table_name("Analyses")} '
+        sql = (f'SELECT COUNT(*) FROM {self.table_name("analyses")} '
                f'WHERE (league_id = {self.needs_quotes(league_id)}) '
                f'AND (round_ids = {self.needs_quotes(round_ids)}) '
                f'AND (version = {version}::real);'
@@ -784,7 +784,7 @@ class Database(Streamable):
         return analyzed
 
     def get_optimized(self, league_id):
-        sql = (f'SELECT COUNT(*) FROM {self.table_name("Analyses")} '
+        sql = (f'SELECT COUNT(*) FROM {self.table_name("analyses")} '
                f'WHERE (league_id = {self.needs_quotes(league_id)}) '
                f'AND (optimized = TRUE);'
                )
@@ -841,10 +841,10 @@ class Database(Streamable):
             gb = 'player_id'
             sql = (f'SELECT v.player_id, '
                    f'AVG(CASE WHEN t.explicit THEN 1 ELSE 0 END) AS dirtiness '
-                   f'FROM {self.table_name("Votes")} AS v '
-                   f'LEFT JOIN {self.table_name("Songs")} AS s '
+                   f'FROM {self.table_name("votes")} AS v '
+                   f'LEFT JOIN {self.table_name("songs")} AS s '
                    f'ON (v.song_id = s.song_id) AND (v.league_id = s.league_id) '
-                   f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri '
+                   f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri '
                    f'WHERE s.league_id = {self.needs_quotes(league_id)} '
                    f'GROUP BY v.player_id;'
                    )
@@ -853,8 +853,8 @@ class Database(Streamable):
             sql = (f'SELECT s.submitter_id, ' 
                    f'count(CASE WHEN t.explicit THEN 1 END) / '
                    f'count(CASE WHEN NOT t.explicit THEN 1 END)::real AS dirtiness '
-                   f'FROM {self.table_name("Songs")} AS s '
-                   f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri '
+                   f'FROM {self.table_name("songs")} AS s '
+                   f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri '
                    f'WHERE s.league_id = {self.needs_quotes(league_id)} '
                    f'GROUP BY s.submitter_id;'
                    )
@@ -879,9 +879,9 @@ class Database(Streamable):
             jsons = ', '.join(f'{method}(t.{k}) AS {method}_{k}' for method in methods for k in values)
 
             sql = (f'SELECT s.round_id, {jsons} '
-                   f'FROM {self.table_name("Songs")} AS s '
-                   f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' #track_url
-                   f'LEFT JOIN {self.table_name("Rounds")} AS r ON s.round_id = r.round_id '
+                   f'FROM {self.table_name("songs")} AS s '
+                   f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri ' 
+                   f'LEFT JOIN {self.table_name("rounds")} AS r ON s.round_id = r.round_id '
                    f'WHERE s.league_id = {self.needs_quotes(league_id)} '
                    f'GROUP BY s.round_id, r.created_date ORDER BY r.created_date;'
                    )
@@ -893,8 +893,8 @@ class Database(Streamable):
     def get_discoveries(self, league_id, base=1000):
         sql = (f'SELECT s.round_id, s.song_id, '
                f'AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) AS discovery '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' #track_url, url
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri '
                f'WHERE s.league_id = {self.needs_quotes(league_id)} '
                f'GROUP BY s.round_id, s.song_id;'
                )
@@ -907,8 +907,8 @@ class Database(Streamable):
         sql = (f'SELECT s.submitter_id, '
                f'AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) AS discovery, '
                f'AVG(t.popularity::real/100) AS popularity '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' #track_url
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri '
                f'WHERE s.league_id = {self.needs_quotes(league_id)} '
                f'GROUP BY s.submitter_id;'
                )
@@ -924,10 +924,10 @@ class Database(Streamable):
             wheres = ''
 
         sql = (f'SELECT a.genres, t.top_tags AS tags '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t '
-               f'ON s.track_uri = t.uri ' #track_url
-               f'LEFT JOIN {self.table_name("Artists")} AS a '
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t '
+               f'ON s.track_uri = t.uri ' 
+               f'LEFT JOIN {self.table_name("artists")} AS a '
                f'ON t.artist_uri ? a.uri '
                f'WHERE s.league_id = {self.needs_quotes(league_id)}{wheres};'
                )
@@ -942,30 +942,30 @@ class Database(Streamable):
     def get_exclusive_genres(self, league_id):
         sql = (f'SELECT q.tag FROM '
                f'(SELECT jsonb_array_elements(a.genres) as tag '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t '
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t '
                f'ON s.track_uri = t.uri ' 
-               f'LEFT JOIN {self.table_name("Artists")} AS a '
+               f'LEFT JOIN {self.table_name("artists")} AS a '
                f'ON t.artist_uri ? a.uri '
                f'WHERE s.league_id = {self.needs_quotes(league_id)} '
                f'UNION '
                f'SELECT jsonb_array_elements(t.top_tags) AS tag '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t '
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t '
                f'ON s.track_uri = t.uri ' 
                f'WHERE s.league_id = {self.needs_quotes(league_id)}) AS q '
                f'WHERE q.tag NOT IN '
                f'(SELECT jsonb_array_elements(a.genres) as tag '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t '
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t '
                f'ON s.track_uri = t.uri ' 
-               f'LEFT JOIN {self.table_name("Artists")} AS a '
+               f'LEFT JOIN {self.table_name("artists")} AS a '
                f'ON t.artist_uri ? a.uri '
                f'WHERE s.league_id != {self.needs_quotes(league_id)} '
                f'UNION '
                f'SELECT jsonb_array_elements(t.top_tags) AS tag '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t '
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t '
                f'ON s.track_uri = t.uri ' 
                f'WHERE s.league_id != {self.needs_quotes(league_id)});'
                )
@@ -979,18 +979,18 @@ class Database(Streamable):
                f'WITH expanded AS ('
                f'SELECT t.uri AS track_uri, t.name AS track, '
                f'value as artist_uri, ordinality '
-               f'FROM {self.table_name("Tracks")} AS t, '
-               f'jsonb_array_elements_text(t.artist_uri) WITh ORDINALITY), '
+               f'FROM {self.table_name("tracks")} AS t, '
+               f'jsonb_array_elements_text(t.artist_uri) WITH ORDINALITY), '
 
                # group artist names
                f'combined AS ('
                f'SELECT r.league_id, r.round_id, expanded.track_uri, '
                f'jsonb_agg(a.name ORDER BY expanded.ordinality) AS artist '
-               f'FROM {self.table_name("Rounds")} AS r '
-               f'LEFT JOIN {self.table_name("Songs")} AS s '
+               f'FROM {self.table_name("rounds")} AS r '
+               f'LEFT JOIN {self.table_name("songs")} AS s '
                f'ON r.league_id = s.league_id AND r.round_id = s.round_id '
                f'LEFT JOIN expanded ON s.track_uri = expanded.track_uri '
-               f'LEFT JOIN {self.table_name("Artists")} AS a '
+               f'LEFT JOIN {self.table_name("artists")} AS a '
                f'ON expanded.artist_uri = a.uri '
                f'GROUP BY r.league_id, r.round_id, expanded.track_uri) '
 
@@ -998,16 +998,16 @@ class Database(Streamable):
                f'SELECT c.round_id, s.song_id, s.submitter_id, '
                f'c.artist, t.title, b.release_date, b.src, r.closed, r.points '
                f'FROM combined AS c '
-               f'LEFT JOIN {self.table_name("Songs")} AS s '
+               f'LEFT JOIN {self.table_name("songs")} AS s '
                f'ON c.league_id = s.league_id AND c.round_id = s.round_id '
                f'AND c.track_uri = s.track_uri '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON c.track_uri = t.uri '
-               f'LEFT JOIN {self.table_name("Albums")} AS b ON t.album_uri = b.uri '
-               f'LEFT JOIN {self.table_name("Results")} AS r '
+               f'LEFT JOIN {self.table_name("tracks")} AS t ON c.track_uri = t.uri '
+               f'LEFT JOIN {self.table_name("albums")} AS b ON t.album_uri = b.uri '
+               f'LEFT JOIN {self.table_name("results")} AS r '
                f'ON r.league_id = s.league_id AND r.song_id = s.song_id '
-               f'LEFT JOIN {self.table_name("Leagues")} AS l '
+               f'LEFT JOIN {self.table_name("leagues")} AS l '
                f'ON r.league_id = l.league_id '
-               f'LEFT JOIN {self.table_name("Rounds")} AS d '
+               f'LEFT JOIN {self.table_name("rounds")} AS d '
                f'ON r.league_id = d.league_id AND c.round_id = d.round_id '
                f'WHERE l.league_id = {self.needs_quotes(league_id)} '
                f'ORDER BY l.created_date ASC, d.created_date ASC, r.points DESC;'
@@ -1026,8 +1026,8 @@ class Database(Streamable):
 
     def get_creators_and_winners(self, league_id):
         sql = (f'SELECT r.round_id, r.creator_id, jsonb_agg(b.player_id) AS winner '
-               f'FROM {self.table_name("Rounds")} as r '
-               f'LEFT JOIN {self.table_name("Boards")} as b '
+               f'FROM {self.table_name("rounds")} as r '
+               f'LEFT JOIN {self.table_name("boards")} as b '
                f'ON (r.league_id = b.league_id) AND (r.round_id = b.round_id) '
                f'WHERE (r.league_id = {self.needs_quotes(league_id)}) '
                f'AND ((b.place < 2) OR (b.place IS NULL)) ' ## can this be MIN without GROUP BY?
@@ -1041,9 +1041,9 @@ class Database(Streamable):
 
     def get_all_artists(self, league_id):
         sql = (f'SELECT s.league_id, s.song_id, json_agg(DISTINCT a.name) as arist '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")}AS t ON s.track_uri = t.uri ' 
-               f'LEFT JOIN {self.table_name("Artists")} AS a ON t.artist_uri ? a.uri '
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")}AS t ON s.track_uri = t.uri ' 
+               f'LEFT JOIN {self.table_name("artists")} AS a ON t.artist_uri ? a.uri '
                f'WHERE s.league_id = {self.needs_quotes(league_id)} '
                f'GROUP BY s.song_id, s.league;'
                )
@@ -1055,11 +1055,11 @@ class Database(Streamable):
     def get_all_info(self):
         sql = (f'SELECT q.league_id, x.song_id, q.round_id, x.artist, q.title, q.submitter_id FROM '
                f'(SELECT s.league_id, s.song_id, json_agg(DISTINCT a.name) as artist '
-               f'FROM {self.table_name("Songs")} AS s '
-               f'LEFT JOIN {self.table_name("Tracks")} AS t ON s.track_uri = t.uri ' 
-               f'LEFT JOIN {self.table_name("Artists")} AS a ON t.artist_uri ? a.uri '
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri ' 
+               f'LEFT JOIN {self.table_name("artists")} AS a ON t.artist_uri ? a.uri '
                f'GROUP BY s.song_id, s.league_id) x '
-               f'LEFT JOIN {self.table_name("Songs")} AS q '
+               f'LEFT JOIN {self.table_name("songs")} AS q '
                f'ON (x.song_id = q.song_id) AND (x.league_id = q.league_id);'
                )
 
@@ -1070,27 +1070,27 @@ class Database(Streamable):
     def get_player_pulse(self, league_id, player_id):
         sql = (f'SELECT p.player_id, p.likes_id, p.liked_id, j.closest_id '
                f'FROM (SELECT player_id, likes_id, liked_id  '
-               f'FROM {self.table_name("Members")} '
+               f'FROM {self.table_name("members")} '
                f'WHERE (league_id = {self.needs_quotes(league_id)}) '
                f'AND (player_id = {self.needs_quotes(player_id)})) as p '
 
                f'CROSS JOIN '
 
-               f'(SELECT p2_id AS closest_id FROM {self.table_name("Pulse")} '
+               f'(SELECT p2_id AS closest_id FROM {self.table_name("pulse")} '
                f'WHERE (league_id = {self.needs_quotes(league_id)}) '
                f'AND (p1_id = {self.needs_quotes(player_id)}) '
                f'AND (distance IN (SELECT MIN(distance) '
-               f'FROM {self.table_name("Pulse")} '
+               f'FROM {self.table_name("pulse")} '
                f'WHERE (league_id = {self.needs_quotes(league_id)}) '
                f'AND (p1_id = {self.needs_quotes(player_id)}) '
                f'GROUP BY league_id, p1_id)) LIMIT 1) AS j '
 
                ##f'(SELECT q.player AS closest FROM ( '
                ##f'SELECT player, abs(dfc - '
-               ##f'(SELECT dfc FROM {self.table_name("Members")} '
+               ##f'(SELECT dfc FROM {self.table_name("members")} '
                ##f'WHERE (league = {self.needs_quotes(league_title)}) '
                ##f'AND (player = {self.needs_quotes(player_name)}))) AS distance '
-               ##f'FROM {self.table_name("Members")} '
+               ##f'FROM {self.table_name("members")} '
                ##f'WHERE (league = {self.needs_quotes(league_title)}) '
                ##f'AND (player != {self.needs_quotes(player_name)}) '
                ##f'ORDER BY distance LIMIT 1) AS q) AS j'
@@ -1101,16 +1101,6 @@ class Database(Streamable):
         player_pulse_df = self.read_sql(sql).squeeze(0)
 
         return player_pulse_df
-
-    def get_player_wins(self, league_id, player_id):
-        sql = (f'SELECT round_id FROM {self.table_name("Boards")} '
-               f'WHERE (player_id = {self.needs_quotes(player_id)}) '
-               f'AND (league_id = {self.needs_quotes(league_id)}) AND (place = 1);'
-               )
-
-        player_wins_df = self.read_sql(sql)
-
-        return player_wins_df
 
     def add_on(self, add_type, alias, alias2=None, value=None,
                comma=False, conjunction=None):
@@ -1153,8 +1143,8 @@ class Database(Streamable):
                        'sql':
                        (f'rd AS ('
                        f'SELECT r.league_id, r.round_id, m.player_id '
-                       f'FROM {self.table_name("Rounds")} AS r '
-                       f'JOIN {self.table_name("Members")} AS m '
+                       f'FROM {self.table_name("rounds")} AS r '
+                       f'JOIN {self.table_name("members")} AS m '
                        f'ON r.league_id = m.league_id)'
                        )},
             
@@ -1168,11 +1158,11 @@ class Database(Streamable):
                        f'ORDER BY count(c.comment) DESC) AS chatty '
                        f'FROM ('
                        f'SELECT league_id{self.add_on2(add_type, "")}, submitter_id AS player_id, comment '
-                       f'FROM {self.table_name("Songs")} '
+                       f'FROM {self.table_name("songs")} '
                        f'UNION ALL '
                        f'SELECT v.league_id{self.add_on2(add_type, "s")}, v.player_id, v.comment '
-                       f'FROM {self.table_name("Votes")} AS v '
-                       f'LEFT JOIN {self.table_name("Songs")} AS s '
+                       f'FROM {self.table_name("votes")} AS v '
+                       f'LEFT JOIN {self.table_name("songs")} AS s '
                        f'ON s.league_id = v.league_id AND s.song_id = v.song_id) AS c '
                        f'GROUP BY c.league_id{self.add_on2(add_type, "c")}, c.player_id)'
                        )},
@@ -1184,8 +1174,8 @@ class Database(Streamable):
                        f'AVG(t.popularity::real/100) AS popularity, '
                        f'RANK() OVER (PARTITION BY s.league_id{self.add_on2(add_type, "s")} '
                        f'ORDER BY AVG(t.popularity::real/100) DESC) AS popular '
-                       f'FROM {self.table_name("Songs")} AS s '
-                       f'LEFT JOIN {self.table_name("Tracks")} AS t '
+                       f'FROM {self.table_name("songs")} AS s '
+                       f'LEFT JOIN {self.table_name("tracks")} AS t '
                        f'ON s.track_uri = t.uri '
                        f'GROUP BY s.league_id{self.add_on2(add_type, "s")}, s.submitter_id)'
                        )},
@@ -1198,8 +1188,8 @@ class Database(Streamable):
                        f'AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) AS discovery, '
                        f'RANK() OVER (PARTITION BY s.league_id{self.add_on2(add_type, "s")} '
                        f'ORDER BY AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) DESC) AS discoverer '
-                       f'FROM {self.table_name("Songs")} AS s '
-                       f'LEFT JOIN {self.table_name("Tracks")} AS t '
+                       f'FROM {self.table_name("songs")} AS s '
+                       f'LEFT JOIN {self.table_name("tracks")} AS t '
                        f'ON s.track_uri = t.uri '
                        f'GROUP BY s.league_id{self.add_on2(add_type, "s")}, s.submitter_id)'
                        )},
@@ -1212,8 +1202,8 @@ class Database(Streamable):
                        f'AVG(CASE WHEN t.explicit THEN 1 ELSE 0 END) AS dirtiness, '
                        f'RANK() OVER (PARTITION BY s.league_id{self.add_on2(add_type, "s")} '
                        f'ORDER BY AVG(CASE WHEN t.explicit THEN 1 ELSE 0 END) DESC) AS dirtiest '
-                       f'FROM {self.table_name("Songs")} AS s '
-                       f'LEFT JOIN {self.table_name("Tracks")} AS t '
+                       f'FROM {self.table_name("songs")} AS s '
+                       f'LEFT JOIN {self.table_name("tracks")} AS t '
                        f'ON s.track_uri = t.uri '
                        f'GROUP BY s.league_id{self.add_on2(add_type, "s")}, s.submitter_id)'
                        )},
@@ -1224,15 +1214,15 @@ class Database(Streamable):
                       (f'vo AS ('
                       f'SELECT v.league_id, s.round_id, v.player_id, '
                       f'SUM(CASE WHEN v.vote > 0 THEN 1 ELSE 0 END) AS votes '
-                      f'FROM {self.table_name("Votes")} AS v '
-                      f'JOIN {self.table_name("Songs")} AS s '
+                      f'FROM {self.table_name("votes")} AS v '
+                      f'JOIN {self.table_name("songs")} AS s '
                       f'ON v.league_id = s.league_id AND v.song_id = s.song_id '
                       f'GROUP BY v.league_id, s.round_id, v.player_id), '
 
                       f'so AS ('
                       f'SELECT s.league_id, s.round_id, '
                       f'COUNT(s.song_id) AS songs, COUNT(DISTINCT s.submitter_id) AS players '
-                      f'FROM {self.table_name("Songs")} AS s '
+                      f'FROM {self.table_name("songs")} AS s '
                       f'GROUP BY s.league_id, s.round_id), '
                
                       f'sv AS ('
@@ -1258,14 +1248,14 @@ class Database(Streamable):
                      (f'sd AS ('
                       f'SELECT league_id, round_id, submitter_id AS player_id, '
                       f'to_timestamp(AVG(extract(epoch FROM created_date)))::date AS submit_date '
-                      f'FROM {self.table_name("Songs")} '
+                      f'FROM {self.table_name("songs")} '
                       f'GROUP BY league_id, round_id, submitter_id), '
                
                       f'vd AS ('
                       f'SELECT v.league_id, s.round_id, v.player_id, '
                       f'to_timestamp(AVG(extract(epoch FROM v.created_date)))::date AS vote_date '
-                      f'FROM {self.table_name("Votes")} AS v '
-                      f'JOIN {self.table_name("Songs")} AS s '
+                      f'FROM {self.table_name("votes")} AS v '
+                      f'JOIN {self.table_name("songs")} AS s '
                       f'ON v.league_id = s.league_id AND v.song_id = s.song_id '
                       f'GROUP BY v.league_id, s.round_id, v.player_id), '
 
@@ -1285,7 +1275,7 @@ class Database(Streamable):
                       f'ORDER BY svd.submit_date - r.created_date ASC) AS submit_fastest, '
                       f'RANK() OVER (PARTITION BY r.league_id, r.round_id '
                       f'ORDER BY svd.vote_date - r.created_date ASC) AS vote_fastest '
-                      f'FROM {self.table_name("Rounds")} AS r '
+                      f'FROM {self.table_name("rounds")} AS r '
                       f'RIGHT JOIN svd '
                       f'ON r.league_id = svd.league_id AND r.round_id = svd.round_id), '
                
@@ -1337,13 +1327,13 @@ class Database(Streamable):
                f'SELECT league_id, player_id, '
                f'SUM(CASE WHEN place = 1 THEN 1 ELSE 0 END) AS wins, '
                f'COUNT(round_id)::real AS plays '
-               f'FROM {self.table_name("Boards")} '
+               f'FROM {self.table_name("boards")} '
                f'GROUP BY league_id, player_id), '
 
                # plays
                f'ro AS ('
                f'SELECT league_id, COUNT(round_id) AS total_rounds '
-               f'FROM {self.table_name("Rounds")} '
+               f'FROM {self.table_name("rounds")} '
                f'GROUP BY league_id) '
 
                # win and play rates
@@ -1406,44 +1396,86 @@ class Database(Streamable):
 
         return awards_s
 
+    def get_league_placement(self, league_id):
+        sql = (f'SELECT player_id, '
+               f'RANK() OVER (PARTITION BY league_id ORDER BY wins DESC) AS place '
+               f'FROM {self.table_name("members")} '
+               f'WHERE league_id = {self.needs_quotes(league_id)};'
+               )
+
+        places_df = self.read_sql(sql)
+
+        return places_df
+
+    def get_round_placement(self, league_id, player_id=None):
+        wheres = f'WHERE b.player_id = {self.needs_quotes(player_id)} AND b.place = 1 ' if player_id else ''
+
+        sql = (f'SELECT b.round_id, b.player_id, b.place '
+               f'FROM {self.table_name("boards")} AS b '
+               f'JOIN {self.table_name("rounds")} AS r ON b.round_id = r.round_id '
+               f'{wheres}'
+               f'ORDER BY r.created_date')
+
+        places_df = self.read_sql(sql)
+
+        return places_df
+
+    def get_competition_placement(self, league_id, competition_id=None, player_id=None):
+        if competition_id:
+            # look at specific competition
+            wheres1 = f'AND c.competition_id = {self.needs_quotes(competition_id)} '
+        else:
+            # look at all finished competition
+            wheres1 = f'AND c.finished = TRUE '
+
+        # find competitions won by a player
+        wheres2 = f'WHERE player_id = {self.needs_quotes(player_id)} AND place = 1 ' if player_id else ''
+        
+        sql = (f'WITH cr AS ('
+               f'SELECT r.league_id, r.player_id, c.competition_id, '
+               f'RANK() OVER(PARTITION BY r.league_id, c.competition_id '
+               f'ORDER BY SUM(r.points) DESC) AS place '
+               f'FROM {self.table_name("rankings")} AS r '
+               f'JOIN {self.table_name("competitions")} AS c '
+               f'ON c.round_ids ? r.round_id '
+               f'WHERE c.league_id = {self.needs_quotes(league_id)} '
+               f'{wheres1}'
+               f'GROUP BY r.league_id, c.competition_id, r.player_id) '
+               f'SELECT * FROM cr '
+               f'{wheres2}'
+               f'ORDER BY competition_id;'
+               )
+
+        places_df = self.read_sql(sql)
+
+        return places_df
+
     def get_badge(self, league_id, player_id, competition=None, competition_id=None):
         if (not competition) and (not competition_id):
-            sql = (f'SELECT q.badge FROM '
-                   f'(SELECT player_id, RANK() OVER (ORDER BY wins DESC) AS badge '
-                   f'FROM {self.table_name("Members")} '
-                   f'WHERE league_id = {self.needs_quotes(league_id)}) AS q '
-                   f'WHERE q.player_id = {self.needs_quotes(player_id)};'
-                   )
+            places_df = self.get_league_placement(league_id)
+
         else:
             if not competition_id:
                 competition_id = self.get_current_competition(league_id)
             
             if competition_id:
-                sql = (f'SELECT q.badge FROM (SELECT r.player_id, RANK() '
-                       f'OVER(ORDER BY SUM(r.points) DESC) AS badge '
-                       f'FROM {self.table_name("Rounds")} AS d '
-                       f'RIGHT JOIN {self.table_name("Competitions")} AS c '
-                       f'ON d.league_id = c.league_id AND c.round_ids ? d.round_id '
-                       f'RIGHT JOIN {self.table_name("Rankings")} AS r '
-                       f'ON d.league_id = r.league_id AND d.round_id = r.round_id '
-                       f'WHERE c.league_id = {self.needs_quotes(league_id)} '
-                       f'AND c.competition_id = {self.needs_quotes(competition_id)} '
-                       f'GROUP BY r.player_id) AS q WHERE q.player_id = {self.needs_quotes(player_id)};'
-                       )
+                places_df = self.get_competition_placement(league_id, competition_id=competition_id)
             else:
-                sql = None
+                places_df = None
 
-        if sql:
-            badge = self.read_sql(sql).squeeze()
+        if (places_df is not None) and len(places_df.query('player_id == @player_id')):
+            badge = places_df.query('player_id == @player_id')['place'].squeeze()
+            n_players = len(places_df)
         else:
             badge = None
+            n_players = 0
 
-        return badge
+        return badge, n_players
 
     def get_competitions(self, league_id):
         sql = (f'SELECT c.competition_id, c.competition_name, d.round_id '
-               f'FROM {self.table_name("Rounds")} AS d '
-               f'RIGHT JOIN {self.table_name("Competitions")} AS c '
+               f'FROM {self.table_name("rounds")} AS d '
+               f'RIGHT JOIN {self.table_name("competitions")} AS c '
                f'ON d.league_id = c.league_id '
                f'AND c.round_ids ? d.round_id '
                f'WHERE c.league_id = {self.needs_quotes(league_id)} '
@@ -1455,8 +1487,8 @@ class Database(Streamable):
         return competitions_df
 
     def get_current_competition(self, league_id):
-        sql = (f'SELECT competition_id, competition_name FROM {self.table_name("Competitions")} '
-               f'WHERE finished = FALSE '
+        sql = (f'SELECT competition_id, competition_name FROM {self.table_name("competitions")} '
+               f'WHERE finished = FALSE OR finished IS NULL '
                f'AND (league_id = {self.needs_quotes(league_id)})'
                f'LIMIT 1;' )
 
@@ -1475,33 +1507,21 @@ class Database(Streamable):
             competition_id = self.get_current_competition(league_id)
 
         if competition_id:
-            sql = (f'SELECT r.player_id, RANK() '
-                   f'OVER(ORDER BY SUM(r.points) DESC) AS place '
-                   f'FROM {self.table_name("Rounds")} AS d '
-                   f'RIGHT JOIN {self.table_name("Competitions")} AS c '
-                   f'ON d.league_id = c.league_id AND c.round_ids ? d.round_id '
-                   f'RIGHT JOIN {self.table_name("Rankings")} AS r '
-                   f'ON d.league_id = r.league_id AND d.round_id = r.round_id '
-                   f'WHERE c.league_id = {self.needs_quotes(league_id)} '
-                   f'AND c.competition_id = {self.needs_quotes(competition_id)} '
-                   f'GROUP BY r.player_id;'
-                   )
-               
-            results_df = self.read_sql(sql)
+            results_df = self.get_competition_placement(league_id, competition_id=competition_id)
 
         else:
             results_df = None
 
         return results_df
 
+    def get_round_wins(self, league_id, player_id):
+        round_wins = self.get_round_placement(league_id, player_id=player_id)['round_id'].to_list()
+
+        return round_wins
+
     def get_competition_wins(self, league_id, player_id):
-        competition_ids = self.get_competitions(league_id)['competition_id'].unique()
-        competition_wins = [competition_id for competition_id in competition_ids \
-            if self.get_badge(league_id, player_id, competition_id=competition_id) == 1]
-
-        if not len(competition_wins):
-            competition_wins = None
-
+        competition_wins = self.get_competition_placement(league_id, player_id=player_id)['competition_id'].to_list()
+        
         return competition_wins
 
     def get_hoarding(self, league_id):

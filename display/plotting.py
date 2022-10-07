@@ -184,11 +184,11 @@ class Plotter(Streamable):
                     badge2 = None
 
                 else:
-                    badge = self.prepare_dfs(('badge', league_title, self.view_player),
-                                             self.database.get_badge, league_title, self.view_player)
-                    badge2 = self.prepare_dfs(('badge2', league_title, self.view_player),
-                                              self.database.get_badge, league_title, self.view_player,
-                                              competition=True)
+                    badge, _ = self.prepare_dfs(('badge', league_title, self.view_player),
+                                                self.database.get_badge, league_title, self.view_player)
+                    badge2, n_players = self.prepare_dfs(('badge2', league_title, self.view_player),
+                                                self.database.get_badge, league_title, self.view_player,
+                                                competition=True)
                 playlists_df = self.prepare_dfs(('playlists_df', league_title),
                                                 self.database.get_playlists, league_title)
                 self.plot_viewer(badge=badge, badge2=badge2, playlists_df=playlists_df)
@@ -204,12 +204,10 @@ class Plotter(Streamable):
                     viewer_df = self.prepare_dfs(('viewer_df', league_title, self.view_player),
                                                  self.database.get_player_pulse, league_title, self.view_player)
                     wins_df = self.prepare_dfs(('player_wins_df', league_title, self.view_player),
-                                               self.database.get_player_wins, league_title, self.view_player)
+                                               self.database.get_round_wins, league_title, self.view_player)
                     awards_df = self.prepare_dfs(('awards_df', league_title, self.view_player),
                                                  self.database.get_awards, league_title, self.view_player)
-                    competitions_df = self.prepare_dfs(('competitions_df', league_title, self.view_player),
-                                                       self.database.get_competition_results, league_title,
-                                                       competition_id=None)
+
                     competition_id = self.database.get_current_competition(league_title)
                     competition_title = self.get_competition_title(competition_id)
                     competition_wins = self.prepare_dfs(('competitions_wins', league_title, self.view_player),
@@ -217,7 +215,8 @@ class Plotter(Streamable):
                                                        self.view_player)
                     self.plot_caption(league_title=league_title, viewer_df=viewer_df,
                                       wins_df=wins_df, awards_df=awards_df,
-                                      competition_title=competition_title, competitions_df=competitions_df,
+                                      competition_title=competition_title,
+                                      badge2=badge2, n_players=n_players,
                                       competition_wins=competition_wins)
 
                 self.streamer.print(f'Preparing plot for {self.get_league_title(league_title)}')
@@ -386,7 +385,7 @@ class Plotter(Streamable):
         return image
 
     def plot_caption(self, league_title=None, viewer_df=None, wins_df=None, awards_df=None,
-                     competition_title=None, competitions_df=None, competition_wins=None,
+                     competition_title=None, badge2=None, n_players=None, competition_wins=None,
                      god_mode=False):
         pulse_keys = ['likes', 'liked', 'closest']
         award_keys = ['chatty', 'quiet', 'popular', 'discoverer',
@@ -409,15 +408,14 @@ class Plotter(Streamable):
                 if (df is not None) and len(df):
                     parameters.update({k: df[k] for k in keys if k in df})
             if (wins_df is not None) and len(wins_df):
-                parameters['wins'] = self.get_round_title(wins_df['round_id'].to_list())
-            if (competitions_df is not None) and len(competitions_df):
+                parameters['wins'] = self.get_round_title(wins_df)
+            if badge2:
                 parameters.update({'current_competition': competition_title,
-                                   'badge2': competitions_df.query('player == @self.view_player')['place'].squeeze(),
-                                   'n_players': len(competitions_df)})
+                                   'badge2': badge2,
+                                   'n_players': n_players})
             parameters['leagues'] = [self.get_league_title(l, feel=True) for l in self.view_league_titles if l != league_title]
             parameters['other_leagues'] = (league_title is not None)
-        
-            parameters['competition_wins'] = self.get_competition_title(competition_wins) ##competitions_df
+            parameters['competition_wins'] = self.get_competition_title(competition_wins)
 
         self.streamer.player_caption.markdown(self.library.get_column(parameters))
 
@@ -732,6 +730,8 @@ class Plotter(Streamable):
         competition_colors = self.paintbrush.get_scatter_colors(self.separate_colors)
         
         y0, y1 = ax.get_ylim()
+
+        ## rewrite so that each round in a competiton gets the same color, this can handle gaps
         for c_round in competitions_df['competition_name'].unique():
             c_first = cgb.first()[c_round]
             c_last = cgb.last()[c_round]
