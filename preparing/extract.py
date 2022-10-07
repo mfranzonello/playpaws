@@ -84,7 +84,7 @@ class Scraper(Streamable):
         return item
 
 class Stripper(Streamable):  
-    timestring = '%Y-%m-%dT%H:%M:%SZ' ## MOVE TO STRIPPER
+    timestring = '%Y-%m-%dT%H:%M:%SZ'
 
     '''
     round parameters:
@@ -179,8 +179,9 @@ class Stripper(Streamable):
         leagues_df = DataFrame([[l['id'],
                             [m['user']['id'] for m in l['members'] if m['isAdmin']][0],
                             parse(l['created']),
-                            l['name']] for l in leagues_jason],
-                        columns=['league_id', 'creator_id', 'created_date', 'league_name'])
+                            l['name'],
+                            l['description']] for l in leagues_jason],
+                        columns=['league_id', 'creator_id', 'created_date', 'league_name', 'description'])
 
         return leagues_df
 

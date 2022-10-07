@@ -493,7 +493,7 @@ class FMer(Streamable):
             method = None
 
         if method:
-            url = (f'{LASTFM_URL}?method={method}.getinfo'
+            url = (f'{LASTFM_URL}/2.0/?method={method}.getinfo'
                    f'&api_key={self.api_key}&format=json'
                    )
             url += f'&artist={parse.quote(artist)}' if artist else ''
@@ -516,7 +516,8 @@ class FMer(Streamable):
 
         title, mix1 = self.texter.remove_parenthetical(title, ['Remix', 'Mix'], position='end', case_sensitive=True)
         title, mix2 = self.texter.remove_parenthetical(title, ['Remix', 'Mix'], parentheses=[['- ', '$']], position='end', case_sensitive=True)
-        title, _ = self.texter.remove_parenthetical(title, ['feat', 'with ', 'Duet with '], position='start') #<- should with only be for []?
+        title, _ = self.texter.remove_parenthetical(title, ['with ', 'Duet with '], position='start') #<- should with only be for []?
+        title, _ = self.texter.remove_parenthetical(title, ['feat'], position='start') # there can be with and feat together
         title, _ = self.texter.remove_parenthetical(title, ['Live '], position='start', parentheses=[['- ', '$']], middle=[' with '])
         title, _ = self.texter.remove_parenthetical(title, ['feat. '], position='start', parentheses=[['', '$']])
         title = self.texter.drop_dash(title)
