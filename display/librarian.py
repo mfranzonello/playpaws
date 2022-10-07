@@ -3,63 +3,14 @@
 from common.words import Texter
 
 class Library:
-    # one-to-one emoji
-    emoji = {'dirtiest': '🙊',
-             'clean': '🧼',
-             'discoverer': '🔎',
-             'popular': '🕶',
-             'generous': '🗳',
-             'hoarder': '🦍',
-             'participant': '🤗',
-             'likes': '💞',
-             'liked': '💕',
-             'closest': '👯',
-             'win_rate': '🔥',
-             'play_rate': '⚾',
-             'wins': '🏅',
-             'competitions': '🥊',
-             'viewer': '👋',
-             'creator': '🤓',
-             'leader': '🥇',
-             'closest_dfc': '🎯',
-             'tbd': '❔',
-             'winner': '🏆',
-             'stingy': '🖖',
-             'fast': '🐇',
-             'slow': '🐢',
-             'chatty': '🗣️',
-             'quiet': '🤫',
-             
-             'tag': '🗨️',
-             'tag_ex': '💬',
-             'release_date': '📅',
-             'release_age': '🎂',
-             'release_old': '⌛',
-             'track_count': '🎶',
-             'track_duration': '🕓',
-
-             'tempo': '🥁',
-             'danceability': '💃',
-             'energy': '⚡',
-             'liveness': '🏟',
-             'valence': '💖',
-             'speechiness': '🗣',
-             'acousticness': '🎸',
-             'instrumentalness': '🎹',
-             'duration': '⏲',
-             
-             'round_title': '🎧',
-             }
-                  
-    # one-to-many emoji
-    emojis = {'🐾': ['paws', 'dog', 'animal'],
-              '💿': ['mixtape', 'CD'],
-              '🧭': ['compass'],
-              '👬': ['brothers', 'men'],
-              }
-
-    def __init__(self):
+    def __init__(self, emoji={}, emojis={}):
         self.texter = Texter()
+        self.emoji = emoji
+        self.emojis = emojis
+
+    def add_emoji(self, emoji, emojis):
+        self.emoji.update(emoji)
+        self.emojis.update(emojis)
 
     def get_and_set_fonts(self, font_manager, rcParams, dir_path, plot_color):
         sans_fonts = list(self.texter.sans_fonts.keys())
@@ -257,7 +208,7 @@ class Library:
                     )
 
         elif plot_name == 'top_songs_round':
-            text = f'>_{parameters.get("description").strip()}_'
+            text = f'>_{parameters["description"].strip()}_' if parameters.get('description') else ''
 
         elif plot_name == 'playlist':
             count = parameters.get('count')
@@ -403,7 +354,9 @@ class Library:
 
         return items
 
-    def feel_title(self, text, default=emoji['round_title'], markdown=''):
+    def feel_title(self, text, default=None, markdown=''):
+        if not default:
+            default = self.emoji.get('round_title')
         clean_text = self.texter.clean_text(text)
         emoji = self.texter.match_emoji(text, self.emojis, default=default)
         title = f'{emoji}{markdown}{clean_text}{markdown}{emoji}'

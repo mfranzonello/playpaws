@@ -1506,3 +1506,9 @@ class Database(Streamable):
         hoarding_df = hoarding_df.reindex(columns=reindexer)
                         
         return hoarding_df, most_generous, least_generous
+
+    def get_emojis(self):
+        emojis_df = self.get_table('emojis')
+        emoji = {t1: e for e, t1, _ in emojis_df.dropna(subset=['single']).values}
+        emojis = {e: t2 for e, _, t2 in emojis_df.dropna(subset=['multiple']).values}
+        return emoji, emojis

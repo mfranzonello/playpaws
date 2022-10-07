@@ -51,6 +51,8 @@ class Plotter(Streamable):
         self.streamer = streamer
         self.database = database
 
+        self.library.add_emoji(*self.database.get_emojis())
+
         self.blank_league = '<select>'
         self.blank_player = ''
         self.god_player = self.database.get_god_id()
