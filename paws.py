@@ -15,6 +15,7 @@ def update_api_data(database):
     musician = Musician(database)
     musician.update_spotify()
     musician.update_lastfm()
+    musician.update_wiki()
 
 def analyze_data(database):
     # analyze MusicLeague data
@@ -33,8 +34,8 @@ def main():
     # prepare database
     database = Database()
     
-    ### update data in database from MusicLeague webpage
-    ##update_web_data(database)
+    # update data in database from MusicLeague webpage
+    update_web_data(database)
 
     # analyze data from rounds
     analyze_data(database)

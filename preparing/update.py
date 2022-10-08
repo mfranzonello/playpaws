@@ -2,7 +2,7 @@
 
 from common.words import Texter
 from preparing.extract import Stripper, Scraper
-from preparing.audio import Spotter, FMer
+from preparing.audio import Spotter, FMer, Wikier
 
 class Updater:
     def __init__(self, database):
@@ -191,6 +191,7 @@ class Musician:
         self.stripper = Stripper()
         self.spotter = Spotter()
         self.fmer = FMer()
+        self.wikier = Wikier()
 
     def update_spotify(self):
         self.spotter.update_database(self.database)
@@ -203,3 +204,15 @@ class Musician:
 
     def output_playlists(self):
         self.spotter.output_playlists(self.database)
+
+    def update_wiki(self):
+        # get genres categories from wikipedia
+        genres_text = self.wikier.get_genres()
+        categories, genres, headers = self.stripper.extract_wiki_list(genres_text)
+        genres_df = self.stripper.extract_genres(categories, genres, headers)
+        genres_df = self.stripper.clean_up_genres(genres_df)
+        self.database.store_genres(genres_df)
+
+        # match categories where possible to existing and new genres
+        genre_categories_df = self.wikier.update_database(self.database)
+        self.database.store_genres(genre_categories_df)

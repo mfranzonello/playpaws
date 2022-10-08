@@ -1,18 +1,19 @@
-streamlit==1.12.2
-requests==2.26.0
-spotipy==2.19.0
-wordcloud==1.8.1
-pandas==1.3.3
-browser_cookie3==0.12.1
-SQLAlchemy==1.4.23
-matplotlib==3.4.3
-scipy==1.7.1
-numpy==1.21.2
-Pillow==8.3.2
-python_dateutil==2.8.2
-psycopg2-binary==2.9.1
-dropbox==11.21.0
-python_dotenv==0.19.0
-thefuzz==0.19.0
-Google-Images-Search==1.3.9
-colorthief==0.2.1
+SQLAlchemy==1.4.23 # database management
+psycopg2-binary==2.9.1 # postgresql management
+pandas==1.3.3 # data management
+numpy==1.21.2 # data management
+scipy==1.7.1 # statistical analysis
+python_dotenv==0.19.0 # manage environment variables
+python_dateutil==2.8.2 # date functions
+requests==2.26.0 # API calls
+spotipy==2.19.0 # spotify API
+bs4==0.0.1 # html parser
+browser_cookie3==0.12.1 # cookie management
+thefuzz==0.19.0 # fuzzy matching text
+matplotlib==3.4.3 # data viz
+wordcloud==1.8.1 # data viz for words
+Pillow==8.3.2 # image management
+colorthief==0.2.1 # find colors in images
+dropbox==11.21.0 # template media
+Google-Images-Search==1.3.9 # find images on web
+streamlit==1.12.2 # data viz layout

@@ -4,9 +4,11 @@ from dateutil.parser import parse
 from io import BytesIO
 from zipfile import ZipFile
 from datetime import datetime, timedelta
+import re
 
 import requests
-from pandas import read_csv, DataFrame
+from pandas import read_csv, DataFrame, concat
+from bs4 import BeautifulSoup
 
 from common.secret import get_secret
 from common.words import Texter
@@ -85,7 +87,6 @@ class Scraper(Streamable):
 
 class Stripper(Streamable):  
     timestring = '%Y-%m-%dT%H:%M:%SZ'
-
     '''
     round parameters:
         'completed'
@@ -290,3 +291,78 @@ class Stripper(Streamable):
         title = self.texter.drop_dash(title)
 
         return title, mix
+
+    def extract_wiki_list(self, genres_text):
+        # get article text
+        noodles = genres_text['parse']['text']['*']
+   
+        # strain article text
+        soup = BeautifulSoup(noodles, 'html.parser')
+
+        # find category headers and text
+        all_categories = [mw.getText() for mw in soup.find_all('span', {'class': 'mw-headline'})]
+        categories = all_categories[:all_categories.index('Other') + 1]
+        headers = [soup.find('span', {'class': 'mw-headline'}, text=c) for c in categories]
+
+        # find genre list items
+        genres = [li.getText() for li in soup.find_all('li')]
+        
+        return categories, genres, headers
+
+    def extract_genres(self, categories, genres, headers):
+        # find first list items after each category header
+        first_items = [h.find_next('li').getText() for h in headers]
+        
+        # add genres
+        genres_df = DataFrame([], columns=['name', 'wiki_category'])
+        genres_df.loc[:, 'name'] = genres
+
+        # add categories to first item and fill down
+        for i, fi in enumerate(first_items):
+            genres_df.loc[genres_df['name']==fi, 'wiki_category'] = categories[i]
+
+        genres_df = concat([genres_df.ffill().dropna(),
+                            DataFrame(zip(categories, categories),
+                                      columns=['name', 'wiki_category'])], ignore_index=True)
+        
+        # drop anything in the other category
+        genres_df = genres_df[genres_df['wiki_category'] != 'Other'].reset_index(drop=True)
+
+        return genres_df
+
+    def clean_up_genres(self, genres_df):
+        # switch to lowercase
+        for col in ['name', 'wiki_category']:
+            genres_df[col] = genres_df[col].str.lower()
+
+        # group single line and multilne genres 
+        sl_genres = genres_df[~genres_df['name'].str.contains('\n')]
+        ml_genres = \
+            genres_df[genres_df['name'].str.contains('\n')]['name'].str.split('\n', expand=True).reset_index()\
+            .melt(id_vars='index', value_name='name').dropna()[['name', 'index']]\
+            .merge(genres_df[['wiki_category']], left_on='index', right_on=genres_df.index)[['name', 'wiki_category']]
+
+        genres_df = concat([sl_genres, ml_genres],
+                           ignore_index=True).sort_values(['wiki_category', 'name'])
+        genres_df.loc[:, 'name'] = genres_df['name'].apply(self.remove_date_period)
+        genres_df.drop_duplicates('name', inplace=True)
+
+        # split up categories with parentheses
+        genres_df.loc[:, 'wiki_category'] = genres_df['wiki_category'].apply(self.pull_out_parenthetical)
+
+        return genres_df
+
+    def pull_out_parenthetical(self, text):
+        searched = re.search('[\(\[].*?[\)\]]', text)
+        if searched:
+            text0 = re.sub('[\(\[].*?[\)\]]', '', text)
+            text1 = searched.group(0)[1:-1]
+            text = f'{text0} and {text1}'
+
+        return text
+
+    def remove_date_period(self, text): ## consider adding way to strip out (classical)
+        if text[-1] == ':':
+            text = text[:-1]
+        text = re.sub('[\(\[].*?[\)\]]', '', text).strip()
+        return text

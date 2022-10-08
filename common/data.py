@@ -191,10 +191,9 @@ class Database(Streamable):
         else:
             value_columns = df.drop(columns=keys).columns
             all_columns = keys + value_columns.to_list()
-            df_upsert = df.reindex(columns=all_columns) # -> may not need, see insert_rows below
 
             sets = ', '.join(f'{col} = c.{col}' for col in value_columns)
-            values = ', '.join('(' + ', '.join(self.needs_quotes(v) for v in df_upsert.loc[i].values) + ')' for i in df_upsert.index)
+            values = ', '.join('(' + ', '.join(self.needs_quotes(df.loc[i, col]) for col in all_columns) + ')' for i in df.index)
             cols = ', '.join(f'{col}' for col in all_columns)
             wheres = ' AND '.join(f'(c.{key} = t.{key})' for key in keys)
                 
@@ -216,7 +215,6 @@ class Database(Streamable):
     def find_existing(self, df_store, df_existing, keys):
         # split dataframe between old and new rows
         df_merge = df_store.merge(df_existing, on=keys, how='left', indicator=True)
-
         df_updates = df_store.iloc[df_merge[df_merge['_merge'] == 'both'].index]
         df_inserts = df_store.iloc[df_merge[df_merge['_merge'] == 'left_only'].index]
        
@@ -230,12 +228,14 @@ class Database(Streamable):
         # update existing rows and insert new rows
         if len(df):
             # there are values to store
+            # remove potential index issues
+            df_upsert = df.reset_index(drop=True)
             keys = self.get_keys(table_name)
 
             # only store columns that have values, so as to not overwrite with NA
             # retain key columns that have NA values, such as Votes table
-            value_columns = self.get_values(table_name, match_cols=df.columns)
-            df_store = df.drop(columns=df[value_columns].columns[df[value_columns].isna().all()])
+            value_columns = self.get_values(table_name, match_cols=df_upsert.columns)
+            df_store = df_upsert.drop(columns=df_upsert[value_columns].columns[df_upsert[value_columns].isna().all()])
             
             # get current league if not upserting Leagues or table that doesn't have league as a key
             if ('league_id' in self.get_keys(table_name)) and (len(df_store['league_id'].unique()) == 1): 
@@ -522,35 +522,35 @@ class Database(Streamable):
         self.upsert_table(table_name, df)
 
     def store_tracks(self, tracks_df):
-        self.store_spotify(tracks_df, 'Tracks')
+        self.store_spotify(tracks_df, 'tracks')
         
     def store_artists(self, artists_df):
-        self.store_spotify(artists_df, 'Artists')
+        self.store_spotify(artists_df, 'artists')
 
     def store_albums(self, albums_df):
-        self.store_spotify(albums_df, 'Albums')
+        self.store_spotify(albums_df, 'albums')
 
     def store_genres(self, genres_df):
-        self.store_spotify(genres_df, 'Genres')
+        self.store_spotify(genres_df, 'genres')
 
     def get_spotify(self, table_name):
         df = self.get_table(table_name)
         return df
 
     def get_tracks(self):
-        df = self.get_spotify('Tracks')
+        df = self.get_spotify('tracks')
         return df
 
     def get_artists(self):
-        df = self.get_spotify('Artists')
+        df = self.get_spotify('artists')
         return df
 
     def get_albums(self):
-        df = self.get_spotify('Albums')
+        df = self.get_spotify('albums')
         return df
 
     def get_genres(self):
-        df = self.get_spotify('Genres')
+        df = self.get_spotify('genres')
         return df
 
     def get_round_playlist(self, league_id, round_id):
@@ -849,7 +849,7 @@ class Database(Streamable):
         return boards_df
 
     # things that don't require analysis
-    def get_dirtiness(self, league_id, vote=False):
+    def get_dirtiness(self, league_id, vote=False): ## <- use awards instead
         if vote:
             gb = 'player_id'
             sql = (f'SELECT v.player_id, '
@@ -903,7 +903,7 @@ class Database(Streamable):
 
         return features_df
 
-    def get_discoveries(self, league_id, base=1000):
+    def get_discoveries(self, league_id, base=1000): ## <- use awards instead
         sql = (f'SELECT s.round_id, s.song_id, '
                f'AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) AS discovery '
                f'FROM {self.table_name("songs")} AS s '
@@ -916,7 +916,7 @@ class Database(Streamable):
 
         return discoveries_df
 
-    def get_discovery_scores(self, league_id, base=1000):
+    def get_discovery_scores(self, league_id, base=1000): ## <- use awards instead
         sql = (f'SELECT s.submitter_id, '
                f'AVG(1/LOG({base}, GREATEST({base}, t.scrobbles))) AS discovery, '
                f'AVG(t.popularity::real/100) AS popularity '
@@ -930,7 +930,110 @@ class Database(Streamable):
 
         return discoveries_df
 
-    def get_genres_and_tags(self, league_id, player_id=None):
+    def get_genres_and_categories_count(self, league_id, round_id=None, player_id=None,
+                                        tags=False, default='other'):
+
+        # filter for round and/or player
+        wheres1 = ' '.join(x for x in 
+                           ['WHERE' if (round_id or player_id) else '',
+                            f's.round_id = {self.needs_quotes(round_id)}' if round_id else '',
+                            'AND' if (round_id and player_id) else '',
+                            f's.player_id = {self.needs_quotes(player_id)}' if player_id else '']
+                           if len(x))
+
+        wheres2 = f'WHERE league_id = {self.needs_quotes(league_id)}'
+        
+        sql = (f'WITH '
+
+               # get genre weights
+               f't0 AS ('
+               f'SELECT s.league_id, s.song_id, '
+               f'(CASE WHEN jsonb_array_length(a.genres) > 0 '
+               f'THEN a.genres ELSE {self.needs_quotes([default])} END) AS genres, '
+               f'(CASE WHEN jsonb_array_length(a.genres) > 0 '
+               f'THEN 1/jsonb_array_length(a.genres)::real '
+               f'ELSE 1 END) AS weight0 '
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri '
+               f'LEFT JOIN {self.table_name("artists")} AS a ON t.artist_uri ? a.uri '
+               f'{wheres1}), '
+
+               # get gernre artist weights
+               f't1 AS ('
+               f'SELECT s.league_id, s.song_id, '
+               f'LOWER(jsonb_array_elements_text(CASE WHEN jsonb_array_length(a.genres) > 0 '
+               f'THEN a.genres ELSE {self.needs_quotes([default])} END)) AS genre, '
+               f'1/count(s.song_id)::real AS weight1 '
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri '
+               f'LEFT JOIN {self.table_name("artists")} AS a ON t.artist_uri ? a.uri '
+               f'GROUP BY genre, s.song_id, s.league_id '
+               f'{wheres1}), '
+
+               # get occurances by genre
+               f'g_os AS ('
+               f'SELECT t1.league_id, t1.genre, '
+               f'SUM(t1.weight1 * t0.weight0) AS occurances '
+               f'FROM t1 JOIN t0 ON t1.league_id = t0.league_id '
+               f'AND t1.song_id = t0.song_id AND t0.genres ? t1.genre '
+               f'GROUP BY t1.league_id, t1.genre, t1.song_id), '
+
+               # get tag weights
+               f's0 AS ('
+               f'SELECT s.league_id, s.song_id, '
+               f'(CASE WHEN jsonb_array_length(t.top_tags) > 0 '
+               f'THEN t.top_tags ELSE {self.needs_quotes([default])} END) AS tags, '
+               f'(CASE WHEN jsonb_array_length(t.top_tags) > 0 '
+               f'THEN 1/jsonb_array_length(t.top_tags)::real '
+               f'ELSE 1 END) AS weight0 '
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri), '
+
+               # get tag artist weights
+               f's1 AS ('
+               f'SELECT s.league_id, s.song_id, '
+               f'LOWER(jsonb_array_elements_text(CASE WHEN jsonb_array_length(t.top_tags) > 0 '
+               f'THEN t.top_tags ELSE {self.needs_quotes([default])} END)) AS tag, '
+               f'1/count(s.song_id)::real AS weight1 '
+               f'FROM {self.table_name("songs")} AS s '
+               f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri '
+               f'GROUP BY tag, s.song_id, s.league_id), '
+
+               # get occurances by tag
+               f't_os AS ('
+               f'SELECT s1.league_id, s1.tag, '
+               f'SUM(s1.weight1 * s0.weight0) AS occurances '
+               f'FROM s1 JOIN s0 ON s1.league_id = s0.league_id '
+               f'AND s1.song_id = s0.song_id AND s0.tags ? s1.tag '
+               f'GROUP BY s1.league_id, s1.tag, s1.song_id), '
+
+               # get occurances by genre and tag combined
+               f'gt_os AS ('
+               f'SELECT * FROM t_os UNION ALL SELECT * FROM t_os) ' 
+
+               # get occurances by category
+               f'c_os AS ('
+               f'SELECT g_os.league_id, (CASE WHEN g.category IS NOT NULL THEN g.category '
+               f'ELSE {self.needs_quotes(default)} END) AS category, '
+               f'SUM(g_os.occurances) AS occurances '
+               f'FROM g_os JOIN {self.table_name("genres")} AS g ON g_os.genre = g.name '
+               f'GROUP BY g_os.league_id, g.category) '
+
+               f'SELECT * FROM '
+               )
+
+        ts = {'genre': 'gt_os' if tags else 'g_os',
+              'category': 'c_os'}
+        
+        sqls = {t: f'{sql} {ts[t]} {wheres2};' 
+                    for t in ts} 
+        
+        genres_count = self.read_sql(sqls['genre'])
+        categories_count = self.read_sql(sqls['category'])
+
+        return genres_count, categories_count
+
+    def get_genres_and_tags(self, league_id, player_id=None): ## <- use get_genres_and_categories_count instead
         if player_id:
             wheres = f' AND s.submitter_id = {self.needs_quotes(player_id)}'
         else:
@@ -1421,11 +1524,13 @@ class Database(Streamable):
         return places_df
 
     def get_round_placement(self, league_id, player_id=None):
-        wheres = f'WHERE b.player_id = {self.needs_quotes(player_id)} AND b.place = 1 ' if player_id else ''
+        wheres = f'AND b.player_id = {self.needs_quotes(player_id)} AND b.place = 1 ' if player_id else ''
 
         sql = (f'SELECT b.round_id, b.player_id, b.place '
                f'FROM {self.table_name("boards")} AS b '
-               f'JOIN {self.table_name("rounds")} AS r ON b.round_id = r.round_id '
+               f'JOIN {self.table_name("rounds")} AS r '
+               f'ON b.league_id = r.league_id AND b.round_id = r.round_id '
+               f'WHERE b.league_id = {self.needs_quotes(league_id)} '
                f'{wheres}'
                f'ORDER BY r.created_date')
 
@@ -1581,19 +1686,19 @@ class Database(Streamable):
                f'bo AS ('
                f'SELECT c.league_id, c.competition_id, '
                f'jsonb_array_elements_text(jsonb_agg(b.round_id)) AS bonus_rounds '
-               f'FROM "mfranzonello/playpaws"."competitions" AS c '
-               f'JOIN "mfranzonello/playpaws"."rounds" AS b ON c.league_id = b.league_id '
+               f'FROM {self.table_name("competitions")} AS c '
+               f'JOIN {self.table_name("rounds")} AS b ON c.league_id = b.league_id '
                f'WHERE b.bonus = TRUE GROUP BY c.competition_id, c.league_id), '
 
                f'new_values AS ('
                f'SELECT c.competition_id AS cid, '
                f'c.round_ids - array_agg(bo.bonus_rounds) AS new_round_ids '
-               f'FROM "mfranzonello/playpaws"."competitions" AS c '
+               f'FROM {self.table_name("competitions")} AS c '
                f'JOIN bo ON c.league_id = bo.league_id '
                f'AND c.competition_id = bo.competition_id '
                f'GROUP BY c.competition_id, bo.league_id) '
 
-               f'UPDATE "mfranzonello/playpaws"."competitions" '
+               f'UPDATE {self.table_name("competitions")} '
                f'SET round_ids = new_values.new_round_ids '
                f'FROM new_values WHERE competition_id = new_values.cid;'
                )

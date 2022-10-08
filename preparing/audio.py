@@ -15,7 +15,7 @@ from pandas import DataFrame, isnull
 
 from common.secret import get_secret
 from common.words import Texter
-from common.locations import MOSAIC_URL, SPOTIFY_AUTH_URL, LASTFM_URL
+from common.locations import MOSAIC_URL, SPOTIFY_AUTH_URL, LASTFM_URL, WIKI_URL
 from display.media import Gallery, Byter
 from display.storage import Boxer, Googler
 from display.streaming import Streamable
@@ -550,6 +550,7 @@ class FMer(Streamable):
         self.update_db_tracks()
 
     def update_db_tracks(self):
+        self.streamer.print('Connecting to LastFM API...')
         self.streamer.print('\t...updating track information')
         tracks_update_db = self.database.get_tracks_update_fm()
 
@@ -564,3 +565,58 @@ class FMer(Streamable):
                 df_to_update = DataFrame(df_elements, index=tracks_update_db_segment.index)
                 tracks_update_db_segment.loc[:, df_to_update.columns] = df_to_update
                 self.database.store_tracks(tracks_update_db_segment)
+
+class Wikier(Streamable):
+    wiki_page = 'list_of_music_genres_and_styles'
+
+    def __init__(self):
+        super().__init__()
+
+
+    def call_api(self):
+        payload = {'action': 'parse',
+                   'page': self.wiki_page,
+                   'format': 'json',
+                   }
+
+        url = f'{WIKI_URL}/w/api.php?' + '&'.join(f'{k}={payload[k]}' for k in payload)
+
+        try:
+            response = requests.get(url)
+            if response.ok:
+                r_content = response.content
+                r_jason = response.json() if len(r_content) and response.headers.get('Content-Type').startswith('application/json') else None
+
+            else:
+                r_jason = None
+
+        except TimeoutError:
+            r_jason = None
+
+        return r_jason
+
+    def get_genres(self):
+        self.streamer.print('Connecting to Wikimedia API...')
+        genres = self.call_api()
+        return genres
+
+    def update_database(self, database):#, default='other'):
+        self.database = database
+
+        genres_df = database.get_genres()[['name', 'wiki_category']]
+        categories_df = genres_df[['wiki_category']].dropna().drop_duplicates().reset_index(drop=True)
+    
+        genre_categories_df = genres_df.where(
+            genres_df['wiki_category'].notnull(),
+            genres_df[['name']]\
+                .merge(DataFrame(categories_df['wiki_category'].str.split(' and ', expand=True)\
+                .melt(ignore_index=False).dropna().drop_duplicates()['value']\
+                .apply(lambda x: [genres_df['name'][i] \
+                    for i in genres_df[genres_df['name'].str.contains(x, regex=False)].index])\
+                .groupby(level=0).sum().to_list()).melt(value_name='name', ignore_index=False)\
+                .dropna().reset_index()\
+                .merge(categories_df, left_on='index', right_on=categories_df.index)[['name', 'wiki_category']],
+                       how='left', on='name')
+            ).rename(columns={'wiki_category': 'category'})#.fillna(default)
+
+        return genre_categories_df
