@@ -1,10 +1,10 @@
 ''' Data visuals for Streamlit '''
 
 from math import sin, cos, atan2, pi, nan, ceil
-from collections import Counter
 from os.path import dirname, realpath
 from datetime import datetime
 from random import choice as rand_choice
+from collections import Counter
 
 from pandas import DataFrame, isnull, to_datetime, Timestamp
 from pandas.core.indexes.base import Index
@@ -71,14 +71,15 @@ class Plotter(Streamable):
 
         plt.rcParams['hatch.linewidth'] = 3.0
 
-        self.league_titles = None
+        self.league_ids = None
         self.view_player = None
-        self.view_league_titles = None
+        self.view_league_ids = None
         self.plot_counts = len((self.plot_members,
                                 self.plot_boards,
                                 self.plot_rankings,
                                 self.plot_features,
                                 self.plot_tags,
+                                ##self.plot_pie,
                                 self.plot_top_songs,
                                 self.plot_playlists,
                                 self.plot_hoarding,
@@ -93,10 +94,10 @@ class Plotter(Streamable):
         analyses_df = self.database.get_analyses()
 
         if len(analyses_df):
-            self.league_titles = analyses_df['league_id']
+            self.league_ids = analyses_df['league_id']
             self.canvas = self.add_canvas()
         else:
-            self.league_titles = []
+            self.league_ids = []
 
     def prepare_dfs(self, key, function, *args, **kwargs):
         df, ok = self.streamer.get_session_state(key)
@@ -157,21 +158,21 @@ class Plotter(Streamable):
         if self.view_player != self.blank_player:
             
             if self.view_player == self.god_player:
-                viewable_league_titles = self.league_titles.to_list()
+                viewable_league_ids = self.league_ids.to_list()
             else:
-                self.view_league_titles = self.database.get_player_leagues(self.view_player)
-                viewable_league_titles = [l for l in self.view_league_titles if l in self.league_titles.to_list()]
+                self.view_league_ids = self.database.get_player_leagues(self.view_player)
+                viewable_league_ids = [l for l in self.view_league_ids if l in self.league_ids.to_list()]
 
-            if len(viewable_league_titles) == 1:
-                league_title = viewable_league_titles[0]
-            elif len(viewable_league_titles) > 1:
-                league_title = self.streamer.selectbox.selectbox('Pick a league to view',
-                                                                 [self.blank_league] + viewable_league_titles,
+            if len(viewable_league_ids) == 1:
+                league_id = viewable_league_ids[0]
+            elif len(viewable_league_ids) > 1:
+                league_id = self.streamer.selectbox.selectbox('Pick a league to view',
+                                                                 [self.blank_league] + viewable_league_ids,
                                                                  format_func=lambda x: self.get_league_title(x, feel=True))
             else:
-                league_title = self.blank_league
+                league_id = self.blank_league
 
-            if league_title == self.blank_league:
+            if league_id == self.blank_league:
                 self.plot_viewer()
 
                 if self.view_player != self.god_player:
@@ -184,112 +185,115 @@ class Plotter(Streamable):
                     badge2 = None
 
                 else:
-                    badge, _ = self.prepare_dfs(('badge', league_title, self.view_player),
-                                                self.database.get_badge, league_title, self.view_player)
-                    badge2, n_players = self.prepare_dfs(('badge2', league_title, self.view_player),
-                                                self.database.get_badge, league_title, self.view_player,
+                    badge, _ = self.prepare_dfs(('badge', league_id, self.view_player),
+                                                self.database.get_badge, league_id, self.view_player)
+                    badge2, n_players = self.prepare_dfs(('badge2', league_id, self.view_player),
+                                                self.database.get_badge, league_id, self.view_player,
                                                 competition=True)
-                playlists_df = self.prepare_dfs(('playlists_df', league_title),
-                                                self.database.get_playlists, league_title)
+                playlists_df = self.prepare_dfs(('playlists_df', league_id),
+                                                self.database.get_playlists, league_id)
                 self.plot_viewer(badge=badge, badge2=badge2, playlists_df=playlists_df)
 
                 # plot the league stats
                 if self.view_player == self.god_player:
-                    awards_df = self.prepare_dfs(('awards_df', league_title, self.view_player),
-                                                 self.database.get_awards, league_title, self.view_player)
-                    self.plot_caption(league_title=league_title, god_mode=True, awards_df=awards_df)
+                    awards_df = self.prepare_dfs(('awards_df', league_id, self.view_player),
+                                                 self.database.get_awards, league_id, self.view_player)
+                    self.plot_caption(league_id=league_id, god_mode=True, awards_df=awards_df)
 
                 # plot the viewer stats
                 else:
-                    viewer_df = self.prepare_dfs(('viewer_df', league_title, self.view_player),
-                                                 self.database.get_player_pulse, league_title, self.view_player)
-                    wins_df = self.prepare_dfs(('player_wins_df', league_title, self.view_player),
-                                               self.database.get_round_wins, league_title, self.view_player)
-                    awards_df = self.prepare_dfs(('awards_df', league_title, self.view_player),
-                                                 self.database.get_awards, league_title, self.view_player)
+                    viewer_df = self.prepare_dfs(('viewer_df', league_id, self.view_player),
+                                                 self.database.get_player_pulse, league_id, self.view_player)
+                    wins_df = self.prepare_dfs(('player_wins_df', league_id, self.view_player),
+                                               self.database.get_round_wins, league_id, self.view_player)
+                    awards_df = self.prepare_dfs(('awards_df', league_id, self.view_player),
+                                                 self.database.get_awards, league_id, self.view_player)
 
-                    competition_id = self.database.get_current_competition(league_title)
+                    competition_id = self.database.get_current_competition(league_id)
                     competition_title = self.get_competition_title(competition_id)
-                    competition_wins = self.prepare_dfs(('competitions_wins', league_title, self.view_player),
-                                                       self.database.get_competition_wins, league_title,
+                    competition_wins = self.prepare_dfs(('competitions_wins', league_id, self.view_player),
+                                                       self.database.get_competition_wins, league_id,
                                                        self.view_player)
-                    self.plot_caption(league_title=league_title, viewer_df=viewer_df,
+                    self.plot_caption(league_id=league_id, viewer_df=viewer_df,
                                       wins_df=wins_df, awards_df=awards_df,
                                       competition_title=competition_title,
                                       badge2=badge2, n_players=n_players,
                                       competition_wins=competition_wins)
 
-                self.streamer.print(f'Preparing plot for {self.get_league_title(league_title)}')
+                self.streamer.print(f'Preparing plot for {self.get_league_title(league_id)}')
                 self.streamer.status(0, base=True)
 
                 # plot results title
-                league_creator = self.prepare_dfs(('league_creator', league_title),
-                                                  self.database.get_league_creator, league_title)
-                self.plot_title(league_title, league_creator)
+                league_creator = self.prepare_dfs(('league_creator', league_id),
+                                                  self.database.get_league_creator, league_id)
+                self.plot_title(league_id, league_creator)
            
                 # plot round finishers
-                boards_df = self.prepare_dfs(('boards_df', league_title),
-                                             self.database.get_boards, league_title)
-                creators_and_winners_df = self.prepare_dfs(('creators_and_winners_df', league_title),
-                                                           self.database.get_creators_and_winners, league_title)
-                competitions_df = self.prepare_dfs(('competitions_df', league_title),
-                                                    self.database.get_competitions, league_title)
-                self.plot_boards(league_title, boards_df, creators_and_winners_df, competitions_df)
+                boards_df = self.prepare_dfs(('boards_df', league_id),
+                                             self.database.get_boards, league_id)
+                creators_and_winners_df = self.prepare_dfs(('creators_and_winners_df', league_id),
+                                                           self.database.get_creators_and_winners, league_id)
+                competitions_df = self.prepare_dfs(('competitions_df', league_id),
+                                                    self.database.get_competitions, league_id)
+                self.plot_boards(league_id, boards_df, creators_and_winners_df, competitions_df)
 
                 # plot player scores
-                rankings_df = self.prepare_dfs(('rankings_df', league_title),
-                                               self.database.get_rankings, league_title)
-                dirtiness_df = self.prepare_dfs(('dirtiness_df', league_title),
-                                                self.database.get_dirtiness, league_title)
-                discovery_df = self.prepare_dfs(('discovery_df', league_title),
-                                                self.database.get_discovery_scores, league_title)
-                self.plot_rankings(league_title, rankings_df, dirtiness_df, discovery_df)
+                rankings_df = self.prepare_dfs(('rankings_df', league_id),
+                                               self.database.get_rankings, league_id)
+                dirtiness_df = self.prepare_dfs(('dirtiness_df', league_id),
+                                                self.database.get_dirtiness, league_id)
+                discovery_df = self.prepare_dfs(('discovery_df', league_id),
+                                                self.database.get_discovery_scores, league_id)
+                self.plot_rankings(league_id, rankings_df, dirtiness_df, discovery_df)
                                    
                 # plot vote hoarding
                 hoarding_df, most_generous, least_generous = \
-                    self.prepare_dfs(('hoarding_df', league_title),
-                                     self.database.get_hoarding, league_title)
-                self.plot_hoarding(league_title, hoarding_df, most_generous, least_generous)
+                    self.prepare_dfs(('hoarding_df', league_id),
+                                     self.database.get_hoarding, league_id)
+                self.plot_hoarding(league_id, hoarding_df, most_generous, least_generous)
 
                 # plot league pulse
-                members_df = self.prepare_dfs(('members_df', league_title),
-                                              self.database.get_members, league_title)
-                self.plot_members(league_title, members_df)
+                members_df = self.prepare_dfs(('members_df', league_id),
+                                              self.database.get_members, league_id)
+                self.plot_members(league_id, members_df)
 
                 # plot audio features
-                features_df = self.prepare_dfs(('features_df', league_title),
-                                               self.database.get_audio_features, league_title)
-                self.plot_features(league_title, features_df)
+                features_df = self.prepare_dfs(('features_df', league_id),
+                                               self.database.get_audio_features, league_id)
+                self.plot_features(league_id, features_df)
                 
-                # plot wordcloud
-                tags_df = self.prepare_dfs(('tags_df', league_title),
-                                           self.database.get_genres_and_tags, league_title)
-                exclusives_df = self.prepare_dfs(('exclusives_df', league_title),
-                                                 self.database.get_exclusive_genres, league_title)
+                # plot wordcloud and pie chart
+                genres_df, categories_df = self.prepare_dfs(('genres_df', league_id),
+                                                            self.database.get_genre_counts,
+                                                            league_id, tags=True, remove_default=True)
+                exclusives_df = self.prepare_dfs(('exclusives_df', league_id),
+                                                 self.database.get_exclusive_genres, league_id)
                 if self.view_player == self.god_player:
-                    player_tags_df = None
+                    tags_df = None
                 else:
-                    player_tags_df = self.prepare_dfs(('player_tags_df', league_title, self.view_player),
-                                                      self.database.get_genres_and_tags, league_title, player_id=self.view_player)
-                masks = self.prepare_dfs(('masks', league_title),
-                                         self.boxer.get_mask, league_title)
-                self.plot_tags(league_title, tags_df, exclusives_df, player_tags_df, masks)
+                    tags_df = self.prepare_dfs(('tags_df', league_id, self.view_player),
+                                                self.database.get_player_tags, league_id,
+                                                player_id=self.view_player)
+                masks = self.prepare_dfs(('masks', league_id),
+                                         self.boxer.get_mask, league_id)
+                self.plot_tags(league_id, genres_df, exclusives_df, tags_df, masks)
+                ##self.plot_pie(league_id, categories_df)
 
                 # plot top songs
-                results_df = self.prepare_dfs(('results_df', league_title),
-                                              self.database.get_song_results, league_title)
-                descriptions_df = self.prepare_dfs(('descriptions_df', league_title),
-                                                   self.database.get_round_descriptions, league_title)
-                self.plot_top_songs(league_title, results_df, descriptions_df)
+                results_df = self.prepare_dfs(('results_df', league_id),
+                                              self.database.get_song_results, league_id)
+                descriptions_df = self.prepare_dfs(('descriptions_df', league_id),
+                                                   self.database.get_round_descriptions, league_id)
+                self.plot_top_songs(league_id, results_df, descriptions_df)
 
                 # plot complete playlist
-                playlists_df = self.prepare_dfs(('playlists_df', league_title),
-                                                self.database.get_playlists, league_title)
-                track_count = self.prepare_dfs(('track_count', league_title),
-                                               self.database.get_track_count, league_title)
-                track_durations = self.prepare_dfs(('track_durations', league_title),
-                                                   self.database.get_track_durations, league_title)
-                self.plot_playlists(league_title, playlists_df, track_count, track_durations)
+                playlists_df = self.prepare_dfs(('playlists_df', league_id),
+                                                self.database.get_playlists, league_id)
+                track_count = self.prepare_dfs(('track_count', league_id),
+                                               self.database.get_track_count, league_id)
+                track_durations = self.prepare_dfs(('track_durations', league_id),
+                                                   self.database.get_track_durations, league_id)
+                self.plot_playlists(league_id, playlists_df, track_count, track_durations)
             
                 self.streamer.print('Everything loaded! Close this sidebar to view.')
 
@@ -384,7 +388,7 @@ class Plotter(Streamable):
 
         return image
 
-    def plot_caption(self, league_title=None, viewer_df=None, wins_df=None, awards_df=None,
+    def plot_caption(self, league_id=None, viewer_df=None, wins_df=None, awards_df=None,
                      competition_title=None, badge2=None, n_players=None, competition_wins=None,
                      god_mode=False):
         pulse_keys = ['likes', 'liked', 'closest']
@@ -413,8 +417,8 @@ class Plotter(Streamable):
                 parameters.update({'current_competition': competition_title,
                                    'badge2': badge2,
                                    'n_players': n_players})
-            parameters['leagues'] = [self.get_league_title(l, feel=True) for l in self.view_league_titles if l != league_title]
-            parameters['other_leagues'] = (league_title is not None)
+            parameters['leagues'] = [self.get_league_title(l, feel=True) for l in self.view_league_ids if l != league_id]
+            parameters['other_leagues'] = (league_id is not None)
             parameters['competition_wins'] = self.get_competition_title(competition_wins)
 
         self.streamer.player_caption.markdown(self.library.get_column(parameters))
@@ -433,8 +437,8 @@ class Plotter(Streamable):
 
         self.streamer.sidebar_image(self.boxer.get_cover(league_title))
 
-    def plot_members(self, league_title, members_df):
-        plot_key = (league_title, 'members_ax')
+    def plot_members(self, league_id, members_df):
+        plot_key = (league_id, 'members_ax')
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
             ax, parameters = stored
@@ -591,8 +595,8 @@ class Plotter(Streamable):
         sizes = (members_df['wins'] + 1) * self.marker_sizing
         return sizes
 
-    def plot_boards(self, league_title, board, creators_winners_df, competitions_df):
-        plot_key = (league_title, 'boards_ax', self.view_player)
+    def plot_boards(self, league_id, board, creators_winners_df, competitions_df):
+        plot_key = (league_id, 'boards_ax', self.view_player)
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
             ax, parameters = stored
@@ -627,7 +631,7 @@ class Plotter(Streamable):
                 self.place_board_player(ax, xs, player_id, board, lowest_rank, ties_df, icon_scale)
             self.streamer.status(1/self.plot_counts * (1/3))
 
-            round_titles = board.columns.tolist()
+            round_ids = board.columns.tolist()
         
             x_min = min(xs)
             x_max = max(xs)
@@ -640,7 +644,7 @@ class Plotter(Streamable):
 
             ax.set_xlim(x_min - scaling[0]/2, x_max + scaling[0]/2)
             ax.set_xticks(xs)
-            ax.set_xticklabels(self.split_labels(self.get_round_title(round_titles, clean=True), n_rounds),
+            ax.set_xticklabels(self.split_labels(self.get_round_title(round_ids, clean=True), n_rounds),
                                rotation=self.rotate_labels(n_rounds))
 
             y_min = lowest_rank - highest_dnf + has_dnf
@@ -652,7 +656,7 @@ class Plotter(Streamable):
             ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
 
             if len(competitions_df):
-                self.add_backgrounds(ax, round_titles, competitions_df, scaling=scaling)
+                self.add_backgrounds(ax, round_ids, competitions_df, scaling=scaling)
 
             parameters = {'round_titles': self.get_round_title(creators_winners_df['round_id'].to_list()),
                           'choosers': self.get_player_name(creators_winners_df['creator_id'].to_list()),
@@ -724,7 +728,7 @@ class Plotter(Streamable):
             
         return x_plot, y_plot
 
-    def add_backgrounds(self, ax, round_titles, competitions_df, scaling=[1, 1], x_offset=0):
+    def add_backgrounds(self, ax, round_ids, competitions_df, scaling=[1, 1], x_offset=0):
         competition_colors = self.paintbrush.get_scatter_colors(self.separate_colors)
         n_colors = len(competition_colors)
 
@@ -737,7 +741,7 @@ class Plotter(Streamable):
         y0, y1 = ax.get_ylim()
 
         for i in competitions_df.index:
-            x_ = i + 1 + x_offset
+            x_ = round_ids.index(competitions_df['round_id'][i]) + 1 + x_offset
             x0 = x_ - 1/2
             x1 = x_ + 1/2
 
@@ -748,8 +752,8 @@ class Plotter(Streamable):
                             facecolor=facecolor, edgecolor=edgecolor,
                             hatch='///', zorder=-1)
 
-    def plot_rankings(self, league_title, rankings, dirty_df, discovery_df):
-        plot_key = (league_title, 'rankings_ax', self.view_player)
+    def plot_rankings(self, league_id, rankings, dirty_df, discovery_df):
+        plot_key = (league_id, 'rankings_ax', self.view_player)
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
             ax, parameters = stored
@@ -864,8 +868,8 @@ class Plotter(Streamable):
             image, imgs = None
         return image, imgs
             
-    def plot_features(self, league_title, features_df):
-        plot_key = (league_title, 'features_ax')
+    def plot_features(self, league_id, features_df):
+        plot_key = (league_id, 'features_ax')
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
             ax, parameters = stored
@@ -955,8 +959,9 @@ class Plotter(Streamable):
 
         return z_
 
-    def plot_tags(self, league_title, tags_df, exclusives, player_tags_df, mask_bytes):
-        plot_key = (league_title, 'tags_ax', self.view_player)
+    def plot_tags(self, league_id, genres_df, exclusives_df, tags_df, mask_bytes):
+        # word cloud
+        plot_key = (league_id, 'tags_ax', self.view_player)
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
             wordcloud_image, parameters = stored
@@ -965,22 +970,10 @@ class Plotter(Streamable):
         else:          
             self.streamer.status(1/self.plot_counts * (1/2))
             self.streamer.print('\t...genres', base=False)
-            mask = self.canvas.get_mask_array(mask_bytes)
 
-            text = Counter(tags_df.dropna().sum().sum())
-            
-            self.player_tags = player_tags_df if self.view_player != self.god_player else []
-            wordcloud = WordCloud(mode='RGBA', background_color=None, mask=mask)\
-                .generate_from_frequencies(text)\
-                .recolor(color_func=self.word_color)
-            wordcloud_image = wordcloud.to_array()
-  
-            if self.view_player != self.god_player:
-                text_ex = text.copy()
-                for k in text.keys():
-                   if k not in exclusives.to_list():
-                       del text_ex[k]
-
+            text, text_ex = self.get_wordcloud_text(genres_df, tags_df, exclusives_df)
+            wordcloud_image = self.plot_wordcloud(text, mask_bytes)
+        
             self.streamer.status(1/self.plot_counts * (1/2))
 
             parameters = {'top_tags': [t[0] for t in text.most_common(3)],                          
@@ -993,14 +986,64 @@ class Plotter(Streamable):
         self.streamer.image(wordcloud_image, header='Genre Cloud',
                             tooltip=self.library.get_tooltip('tags', parameters=parameters))
 
+    def get_wordcloud_text(self, genres_df, tags_df, exclusives_df):
+        text = Counter(genres_df.groupby('genre')['occurances'].sum().to_dict())
+        self.player_tags = tags_df if self.view_player != self.god_player else []
+
+        if self.view_player != self.god_player:
+            text_ex = text.copy()
+            for k in text.keys():
+                if k not in exclusives_df.to_list():
+                    del text_ex[k]
+
+        return text, text_ex
+
+    def plot_wordcloud(self, text, mask_bytes):
+        mask = self.canvas.get_mask_array(mask_bytes)
+
+        wordcloud = WordCloud(mode='RGBA', background_color=None, mask=mask)\
+            .generate_from_frequencies(text)\
+            .recolor(color_func=self.word_color)
+        wordcloud_image = wordcloud.to_array()
+
+        return wordcloud_image
+    
     def word_color(self, word, font_size, position, orientation, random_state=None, **kwargs):
         color = rand_choice(self.pass_colors if (word in self.player_tags) else self.fail_colors)
         
         return color
+
+    def plot_pie(self, league_id, categories_df):
+        # pie chart
+        plot_key = (league_id, 'categories_ax', self.view_player)
+        stored, ok = self.streamer.get_session_state(plot_key)
+        if ok:
+            ax, parameters = stored
+            self.streamer.status(1/self.plot_counts)
+            
+        else:
+            self.streamer.status(1/self.plot_counts * (1/2))
+            self.streamer.print('\t...categories', base=False)
+            fig = plt.figure()
+            ax = fig.add_axes([1, 1, 1, 1]) 
+
+            ax.pie(categories_df['occurances'], labels=categories_df['category'],
+               autopct='%1f%%')
+            ax.axis('equal')
+            
+            self.streamer.status(1/self.plot_counts * (1/2))
+
+            parameters = None
+            self.streamer.store_session_state(plot_key, (ax, parameters))
+
+        self.streamer.pyplot(ax.figure, header='Category Pies',
+                             tooltip=self.library.get_tooltip('pie', parameters=parameters))
+
+        plt.close()
     
-    def plot_top_songs(self, league_title, results_df, descriptions, max_years=10, base=500):
+    def plot_top_songs(self, league_id, results_df, descriptions, max_years=10, base=500):
         self.streamer.print('\t...songs', base=False)
-        plot_key = (league_title, 'top_songs_ax')
+        plot_key = (league_id, 'top_songs_ax')
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
             round_ids, n_rounds, n_years, years_range, max_date, \
@@ -1066,7 +1109,7 @@ class Plotter(Streamable):
                                 tooltip=self.library.get_tooltip('top_songs', parameters=parameters))
                 
         for r in round_ids:
-            plot_key_i = (league_title, 'top_songs_ax', r)
+            plot_key_i = (league_id, 'top_songs_ax', r)
             stored, ok = self.streamer.get_session_state(plot_key_i)
             if ok:
                 ax, parameters_i = stored
@@ -1099,7 +1142,7 @@ class Plotter(Streamable):
     def sum_num(self, num):
         return sum(1/(n+2) for n in range(int(num)))
 
-    def plot_playlists(self, league_title, playlists_df, track_count, duration, width=400, height=80):#600):
+    def plot_playlists(self, league_id, playlists_df, track_count, duration, width=400, height=80):#600):
         self.streamer.status(1/self.plot_counts)
 
         playlist_uri = playlists_df.query('theme == "complete"')['uri'].iloc[0].replace('spotify:playlist:', '')
@@ -1117,7 +1160,7 @@ class Plotter(Streamable):
 
         plt.close()
 
-    def plot_hoarding(self, league_title, hoarding_df, most_generous, least_generous):
+    def plot_hoarding(self, league_id, hoarding_df, most_generous, least_generous):
         self.streamer.status(1/self.plot_counts)
         player_ids = hoarding_df.index
         round_ids = hoarding_df.columns

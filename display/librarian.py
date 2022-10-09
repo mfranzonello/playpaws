@@ -230,6 +230,9 @@ class Library:
                     f'{self.feel("hoarder")} go{hoarder.get("s")} hardest on key tracks.'
                     )
 
+        elif plot_name == 'pie':
+            text = (f'THIS IS A WORK IN PROGRESS')
+
         if text:
             tooltip = {'label': label,
                        'content': text}

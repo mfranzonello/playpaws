@@ -465,7 +465,7 @@ class Database(Streamable):
         else:
             sql = (f'SELECT player_id FROM {self.table_name("players")} '
                    f'WHERE player_ID != {self.needs_quotes(self.god_id)} '
-                   f'ORDER BY player_name;'
+                   f'ORDER BY LOWER(player_name);'
                    )
 
             player_ids = self.read_sql(sql)['player_id'].to_list()
@@ -930,19 +930,19 @@ class Database(Streamable):
 
         return discoveries_df
 
-    def get_genres_and_categories_count(self, league_id, round_id=None, player_id=None,
-                                        tags=False, default='other'):
+    def get_genre_counts(self, league_id, round_id=None, player_id=None,
+                        tags=False, default='other', remove_default=False):
 
         # filter for round and/or player
         wheres1 = ' '.join(x for x in 
                            ['WHERE' if (round_id or player_id) else '',
                             f's.round_id = {self.needs_quotes(round_id)}' if round_id else '',
                             'AND' if (round_id and player_id) else '',
-                            f's.player_id = {self.needs_quotes(player_id)}' if player_id else '']
+                            f's.submitter_id = {self.needs_quotes(player_id)}' if player_id else '']
                            if len(x))
 
         wheres2 = f'WHERE league_id = {self.needs_quotes(league_id)}'
-        
+
         sql = (f'WITH '
 
                # get genre weights
@@ -967,8 +967,8 @@ class Database(Streamable):
                f'FROM {self.table_name("songs")} AS s '
                f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri '
                f'LEFT JOIN {self.table_name("artists")} AS a ON t.artist_uri ? a.uri '
-               f'GROUP BY genre, s.song_id, s.league_id '
-               f'{wheres1}), '
+               f'{wheres1} '
+               f'GROUP BY genre, s.song_id, s.league_id), '
 
                # get occurances by genre
                f'g_os AS ('
@@ -987,7 +987,8 @@ class Database(Streamable):
                f'THEN 1/jsonb_array_length(t.top_tags)::real '
                f'ELSE 1 END) AS weight0 '
                f'FROM {self.table_name("songs")} AS s '
-               f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri), '
+               f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri '
+               f'{wheres1}), '
 
                # get tag artist weights
                f's1 AS ('
@@ -997,6 +998,7 @@ class Database(Streamable):
                f'1/count(s.song_id)::real AS weight1 '
                f'FROM {self.table_name("songs")} AS s '
                f'LEFT JOIN {self.table_name("tracks")} AS t ON s.track_uri = t.uri '
+               f'{wheres1} '
                f'GROUP BY tag, s.song_id, s.league_id), '
 
                # get occurances by tag
@@ -1009,7 +1011,7 @@ class Database(Streamable):
 
                # get occurances by genre and tag combined
                f'gt_os AS ('
-               f'SELECT * FROM t_os UNION ALL SELECT * FROM t_os) ' 
+               f'SELECT * FROM g_os UNION ALL SELECT * FROM t_os), ' 
 
                # get occurances by category
                f'c_os AS ('
@@ -1018,14 +1020,14 @@ class Database(Streamable):
                f'SUM(g_os.occurances) AS occurances '
                f'FROM g_os JOIN {self.table_name("genres")} AS g ON g_os.genre = g.name '
                f'GROUP BY g_os.league_id, g.category) '
-
-               f'SELECT * FROM '
                )
 
         ts = {'genre': 'gt_os' if tags else 'g_os',
               'category': 'c_os'}
+
+        wheres3 = {t: f' AND {t} != {self.needs_quotes(default)}' if remove_default else '' for t in ts}
         
-        sqls = {t: f'{sql} {ts[t]} {wheres2};' 
+        sqls = {t: f'{sql} SELECT {t}, occurances FROM {ts[t]} {wheres2}{wheres3[t]};' 
                     for t in ts} 
         
         genres_count = self.read_sql(sqls['genre'])
@@ -1033,7 +1035,14 @@ class Database(Streamable):
 
         return genres_count, categories_count
 
-    def get_genres_and_tags(self, league_id, player_id=None): ## <- use get_genres_and_categories_count instead
+    def get_player_tags(self, league_id, player_id, round_id=None):
+        genres_count, _ = self.get_genre_counts(league_id, round_id=round_id, player_id=player_id,
+                                             tags=True)
+
+        tags_df = genres_count['genre'].to_list()
+        return tags_df
+
+    def get_genres_and_tags(self, league_id, player_id=None): ## <- use get_genre_count instead
         if player_id:
             wheres = f' AND s.submitter_id = {self.needs_quotes(player_id)}'
         else:
