@@ -242,7 +242,9 @@ class Library:
 
         return tooltip
 
-    def get_column(self, parameters={}):
+    def get_column(self, parameters={}, subsection=None):
+        leagues, competitions, awards, pulse, stats, wins = [''] * 6
+
         award_titles = [{'item': 'dirtitest', 'title': 'Most Explicit Player'},
                 {'item': 'clean', 'title': 'Squeaky Clean Lyrics'},
                 {'item': 'discoverer', 'title': 'Best Music Discoverer'},
@@ -275,12 +277,8 @@ class Library:
                             ) \
                 for it in award_titles if parameters.get(it['item'])]
         
-            awards = self.bar_list(awards_list)
+            awards = self.list_items(awards_list)
    
-            text = (f'## League Stats'
-                    f'{awards}'
-            )
-
         else:
             leagues_list = []
             league_titles = parameters.get('leagues')
@@ -289,17 +287,30 @@ class Library:
                 leagues_in = self.texter.get_plurals(league_titles)['text']
                 other_leagues = 'Other ' if parameters.get('other_leagues') else ''
                 leagues_list.append(f'{other_leagues}Leagues Played In: {leagues_in}')
-            leagues = self.bar_list(leagues_list, indent=False, bar=False)
+            leagues = self.list_items(leagues_list) if subsection == 'stats' else ''
 
             competitions_list = []
             if parameters.get('current_competition'):
                 place = self.texter.get_ordinal(parameters['badge2'])
                 total = parameters['n_players']
                 competitions_list.append(f'Currently competing in {self.feel("competitions")}'
-                                         f'{parameters["current_competition"]}{self.feel("competitions")}'
-                                         f'{self.newline(1)}{self.indent()}(ranked {place} of {total})')
-            competitions = self.bar_list(competitions_list, indent=False)
+                                            f'{parameters["current_competition"]}{self.feel("competitions")}'
+                                            f'{self.newline(1)}{self.indent()}(ranked {place} of {total})')
+            competitions = self.list_items(competitions_list) if subsection == 'stats' else ''
 
+            stats_list = [(f'{it["title"]}: {self.feel(it.get("feel", it["item"]))}'
+                            f'**{parameters[it["item"]]:.3f}**'
+                            f'{self.feel(it.get("feel", it["item"]))}') \
+                for it in stats_titles if parameters.get(it['item'])]
+
+            stats = self.list_items(stats_list) if subsection == 'stats' else ''
+
+            pulse_list = [(f'{it["title"]}: {self.feel(it.get("feel", it["item"]))}'
+                            f'{self.texter.get_plurals(parameters[it["item"]], markdown="**")["text"]}'
+                            f'{self.feel(it.get("feel", it["item"]))}') \
+                for it in pulse_titles if parameters.get(it['item'])]
+
+            pulse = self.list_items(pulse_list) if subsection == 'pulse' else ''
 
             awards_list = [(f'{self.feel(it.get("feel", it["item"]))}'
                             f'**{it["title"]}**'
@@ -308,50 +319,28 @@ class Library:
 
             if not len(awards_list):
                 awards_list.append(f'{self.feel("participant")}**Participation Trophy**{self.feel("participant")}')
-            awards = self.bar_list(awards_list)
-        
-            pulse_list = [(f'{it["title"]}: {self.feel(it.get("feel", it["item"]))}'
-                           f'**{parameters[it["pulse"]]}**'
-                           f'{self.feel(it.get("feel", it["item"]))}') \
-                for it in pulse_titles if parameters.get(it['item'])]
-
-            pulse = self.bar_list(pulse_list)
-
-            stats_list = [(f'{it["title"]}: {self.feel(it.get("feel", it["item"]))}'
-                           f'**{parameters[it["item"]]:.3f}**'
-                           f'{self.feel(it.get("feel", it["item"]))}') \
-                for it in stats_titles if parameters.get(it['item'])]
-
-            stats = self.bar_list(stats_list)
+            awards = self.list_items(awards_list) if subsection == 'awards' else ''
 
             wins_titles = [{'item': 'wins', 'title': 'Round'},
-                           {'item': 'competition_wins', 'title': 'Competition', 'feel': 'competitions'},
-                           ]
+                            {'item': 'competition_wins', 'title': 'Competition', 'feel': 'competitions'},
+                            ]
 
             wins_list = [(f'{it["title"]}'
-                          f'{self.texter.get_plurals([self.texter.clean_text(t) for t in parameters[it["item"]]])["s"]}'
-                          f' won: {self.feel(it.get("feel", it["item"]))}'
-                          f'{self.texter.get_plurals([self.texter.clean_text(t) for t in parameters[it["item"]]], markdown="**")["text"]}'
-                          f'{self.feel(it.get("feel", it["item"]))}') \
+                            f'{self.texter.get_plurals([self.texter.clean_text(t) for t in parameters[it["item"]]])["s"]}'
+                            f' won: {self.feel(it.get("feel", it["item"]))}'
+                            f'{self.texter.get_plurals([self.texter.clean_text(t) for t in parameters[it["item"]]], markdown="**")["text"]}'
+                            f'{self.feel(it.get("feel", it["item"]))}') \
                 for it in wins_titles if parameters.get(it['item'])]
 
-            wins = self.bar_list(wins_list)
+            wins = self.list_items(wins_list) if subsection == 'wins' else ''
 
-            text = (f'## Player Stats'
-                    f'{leagues}{competitions}{awards}{pulse}{stats}{wins}'
-                    )
+        text = self.bar().join(i for i in [leagues, competitions, awards, pulse, stats, wins] if len(i))
 
         return text
 
-    def bar_list(self, items_list, indent=True, bar=True):
+    def list_items(self, items_list):
         if len(items_list):
-            indent_me = self.indent() if indent else ''
-            ##newline_num = 2 if self.indent() else 1
-            bar_me = self.bar() if bar else self.newline(1)
-            items = (f'{bar_me}' + 
-                     ''.join(f'{indent_me}{x}{self.newline(1)}' for x in items_list) +
-                     f'{self.newline(1)}'
-                     )
+            items = ''.join(f'{x}{self.newline(1)}' for x in items_list) + self.newline(1)
         else:
             items = ''
 

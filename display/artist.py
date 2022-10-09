@@ -75,6 +75,11 @@ class Paintbrush:
     def get_plot_color(self, color_name):
         return self.tableau_colors.get(color_name.lower(), (0, 0, 0))
 
+    def get_plot_colors(self):
+        palette = self.tableau_colors.values()
+        plot_colors = self.get_scatter_colors(palette)
+        return plot_colors
+
     def lighten_color(self, color, pct=0):
         color = tuple(int(max(0, min(self.color_wheel, c + pct * self.color_wheel))) for c in color)
         return color

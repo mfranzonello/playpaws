@@ -64,6 +64,7 @@ class Streamer:
                     self.player_image = st.empty()
                     self.player_footer = st.empty()
                 with col4:
+                    self.player_caption_header = st.empty()
                     self.player_caption = st.empty()
         
             with self.sidebar.container():
@@ -75,8 +76,7 @@ class Streamer:
             self.base_status = 0.0
             self.base_text = ''
 
-            self.tabs = None
-            self.tab_n = 0
+            self.tabs = {}
 
     def get_session_state(self, key):
         item = st.session_state.get(key)
@@ -86,10 +86,26 @@ class Streamer:
     def store_session_state(self, key, item):
         st.session_state[key] = item
                
-    def wrapper(self, header, tooltip, header2=None, tab_n=None):
+    def wrapper(self, header, tooltip, header2=None):
         self.header(header)
         self.header2(header2)
         self.tooltip(tooltip)
+
+    def tab(self, tab, caption=False, header=True):
+        if caption:
+            with self.player_caption_header:
+                self.header(tab.get_header())
+                
+            with self.player_caption:
+                self.tab(tab, caption=False, header=False)
+
+        else:
+            if header:
+                self.header(tab.get_header())
+            self.tabs[tab.get_key()] = {title: t for title, t in zip(tab.get_titles(), st.tabs(tab.get_titles(string=True)))}
+
+    def tabbed(self, tab):
+        return (tab is not None) and (self.tabs.get(tab.get_key()))
         
     def header(self, header):
         if header:
@@ -129,37 +145,50 @@ class Streamer:
             with col_right:
                 func2(right_column)
         
-    def plotly(self, figure, header=None, header2=None, tooltip=None, in_expander=False):
-        self.wrapper(header, tooltip, header2=header2)
-        self.in_expander(in_expander, st.ploty_chart, figure, transparent=True)
+    ##def plotly(self, figure, header=None, header2=None, tooltip=None, in_expander=False):
+    ##    self.wrapper(header, tooltip, header2=header2)
+    ##    self.in_expander(in_expander, st.ploty_chart, figure, transparent=True)
 
-    def pyplot(self, figure, header=None, header2=None, tooltip=None, in_expander=False,
-               tab=False):
- 
-        if tab:
-            self.tab_n += 1
-            with self.tabs[self.tab_n - 1]:
-                self.tabbed_plot(header, tooltip, header2, in_expander, figure)
+    def caption(self, text, header=None, tab=None):
+        if self.tabbed(tab):
+            with self.tabs[tab.get_key()][header]:
+                st.markdown(text)
                 
         else:
-            self.tabbed_plot(header, tooltip, header2, in_expander, figure)
-
-    def tabbed_plot(self, header, tooltip, header2, in_expander, figure):
-        self.wrapper(header, tooltip, header2=header2)
-        self.in_expander(in_expander, st.pyplot, figure, transparent=True)
+            with self.player_caption:
+                self.header(header)
+                st.markdown(text)
         
+
+    def pyplot(self, figure, header=None, header2=None, tooltip=None, in_expander=False,
+               tab=None):
+ 
+        if self.tabbed(tab):
+            with self.tabs[tab.get_key()][header]:
+                self.pyplot(figure, None, header2, tooltip, in_expander, tab=None)
+                
+        else:
+            self.wrapper(header, tooltip, header2=header2)
+            self.in_expander(in_expander, st.pyplot, figure, transparent=True)
+            
     def viewer(self, image, footer=None, footer_height=None):
         self.player_image.image(image)
         ##if footer:
         ##    self.player_footer.st_html(footer, height=footer_height)
 
     def image(self, image, header=None, header2=None, tooltip=None, right_column=None,
-              in_expander=False):
-        self.wrapper(header, tooltip, header2=header2)
-        if right_column:
-            self.right_column(right_column, st.image, image, st.markdown)
+              in_expander=False, tab=None):
+
+        if self.tabbed(tab):
+            with self.tabs[tab.get_key()][header]:
+                self.image(image, None, header2, tooltip, right_column, in_expander, tab=None)
+
         else:
-            self.in_expander(in_expander, st.image, image)
+            self.wrapper(header, tooltip, header2=header2)
+            if right_column:
+                self.right_column(right_column, st.image, image, st.markdown)
+            else:
+                self.in_expander(in_expander, st.image, image)
         
     def print(self, text, base=True):
         if self.deployed:
@@ -189,7 +218,46 @@ class Streamer:
             
             self.status_bar.progress(new_pct)
 
-    def embed(self, html, height=150, header=None, header2=None, tooltip=None, in_expander=False):
-        self.wrapper(header, tooltip, header2=header2)
-        self.in_expander(in_expander, st_html, html, height=height)
-        ##st_html(html, height=height)
+    def embed(self, html, height=150, header=None, header2=None, tooltip=None, in_expander=False, tab=None):        
+        if self.tabbed(tab):
+            with self.tabs[tab.header][header]:
+                self.embed(html, height, header, header2, tooltip, in_expander, tab=None)
+        else:
+            self.wrapper(header, tooltip, header2=header2)
+            self.in_expander(in_expander, st_html, html, height=height)
+            ##st_html(html, height=height)
+
+class Stab:
+    ''' Streamlit tab '''
+    def __init__(self, key:str, titles:list, header:str=None):
+        self.key = key
+        self.titles = titles
+        self.header = header
+
+    def get_key(self):
+        return self.key
+
+    def get_header(self):
+        return self.header
+
+    def get_titles(self, string=False):        
+        if isinstance(self.titles, dict):
+            titles = self.titles.values()
+        else:
+            titles = self.titles
+
+        if string:
+            titles = [str(t) for t in titles]
+
+        return titles
+
+    def get_title_keys(self):
+        if isinstance(self.titles, dict):
+            title_keys = self.titles.keys()
+        else:
+            title_keys = self.titles
+
+        return title_keys
+
+    def get_titles_and_keys(self):
+        return zip(self.get_title_keys(), self.get_titles())

@@ -364,6 +364,8 @@ class Database(Streamable):
         rounds_df = self.get_table('Rounds', league_id=league_id, order_by={'column': 'created_date', 'sort': 'ASC'}, drop_league=True)
         return rounds_df
 
+    def get_n_rounds(self, league_id):
+        return len(self.get_rounds(league_id))
 
     def get_uncreated_rounds(self, league_id):
         sql = (f'SELECT round_id, description, creator_id FROM {self.table_name("rounds")} '
@@ -1150,16 +1152,18 @@ class Database(Streamable):
         return descriptions_df
 
     def get_creators_and_winners(self, league_id):
-        sql = (f'SELECT r.round_id, r.creator_id, jsonb_agg(b.player_id) AS winner '
-               f'FROM {self.table_name("rounds")} as r '
-               f'LEFT JOIN {self.table_name("boards")} as b '
-               f'ON (r.league_id = b.league_id) AND (r.round_id = b.round_id) '
-               f'WHERE (r.league_id = {self.needs_quotes(league_id)}) '
-               f'AND ((b.place < 2) OR (b.place IS NULL)) ' ## can this be MIN without GROUP BY?
-               f'GROUP BY r.round_id, r.creator_id, r.created_date '
+        sql = (f'WITH b AS ('
+               f'SELECT league_id, round_id, jsonb_agg(player_id) AS winner_ids '
+               f'FROM {self.table_name("boards")} '
+               f'WHERE place >= 1 AND place < 2 GROUP BY league_id, round_id) '
+
+               f'SELECT b.league_id, b.round_id, b.winner_ids, r.creator_id '
+               f'FROM b RIGHT JOIN {self.table_name("rounds")} AS r '
+               f'ON b.league_id = r.league_id AND b.round_id = r.round_id '
+               f'WHERE r.league_id = {self.needs_quotes(league_id)} '
                f'ORDER BY r.created_date;'
                )
-        
+
         creators_winners_df = self.read_sql(sql)
 
         return creators_winners_df
@@ -1191,41 +1195,35 @@ class Database(Streamable):
         all_info_df = self.read_sql(sql)
 
         return all_info_df
+    
+    def get_pulse_results(self, league_id, player_id=None):
+        wheres = f' AND m.player_id = {self.needs_quotes(player_id)}' if player_id else ''
 
-    def get_player_pulse(self, league_id, player_id):
-        sql = (f'SELECT p.player_id, p.likes_id, p.liked_id, j.closest_id '
-               f'FROM (SELECT player_id, likes_id, liked_id  '
-               f'FROM {self.table_name("members")} '
-               f'WHERE (league_id = {self.needs_quotes(league_id)}) '
-               f'AND (player_id = {self.needs_quotes(player_id)})) as p '
+        sql = (f'WITH t1 AS ('
+               f'SELECT league_id, p1_id, MIN(distance) AS distance '
+               f'FROM "mfranzonello/playpaws"."pulse" '
+               f'GROUP BY league_id, p1_id), '
 
-               f'CROSS JOIN '
+               f'c AS ('
+               f'SELECT t1.league_id, t1.p1_id AS player_id, jsonb_agg(t2.p2_id) AS closest '
+               f'FROM t1 JOIN "mfranzonello/playpaws"."pulse" AS t2 '
+               f'ON t1.league_id = t2.league_id AND t1.p1_id = t2.p1_id '
+               f'AND t1.distance = t2.distance GROUP BY t1.league_id, t1.p1_id) '
 
-               f'(SELECT p2_id AS closest_id FROM {self.table_name("pulse")} '
-               f'WHERE (league_id = {self.needs_quotes(league_id)}) '
-               f'AND (p1_id = {self.needs_quotes(player_id)}) '
-               f'AND (distance IN (SELECT MIN(distance) '
-               f'FROM {self.table_name("pulse")} '
-               f'WHERE (league_id = {self.needs_quotes(league_id)}) '
-               f'AND (p1_id = {self.needs_quotes(player_id)}) '
-               f'GROUP BY league_id, p1_id)) LIMIT 1) AS j '
-
-               ##f'(SELECT q.player AS closest FROM ( '
-               ##f'SELECT player, abs(dfc - '
-               ##f'(SELECT dfc FROM {self.table_name("members")} '
-               ##f'WHERE (league = {self.needs_quotes(league_title)}) '
-               ##f'AND (player = {self.needs_quotes(player_name)}))) AS distance '
-               ##f'FROM {self.table_name("members")} '
-               ##f'WHERE (league = {self.needs_quotes(league_title)}) '
-               ##f'AND (player != {self.needs_quotes(player_name)}) '
-               ##f'ORDER BY distance LIMIT 1) AS q) AS j'
-               
-               f';'
+               f'SELECT m.league_id, m.player_id, '
+               f'm.likes_id AS likes, m.liked_id AS liked, c.closest '
+               f'FROM "mfranzonello/playpaws"."members" AS m '
+               f'JOIN c ON m.league_id = c.league_id AND m.player_id = c.player_id '
+               f'WHERE m.league_id = {self.needs_quotes(league_id)}{wheres};'
                )
 
-        player_pulse_df = self.read_sql(sql).squeeze(0)
+        pulse_df = self.read_sql(sql)
 
-        return player_pulse_df
+        return pulse_df
+
+    def get_player_pulse(self, league_id, player_id):
+        pulse_s = self.get_pulse_results(league_id, player_id=player_id).squeeze()
+        return pulse_s
 
     def add_on(self, add_type, alias, alias2=None, value=None,
                comma=False, conjunction=None):
