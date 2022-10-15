@@ -225,7 +225,7 @@ class Plotter(Streamable):
                 else:
                     self.streamer.tab(player_tab, caption=True)
                     pulse_df = self.prepare_dfs(('pulse_df', league_id, self.view_player),
-                                                 self.database.get_player_pulse, league_id, self.view_player)
+                                                 self.database.get_relationships, league_id, self.view_player)
                     wins_df = self.prepare_dfs(('player_wins_df', league_id, self.view_player),
                                                self.database.get_round_wins, league_id, self.view_player)
                     awards_df = self.prepare_dfs(('awards_df', league_id, self.view_player),
@@ -270,7 +270,7 @@ class Plotter(Streamable):
                 dirtiness_df = self.prepare_dfs(('dirtiness_df', league_id),
                                                 self.database.get_dirtiness, league_id)
                 discovery_df = self.prepare_dfs(('discovery_df', league_id),
-                                                self.database.get_discovery_scores, league_id)
+                                                self.database.get_discoveries, league_id)
                 self.plot_rankings(league_id, rankings_df, dirtiness_df, discovery_df,
                                    title=scores_title, tab=league_tab)
                                    
@@ -772,25 +772,23 @@ class Plotter(Streamable):
         competition_colors = self.paintbrush.get_scatter_colors(self.separate_colors)
         n_colors = len(competition_colors)
 
-        cids = competitions_df[['competition_id']].drop_duplicates()\
-            .reset_index(drop=True).reset_index().rename(columns={'index': 'c'})
-        competitions_df = competitions_df.merge(cids, on='competition_id')
-        competitions_df.loc[:, 'color'] = competitions_df.apply(lambda x: competition_colors[x['c'] % n_colors],
-                                                                axis=1)
+        competitions_explode = competitions_df['round_ids'].explode()
         
         y0, y1 = ax.get_ylim()
 
-        for i in competitions_df.index:
-            x_ = round_ids.index(competitions_df['round_id'][i]) + 1 + x_offset
-            x0 = x_ - 1/2
-            x1 = x_ + 1/2
+        for r_i, round_id in enumerate(round_ids):
+            if r_i in competitions_explode.to_list():
+                x_ = r_i + 1 + x_offset
+                x0 = x_ - 1/2
+                x1 = x_ + 1/2
 
-            color = competitions_df['color'][i]
-            facecolor = tuple([c for c in color] + [0.4])
-            edgecolor = tuple([c for c in color] + [0.3])
-            ax.fill_between([scaling[0]*x0, scaling[0]*x1], y0, y1,
-                            facecolor=facecolor, edgecolor=edgecolor,
-                            hatch='///', zorder=-1)
+                c_i = competitions_explode[competitions_explode == round_id].index.to_list()[0]
+                color = competition_colors[c_i % n_colors]
+                facecolor = tuple([c for c in color] + [0.4])
+                edgecolor = tuple([c for c in color] + [0.3])
+                ax.fill_between([scaling[0]*x0, scaling[0]*x1], y0, y1,
+                                facecolor=facecolor, edgecolor=edgecolor,
+                                hatch='///', zorder=-1)
 
     def plot_rankings(self, league_id, rankings, dirty_df, discovery_df, title=None, tab=None):
         plot_key = (league_id, 'rankings_ax', self.view_player)

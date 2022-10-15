@@ -20,7 +20,6 @@ def update_api_data(database):
 def analyze_data(database):
     # analyze MusicLeague data
     analyzer = Analyzer(database)
-    analyzer.analyze_all()
     analyzer.place_all()
 
 def output_playlists(database):

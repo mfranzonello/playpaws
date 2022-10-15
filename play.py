@@ -15,7 +15,7 @@ def main():
     streamer = Streamer()
 
     # prepare database
-    database = Database(streamer=streamer)
+    database = Database()
     
     plot_data(database, streamer)
 
