@@ -504,9 +504,9 @@ class Database(Streamable):
                    f'WHERE player_id = {active_players} {wheres};'
                    )
 
-    def get_inactive_players(self, missed_limit=2):
+    def get_inactive_players(self, league_id, missed_limit=2):
         sql = (f'SELECT player_id FROM {self.table_name("misses")} '
-               f'WHERE missed >= {self.needs_quotes(missed_limit)};'
+               f'WHERE league_id = {self.needs_quotes(league_id)} AND missed >= {self.needs_quotes(missed_limit)};'
                )
 
         player_ids = self.read_sql(sql)['player_id'].to_list()

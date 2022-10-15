@@ -178,12 +178,15 @@ class Extender:
                                   days=days, hours=hours)
 
     def extend_all_deadlines(self, days=1, hours=0, hours_left=24):
-        inactive_players = self.database.get_inactive_players()
         league_ids = self.database.get_extendable_leagues()
 
+        print('Extending deadlines...')
         for league_id in league_ids:
             # extend cascading deadlines when the open round has a deadline coming up and outstanding voters
+            inactive_players = self.database.get_inactive_players(league_id)
             self.extend_deadlines(league_id, days, hours, hours_left, inactive_players)
+
+        print('\t...complete!')
 
 class Musician:
     def __init__(self, database):
