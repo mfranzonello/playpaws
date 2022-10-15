@@ -1,5 +1,7 @@
 ''' Creating webpages with Streamlit '''
 
+import os
+
 from pandas import set_option
 import streamlit as st
 from streamlit.components.v1 import html as st_html
@@ -23,6 +25,9 @@ class Printer:
 
         for option in self.options:
             set_option(option, None)
+
+    def clear_screen(self):
+        os.system('cls')
 
 class Streamable:
     def __init__(self):

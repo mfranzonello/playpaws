@@ -380,7 +380,7 @@ class Database(Streamable):
         return league_ids
 
     def get_player_leagues(self, player_id):
-        leagues_df = self.get_table('leagues', player_id=player_id)
+        leagues_df = self.get_table('members', player_id=player_id)
         league_ids = leagues_df['league_id'].to_list()
 
         return league_ids
@@ -418,21 +418,21 @@ class Database(Streamable):
         df = rounds_df.reindex(columns=self.get_columns('Rounds'))
         df['league_id'] = league_id
 
-        self.upsert_table('Rounds', df)
+        self.upsert_table('rounds', df)
 
     def store_songs(self, songs_df, league_id):
-        df = songs_df.reindex(columns=self.get_columns('Songs'))
+        df = songs_df.reindex(columns=self.get_columns('songs'))
         df['league_id'] = league_id
-        self.upsert_table('Songs', df)
+        self.upsert_table('songs', df)
 
     def get_songs(self, league_id):
         songs_df = self.get_table('songs', league_id=league_id, drop_league=True)
         return songs_df
 
     def store_votes(self, votes_df, league_id):
-        df = votes_df.reindex(columns=self.get_columns('Votes'))
+        df = votes_df.reindex(columns=self.get_columns('votes'))
         df['league_id'] = league_id
-        self.upsert_table('Votes', df)
+        self.upsert_table('votes', df)
 
     def get_votes(self, league_id):
         votes_df = self.get_table('votes', league_id=league_id, drop_league=True)
@@ -700,9 +700,21 @@ class Database(Streamable):
 
         return reindexer
 
+    def get_boards_league(self, league_id):
+        boards_df = self.get_table('boards_leagues', league_id=league_id)
+
+        return boards_df
+
+    def get_boards_competition(self, league_id, competition_id=None):
+        if not competition_id:
+            competition_id = self.get_current_competition(league_id)
+        boards_df = self.get_table('boards_competitions', league_id=league_id, competition_id=competition_id)
+
+        return boards_df
+
     def get_boards(self, league_id): ## better way?
         reindexer = self.get_round_order(league_id)
-        boards_df = self.get_table('boards', leauge_id=league_id)\
+        boards_df = self.get_table('boards_leagues', league_id=league_id)\
             .pivot(index='player_id', columns='round_id', values='place')
         
         reindexer = [r for r in reindexer if r in boards_df.columns]
@@ -716,25 +728,19 @@ class Database(Streamable):
 
         return features_df
 
-    def get_dirtiness(self, league_id): ## <- use awards instead
-        ##if vote:
-        awards_df = self.get_table('awards_leagues', league_id=league_id)
-        dirtiness_df = awards_df.set_index('player_id')['dirtiness']
+    def get_genre_counts(self, league_id, round_id=None, player_id=None, genres=True, tags=False,
+                         remove_default='other'):
+        kwargs = {k: v for k, v in zip(['league_id', 'round_id', 'player_id'],
+                                       [league_id, round_id, player_id]) if v}
         
-        return dirtiness_df
+        gnt = ('genres' if genres else '') + ('_and_' if genres and tags else '') + ('tags' if tags else '')
+        group = 'players' if player_id else 'rounds' if round_id else 'leagues'
+        genres_count = self.get_table(f'occurances_{gnt}_{group}', **kwargs)
+        categories_count = self.get_table(f'occurances_categories_{group}', **kwargs)
 
-    def get_discovery_scores(self, league_id): ## <- use awards instead
-        awards_df = self.get_table('awards_leagues', league_id=league_id)
-        discoveries_df = awards_df.set_index('player_id')['discovery']
-        
-        return discoveries_df
-
-    def get_genre_counts(self, league_id, round_id=None, player_id=None,
-                        tags=False, default='other', remove_default=False):
-
-        
-        genres_count = self.read_sql(sqls['genre'])
-        categories_count = self.read_sql(sqls['category'])
+        if remove_default:
+            genres_count = genres_count[genres_count['genre'] != 'other']
+            categories_count = categories_count[categories_count['category'] != 'other']
 
         return genres_count, categories_count
 
@@ -768,7 +774,7 @@ class Database(Streamable):
         return genres_df
 
     def get_exclusive_genres(self, league_id):
-        exclusives_df = self.get_table('occurances_exclusives_genres')
+        exclusives_df = self.get_table('occurances_exclusive_genres')
         sql = (f'SELECT q.tag FROM '
                f'(SELECT jsonb_array_elements(a.genres) as tag '
                f'FROM {self.table_name("songs")} AS s '
@@ -823,10 +829,10 @@ class Database(Streamable):
         return relationships_s
     
     def get_round_awards(self, league_id, round_id=None):
+        kwargs = {'league_id': league_id}
         if round_id:
-            round_awards = self.get_table('awards_rounds', league_id=league_id, round_id=round_id)
-        else:
-            round_awards = self.get_table('awards_leagues', league_id=league_id)
+            kwargs.update({'round_id': round_id})
+        round_awards = self.get_table('awards_rounds', **kwargs)
         
         return round_awards
 
@@ -891,18 +897,18 @@ class Database(Streamable):
 
     def get_round_placement(self, league_id, player_id=None):
         if player_id:
-            places_df = self.get_table('boards', league_id=league_id, place_id=player_id, place=1)
+            places_df = self.get_table('boards_leagues', league_id=league_id, player_id=player_id, place=1)
         else:
-            places_df = self.get_table('boards', league_id=league_id)
+            places_df = self.get_table('boards_leagues', league_id=league_id)
 
         return places_df
 
     def get_competition_placement(self, league_id, competition_id=None, player_id=None):
         competition_id = self.get_current_competition(league_id)
         if player_id:
-            places_df = self.get_table('boards', league_id=league_id, competition_id=competition_id, player_id=player_id)
+            places_df = self.get_table('boards_competitions', league_id=league_id, competition_id=competition_id, player_id=player_id)
         else:
-            places_df = self.get_table('boards', league_id=league_id, competition_id=competition_id)
+            places_df = self.get_table('boards_competitions', league_id=league_id, competition_id=competition_id)
         return places_df
 
     def get_current_competition(self, league_id):
@@ -939,7 +945,7 @@ class Database(Streamable):
         return badge, n_players
 
     def get_competitions(self, league_id):
-        competitions_df = self.get_table('competitons', league_id=league_id)
+        competitions_df = self.get_table('competitions', league_id=league_id)
 
         return competitions_df
 
@@ -1014,19 +1020,6 @@ class Database(Streamable):
                )
 
         self.execute_sql(sql)
-
-    def get_hoarding(self, league_id):
-        awards_round_df = self.get_round_awards(league_id, round_id=True)
-        hoarding_df = awards_round_df.pivot(index='player_id', columns='round_id', values='generosity')
-
-        awards_league_df = self.get_round_awards(league_id)
-        most_generous = awards_league_df[awards_league_df['generous']==awards_league_df['generous'].min()]['player_id'].to_list()
-        least_generous = awards_league_df[awards_league_df['generous']==awards_league_df['generous'].max()]['player_id'].to_list()
-        
-        reindexer = [c for c in self.get_round_order(league_id) if c in hoarding_df.columns]
-        hoarding_df = hoarding_df.reindex(columns=reindexer)
-                        
-        return hoarding_df, most_generous, least_generous
 
     def get_emojis(self):
         emojis_df = self.get_table('emojis')
