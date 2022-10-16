@@ -180,10 +180,17 @@ class Plotter(Streamable):
                 league_id = self.blank_league
 
             if league_id == self.blank_league:
-                self.plot_viewer()
+                try:
+                    self.plot_viewer()
+                except Exception as e:
+                    self.print_error('plot_viewer', e)
+
 
                 if self.view_player != self.god_player:
-                    self.plot_caption()
+                    try:
+                        self.plot_caption()
+                    except Exception as e:
+                        self.print_error('plot_caption', e)
 
             else:
                 # set up stabs
@@ -219,11 +226,6 @@ class Plotter(Streamable):
                     badge2 = boards_competition_df.query('player_id == @self.view_player')['place'].iloc[0]
                     n_players = len(boards_competition_df)
 
-                    ##badge, _ = self.prepare_dfs(('badge', league_id, self.view_player),
-                    ##                            self.database.get_badge, league_id, self.view_player)
-                    ##badge2, n_players = self.prepare_dfs(('badge2', league_id, self.view_player),
-                    ##                            self.database.get_badge, league_id, self.view_player,
-                    ##                            competition=True)
                 playlists_df = self.prepare_dfs(('playlists_df', league_id),
                                                 self.database.get_playlists, league_id)
                 self.plot_viewer(badge=badge, badge2=badge2, playlists_df=playlists_df)
@@ -232,28 +234,36 @@ class Plotter(Streamable):
                 if self.view_player == self.god_player:
                     awards_df = self.prepare_dfs(('awards_df', league_id, self.view_player),
                                                  self.database.get_awards, league_id, self.view_player)
-                    self.plot_caption(league_id=league_id, god_mode=True, awards_df=awards_df, title='League Stats')
+                    try:
+                        self.plot_caption(league_id=league_id, god_mode=True, awards_df=awards_df, title='League Stats')
+                    except Exception as e:
+                        self.print_error('plot_songs', e)
 
                 # plot the viewer stats
                 else:
                     self.streamer.tab(player_tab, caption=True)
-                    pulse_df = self.prepare_dfs(('pulse_df', league_id, self.view_player),
-                                                 self.database.get_relationships, league_id, self.view_player)
+                    relations_df = self.prepare_dfs(('relations_df', league_id),
+                                                 self.database.get_relationships, league_id)
                     wins_df = self.prepare_dfs(('player_wins_df', league_id, self.view_player),
                                                self.database.get_round_wins, league_id, self.view_player)
                     awards_df = self.prepare_dfs(('awards_df', league_id, self.view_player),
                                                  self.database.get_awards, league_id, self.view_player)
+                    stats_df = self.prepare_dfs(('stats_df', league_id),
+                                                self.database.get_stats, league_id)
 
                     competition_id = self.database.get_current_competition(league_id)
                     competition_title = self.get_competition_title(competition_id)
                     competition_wins = self.prepare_dfs(('competitions_wins', league_id, self.view_player),
                                                        self.database.get_competition_wins, league_id,
                                                        self.view_player)
-                    self.plot_caption(league_id=league_id, pulse_df=pulse_df,
-                                      wins_df=wins_df, awards_df=awards_df,
-                                      competition_title=competition_title,
-                                      badge2=badge2, n_players=n_players,
-                                      competition_wins=competition_wins, tab=player_tab)
+                    try:
+                        self.plot_caption(league_id=league_id, relations_df=relations_df,
+                                          wins_df=wins_df, awards_df=awards_df, stats_df=stats_df,
+                                          competition_title=competition_title,
+                                          badge2=badge2, n_players=n_players,
+                                          competition_wins=competition_wins, tab=player_tab)
+                    except Exception as e:
+                        self.print_error('plot_caption', e)
 
                 self.streamer.print(f'Preparing plot for {self.get_league_title(league_id)}')
                 self.streamer.status(0, base=True)
@@ -351,17 +361,15 @@ class Plotter(Streamable):
                 # plot complete playlist
                 playlists_df = self.prepare_dfs(('playlists_df', league_id),
                                                 self.database.get_playlists, league_id)
-                track_count = self.prepare_dfs(('track_count', league_id),
-                                               self.database.get_track_count, league_id)
-                track_durations = self.prepare_dfs(('track_durations', league_id),
-                                                   self.database.get_track_durations, league_id)
+                track_count, track_durations = self.prepare_dfs(('durations', league_id),
+                                                self.database.get_track_count_and_durations, league_id)
                 try:
                     self.plot_playlists(league_id, playlists_df, track_count, track_durations)
                 except Exception as e:
                     self.print_error('plot_playlists', e)
             
-                exc = ' except' + ', '.join(errors) if len(self.errors) else ''
-                self.streamer.print('Everything loaded{exc}! Close this sidebar to view.')
+                exc = ' except ' + ', '.join(self.errors) if len(self.errors) else ''
+                self.streamer.print(f'Everything loaded{exc}! Close this sidebar to view.')
 
     def place_image(self, ax, x, y, player_id=None, color=None, size=0.5,
                     image_size=(0, 0), padding=0, text=None,
@@ -454,14 +462,20 @@ class Plotter(Streamable):
 
         return image
 
-    def plot_caption(self, league_id=None, pulse_df=None, wins_df=None, awards_df=None,
+    def plot_caption(self, league_id=None, relations_df=None, wins_df=None, awards_df=None, stats_df=None,
                      competition_title=None, badge2=None, n_players=None, competition_wins=None,
                      god_mode=False, title=None, tab=None):
-        pulse_keys = ['likes', 'liked', 'closest']
-        award_keys = ['chatty', 'quiet', 'popular', 'discoverer',
-                      'dirtiest', 'clean', 'generous', 'stingy', 
-                      'fast_submit', 'slow_submit', 'fast_vote', 'slow_vote']
-        stat_keys = ['win_rate', 'play_rate']
+        keys = {'relations': ['likes', 'liked', 'nearest'],
+                'awards': ['chatty', 'quiet', 'popular', 'discoverer',
+                           'dirtiest', 'clean', 'generous', 'stingy', 
+                           'fast_submit', 'slow_submit', 'fast_vote', 'slow_vote'],
+                'stats': ['win_rate', 'play_rate'],
+                }
+
+        relations_s = relations_df.set_index('player_id')[player_id]
+        awards_s = awards_df.set_index('player_id')['player_id']
+        stats_s = stats_df.set_index('player_id')[player_id]
+        wins_s = winds_df.set_index('player_id')['player_id']
 
         if god_mode:
             parameters = {'god': True}
@@ -472,14 +486,21 @@ class Plotter(Streamable):
 
         else:
             parameters = {}
-            keys = award_keys + pulse_keys + stat_keys
-
-            if (pulse_df is not None) and len(pulse_df):
-                parameters.update({k: self.get_player_name(pulse_df[k]) for k in keys if k in pulse_df})
+            print('passed 0')
+            print(relations_df)
+            print(stats_df)
+            #if (relations_df is not None) and len(relations_df):
+            #    parameters.update({k: self.get_player_name(relations_df[f'{k}_id']) for k in keys['relations'] if f'{k}_id' in relations_df})
+            #print('passed 1')
             if (awards_df is not None) and len(awards_df):
-                    parameters.update({k: awards_df[k] for k in keys if k in awards_df})
+                    parameters.update({k: awards_df[k] for k in keys['awards'] if k in awards_df})
+            print('passed 2')
+            if (stats_df is not None) and len(stats_df):
+                    parameters.update({k: stats_df[k] for k in keys['stats'] if k in stats_df})
+            print('passed 3')
             if (wins_df is not None) and len(wins_df):
                 parameters['wins'] = self.get_round_title(wins_df)
+            print('passed 4')
             if badge2:
                 parameters.update({'current_competition': competition_title,
                                    'badge2': badge2,

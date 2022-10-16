@@ -611,7 +611,7 @@ class Database(Streamable):
         durations_df = self.get_table('durations', league_id=league_id)
         count, duration = durations_df[['count', 'duration']].iloc[0]
 
-        return count, duration
+        return int(count), duration
 
     def get_theme_playlists(self, theme):
         # get playlists or track URIs to pull songs from
@@ -824,9 +824,10 @@ class Database(Streamable):
 
         return creators_winners_df
   
-    def get_relationships(self, league_id, player_id):
-        relationships_s = self.get_table('relationships', league_id=league_id, player_id=player_id).squeeze()
-        return relationships_s
+    def get_relationships(self, league_id, **kwargs):
+        relationships_df = self.get_table('relationships', league_id=league_id, **kwargs)
+
+        return relationships_df
     
     def get_round_awards(self, league_id, round_id=None):
         kwargs = {'league_id': league_id}
@@ -856,10 +857,6 @@ class Database(Streamable):
                         'fast_submit': ['submit_fastest', True], 'slow_submit': ['submit_fastest', False],
                         'fast_vote': ['vote_fastest', True], 'slow_vote': ['vote_fastest', False],
                         }
-        if (not round_id) and (not god_mode):
-            award_labels.update({'win_rate': ['win_rate', None],
-                                 'play_rate': ['play_rate', None],
-                                 })
 
         awards_s = Series(index=award_labels.keys())
 
@@ -878,8 +875,8 @@ class Database(Streamable):
                 # threshold
                 elif isinstance(pos, float):
                     value = awards_df[awards_df[col].ge(pos)]['player_id'].to_list()
-                # stat
-                elif pos is None:
+                # other stat
+                else:
                     value = awards_df[awards_df['player_id'] == player_id][col].iloc[0]
 
                 # is player
@@ -889,6 +886,11 @@ class Database(Streamable):
                 awards_s.loc[label] = value
 
         return awards_s
+
+    def get_stats(self, league_id, **kwargs):
+        stats_df = self.get_table('awards_stats', league_id=league_id, **kwargs)
+
+        return stats_df
 
     def get_league_placement(self, league_id):
         places_df = self.get_table('battles', league_id=league_id)

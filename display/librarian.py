@@ -263,7 +263,7 @@ class Library:
 
         pulse_titles = [{'item': 'likes', 'title': 'Likes best'},
                         {'item': 'liked', 'title': 'Most liked by'},
-                        {'item': 'closest', 'title': 'Most similar to'}
+                        {'item': 'nearest', 'title': 'Most similar to'}
                         ]
 
         stats_titles = [{'item': 'win_rate', 'title': 'Batting Average'},
