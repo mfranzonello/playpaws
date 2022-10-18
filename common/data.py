@@ -5,6 +5,7 @@ from datetime import date
 
 import requests
 from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
 from pandas import DataFrame, Series, isnull, read_sql
 from pandas import read_sql, DataFrame, Series, isnull
 from pandas.api.types import is_numeric_dtype
@@ -35,6 +36,7 @@ class Database(Streamable):
             'date': 'datetime64',
             'bool': 'bool',
             }
+    connection_attempt_limit = 5
 
     def __init__(self, connection_type='alchemy', streamer=None):
         super().__init__()
@@ -45,9 +47,10 @@ class Database(Streamable):
         self.streamer.print(f'Connecting to database {self.db}...')
         self.connection_type = connection_type
 
+        self.engineer = None
         if self.connection_type == 'alchemy':
-            engineer = Engineer()
-            self.connection = engineer.connect()
+            self.engineer = Engineer()
+            self.connection = self.engineer.connect()
 
         elif self.connection_type == 'api':
             self.url = BITIO_URL
@@ -102,8 +105,8 @@ class Database(Streamable):
     def read_sql(self, sql, **kwargs):
         ''' execute SQL and return dataframe '''
         if self.connection_type == 'alchemy':
-            df = read_sql(sql, self.connection, **kwargs)
-
+            df = self.alchemy_connect('read', sql, **kwargs)
+                    
         elif self.connection_type == 'api':
             jason = self.call_api(sql)
             df = self.convert_json(jason)
@@ -114,9 +117,29 @@ class Database(Streamable):
         ''' execute SQL and return nothing '''
         if len(sql):
             if self.connection_type == 'alchemy':
-                self.connection.execute(sql)
+                self.alchemy_connect('execute', sql)
+
             elif self.connection_type == 'api':
                 self.read_sql(sql)
+
+    def alchemy_connect(self, method, sql, **kwargs):
+        limit = self.connection_attempt_limit
+        attempt = 0
+        success = False
+        while (attempt < limit) and (not success):
+            attempt += 1
+            try:
+                if method == 'read':
+                    df = read_sql(sql, self.connection, **kwargs)
+                elif method == 'execute':
+                    df = self.connection.execute(sql)
+                success = True
+
+            except OperationalError:
+                self.connection = self.engineer.connect()
+                self.streamer.print(f'Database connection failed, retrying [attempt {attempt}/{limit}]')
+
+        return df
 
     def table_name(self, table_name:str) -> str:
         material = '_m'
@@ -133,7 +156,7 @@ class Database(Streamable):
         else:
             name = table_name
 
-        full_table_name = f'"{self.db}"."{name.lower()}"'
+        full_table_name = f'"{self.db}".{name.lower()}'
 
         return full_table_name
 
@@ -426,7 +449,7 @@ class Database(Streamable):
         self.upsert_table('songs', df)
 
     def get_songs(self, league_id):
-        songs_df = self.get_table('songs', league_id=league_id, drop_league=True)
+        songs_df = self.get_table('songs', league_id=league_id)
         return songs_df
 
     def store_votes(self, votes_df, league_id):
@@ -435,7 +458,7 @@ class Database(Streamable):
         self.upsert_table('votes', df)
 
     def get_votes(self, league_id):
-        votes_df = self.get_table('votes', league_id=league_id, drop_league=True)
+        votes_df = self.get_table('votes', league_id=league_id)
         return votes_df
         
     def store_members(self, members_df, league_id):
@@ -444,21 +467,28 @@ class Database(Streamable):
         self.upsert_table('members', df)
 
     def get_results(self, league_id):
-        songs_df = self.get_table('results', league_id=league_id, drop_league=True)
-        return songs_df
+        results_df = self.get_table('results', league_id=league_id)
+        return results_df
 
     def get_members(self, league_id):
         members_df = self.get_table('members', league_id=league_id, drop_league=True)
         return members_df
 
     def get_distances(self, league_id):
-        distances_df = self.get_table('pulse', league_id=league_id)[['league_id', 'player_id', 'opponent_id', 'distance']]
-
+        distances_df = self.get_table('distances', league_id=league_id)
         return distances_df
 
+    def get_battles(self, league_id):
+        battles_df = self.get_table('battles', league_id=league_id)
+        return battles_df
+
     def get_pulse(self, league_id):
-        pulse_df = self.get_table('pulse', league_id=league_id, drop_league=True)
+        pulse_df = self.get_table('pulse', league_id=league_id)
         return pulse_df
+
+    def get_mappings(self, league_id):
+        mappings_df = self.get_table('mappings', league_id=league_id)
+        return mappings_df
 
     def store_players(self, players_df, league_id=None):
         df = players_df.reindex(columns=self.get_columns('players'))
@@ -607,7 +637,7 @@ class Database(Streamable):
         playlists_df = self.get_table('playlists', league_id=league_id)
         return playlists_df
 
-    def get_track_count_and_durations(self, league_id):
+    def get_track_count_and_duration(self, league_id):
         durations_df = self.get_table('durations', league_id=league_id)
         count, duration = durations_df[['count', 'duration']].iloc[0]
 
@@ -630,7 +660,7 @@ class Database(Streamable):
 
     def flag_player_image(self, player_id):
         sql = (f'UPDATE {self.table_name("players")} '
-               f'SET flagged = {self.needs_quotes(date.today())} '
+               f'SET flagged = CURRENT_DATE ' ##{self.needs_quotes(date.today())}
                f'WHERE player_id = {self.needs_quotes(player_id)};'
                )
 
@@ -686,11 +716,8 @@ class Database(Streamable):
 
         return optimized
 
-    def get_rankings(self, league_id): ## better way?
-        # get rankings sorted by round date
-        reindexer = self.get_round_order(league_id)
-        rankings_df = self.get_table('rankings', drop_league=True, league_id=league_id)\
-            .set_index(['round_id', 'player_id']).sort_values(['round_id', 'points'], ascending=[True, False]).reindex(reindexer, level=0)
+    def get_rankings(self, league_id):
+        rankings_df = self.get_table('rankings', league_id=league_id)
 
         return rankings_df
 
@@ -728,86 +755,30 @@ class Database(Streamable):
 
         return features_df
 
-    def get_genre_counts(self, league_id, round_id=None, player_id=None, genres=True, tags=False,
-                         remove_default='other'):
+    def get_occurances(self, league_id, round_id=None, player_id=None,
+                       genres=False, tags=False, categories=False, remove_default='other'):
         kwargs = {k: v for k, v in zip(['league_id', 'round_id', 'player_id'],
                                        [league_id, round_id, player_id]) if v}
         
-        gnt = ('genres' if genres else '') + ('_and_' if genres and tags else '') + ('tags' if tags else '')
+        if categories:
+            gtc = 'categories'
+            name = 'category'
+        elif genres or tags:
+            gtc = ('genres' if genres else '') + ('_and_' if genres and tags else '') + ('tags' if tags else '')
+            name = 'genre' if genres else 'tag'
+
         group = 'players' if player_id else 'rounds' if round_id else 'leagues'
-        genres_count = self.get_table(f'occurances_{gnt}_{group}', **kwargs)
-        categories_count = self.get_table(f'occurances_categories_{group}', **kwargs)
+        occurances_df = self.get_table(f'occurances_{gtc}_{group}', **kwargs)
 
         if remove_default:
-            genres_count = genres_count[genres_count['genre'] != 'other']
-            categories_count = categories_count[categories_count['category'] != 'other']
+            occurances_df = occurances_df[occurances_df[name] != 'other']
 
-        return genres_count, categories_count
-
-    def get_player_tags(self, league_id, player_id, round_id=None):
-        genres_count, _ = self.get_genre_counts(league_id, round_id=round_id, player_id=player_id,
-                                             tags=True)
-
-        tags_df = genres_count['genre'].to_list()
-        return tags_df
-
-    def get_genres_and_tags(self, league_id, player_id=None): ## <- use get_genre_count instead
-        if player_id:
-            wheres = f' AND s.submitter_id = {self.needs_quotes(player_id)}'
-        else:
-            wheres = ''
-
-        sql = (f'SELECT a.genres, t.top_tags AS tags '
-               f'FROM {self.table_name("songs")} AS s '
-               f'LEFT JOIN {self.table_name("tracks")} AS t '
-               f'ON s.track_uri = t.uri ' 
-               f'LEFT JOIN {self.table_name("artists")} AS a '
-               f'ON t.artist_uri ? a.uri '
-               f'WHERE s.league_id = {self.needs_quotes(league_id)}{wheres};'
-               )
-
-        genres_df = self.read_sql(sql)
-        
-        if player_id:
-            genres_df = set(genres_df.sum().sum())
-
-        return genres_df
+        return occurances_df
 
     def get_exclusive_genres(self, league_id):
-        exclusives_df = self.get_table('occurances_exclusive_genres')
-        sql = (f'SELECT q.tag FROM '
-               f'(SELECT jsonb_array_elements(a.genres) as tag '
-               f'FROM {self.table_name("songs")} AS s '
-               f'LEFT JOIN {self.table_name("tracks")} AS t '
-               f'ON s.track_uri = t.uri ' 
-               f'LEFT JOIN {self.table_name("artists")} AS a '
-               f'ON t.artist_uri ? a.uri '
-               f'WHERE s.league_id = {self.needs_quotes(league_id)} '
-               f'UNION '
-               f'SELECT jsonb_array_elements(t.top_tags) AS tag '
-               f'FROM {self.table_name("songs")} AS s '
-               f'LEFT JOIN {self.table_name("tracks")} AS t '
-               f'ON s.track_uri = t.uri ' 
-               f'WHERE s.league_id = {self.needs_quotes(league_id)}) AS q '
-               f'WHERE q.tag NOT IN '
-               f'(SELECT jsonb_array_elements(a.genres) as tag '
-               f'FROM {self.table_name("songs")} AS s '
-               f'LEFT JOIN {self.table_name("tracks")} AS t '
-               f'ON s.track_uri = t.uri ' 
-               f'LEFT JOIN {self.table_name("artists")} AS a '
-               f'ON t.artist_uri ? a.uri '
-               f'WHERE s.league_id != {self.needs_quotes(league_id)} '
-               f'UNION '
-               f'SELECT jsonb_array_elements(t.top_tags) AS tag '
-               f'FROM {self.table_name("songs")} AS s '
-               f'LEFT JOIN {self.table_name("tracks")} AS t '
-               f'ON s.track_uri = t.uri ' 
-               f'WHERE s.league_id != {self.needs_quotes(league_id)});'
-               )
+        exclusives_df = self.get_table('occurances_exclusive_genres', league_id=league_id)
 
-        exclusives = self.read_sql(sql)['tag']
-
-        return exclusives
+        return exclusives_df
 
     def get_song_results(self, league_id):
         results_df = self.get_table('top_songs', league_id=league_id)
@@ -829,11 +800,8 @@ class Database(Streamable):
 
         return relationships_df
     
-    def get_round_awards(self, league_id, round_id=None):
-        kwargs = {'league_id': league_id}
-        if round_id:
-            kwargs.update({'round_id': round_id})
-        round_awards = self.get_table('awards_rounds', **kwargs)
+    def get_round_awards(self, league_id, **kwargs):
+        round_awards = self.get_table('awards_rounds', league_id=league_id, **kwargs)
         
         return round_awards
 
@@ -905,12 +873,18 @@ class Database(Streamable):
 
         return places_df
 
-    def get_competition_placement(self, league_id, competition_id=None, player_id=None):
-        competition_id = self.get_current_competition(league_id)
+    def get_competition_placement(self, league_id, competition_id=None, player_id=None, finished=None):
+        kwargs = {}
+        if competition_id:
+            kwargs.update({'competition_id': competition_id})
         if player_id:
-            places_df = self.get_table('boards_competitions', league_id=league_id, competition_id=competition_id, player_id=player_id)
-        else:
-            places_df = self.get_table('boards_competitions', league_id=league_id, competition_id=competition_id)
+            kwargs.update({'player_id': player_id})
+
+        if finished:
+            kwargs.update({'finished': True})
+
+        places_df = self.get_table('boards_competitions', league_id=league_id, **kwargs)
+
         return places_df
 
     def get_current_competition(self, league_id):
@@ -923,44 +897,25 @@ class Database(Streamable):
 
         return competition_id
 
-    def get_badge(self, league_id, player_id, competition=None, competition_id=None):
-        if (not competition) and (not competition_id):
-            places_df = self.get_league_placement(league_id, player_id=player_id)
-            n_players = len(self.get_members(league_id=league_id))
-
-        else:
-            if not competition_id:
-                competition_id = self.get_current_competition(league_id)
-            
-            if competition_id:
-                places_df = self.get_competition_placement(league_id, competition_id=competition_id, player_id=player_id)
-                n_players = len(self.get_)
-            else:
-                places_df = None
-
-        if (places_df is not None) and len(places_df):
-            badge = places_df['place'].iloc[0]
-            
-        else:
-            badge = None
-
-        return badge, n_players
-
     def get_competitions(self, league_id):
         competitions_df = self.get_table('competitions', league_id=league_id)
 
         return competitions_df
 
     def get_competition_results(self, league_id, competition_id=None):
-        if competition_id is None:
-            # get current competition
-            competition_id = self.get_current_competition(league_id)
-
-        if competition_id:
-            results_df = self.get_competition_placement(league_id, competition_id=competition_id)
+        if competition_id is False:
+            results_df = self.get_competition_placement(league_id, finished=True)
 
         else:
-            results_df = None
+            if competition_id is None:
+                # get current competition
+                competition_id = self.get_current_competition(league_id)
+
+            if competition_id:
+                results_df = self.get_competition_placement(league_id, competition_id=competition_id)
+
+            else:
+                results_df = None
 
         return results_df
 
@@ -970,7 +925,7 @@ class Database(Streamable):
         return round_wins
 
     def get_competition_wins(self, league_id, player_id):
-        competition_wins = self.get_competition_placement(league_id, player_id=player_id)['competition_id'].to_list()
+        competition_wins = self.get_competition_placement(league_id, player_id=player_id, finished=True)['competition_id'].to_list()
         
         return competition_wins
 
@@ -1025,6 +980,7 @@ class Database(Streamable):
 
     def get_emojis(self):
         emojis_df = self.get_table('emojis')
+
         emoji = {t1: e for e, t1, _ in emojis_df.dropna(subset=['single']).values}
         emojis = {e: t2 for e, _, t2 in emojis_df.dropna(subset=['multiple']).values}
         return emoji, emojis

@@ -43,6 +43,7 @@ class Streamable:
 class Streamer:
     def __init__(self, deployed=True):
         ##print(st.get_option('theme.primaryColor'))
+        ##print(f'Hello {st.experimental_user.email}!')
         self.texter = Texter()
 
         self.deployed = deployed

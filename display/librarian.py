@@ -125,10 +125,10 @@ class Library:
             text = (f'This chart shows how players finished in each round. '
                     f'{self.newline()}{placements}')
 
-        elif plot_name == 'rankings':
-            dirty = self.texter.get_plurals(parameters.get('dirty'), markdown=f'{self.feel("dirtiest")}**')
+        elif plot_name == 'scores':
+            dirty = self.texter.get_plurals(parameters.get('dirtiness'), markdown=f'{self.feel("dirtiest")}**')
             discovery = self.texter.get_plurals(parameters.get('discovery'), markdown=f'{self.feel("discoverer")}**')
-            popular = self.texter.get_plurals(parameters.get('popular'), markdown=f'{self.feel("popular")}**')
+            popular = self.texter.get_plurals(parameters.get('popularity'), markdown=f'{self.feel("popular")}**')
             text = (f'This shows each player in alphabetical order '
                     f'and how the scored in each round. A higher number '
                     f'indicates a better score, that is, this player got '

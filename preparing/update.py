@@ -80,9 +80,9 @@ class Updater:
             # look for creator name in description
             player_names = players['player_name'].values
             # first look for item in Created By, Submitted By, etc
-            if not creator:
-                _, captured = self.texter.remove_parenthetical(description, self.stripper.get_creator_phrases(),
-                                                               position='start', parentheses='all_end')
+            _, captured = self.texter.remove_parenthetical(description, self.stripper.get_creator_phrases(),
+                                                            position='start', parentheses='all_end')
+            if captured:
                 creator = self.texter.find_closest_match(captured, player_names)
 
             # then look to see if a player name is in the description
@@ -92,15 +92,14 @@ class Updater:
                         creator = player_name
                         break
 
-            creator = self.texter.find_closest_match(creator, player_names)
+            if creator:
+                # find the closest match if a creator name was found
+                creator = self.texter.find_closest_match(creator, player_names)
 
-        # match creator name to ID
-        if creator:
-            creator_id = players.query('player_name == @creator')['player_id'].iloc[0]
-        # finally, default to league creator
-        else:
-            creator_id = league_creator_id
-        
+        # match creator name to ID and default to league creator
+        query = players.query('player_name == @creator')
+        creator_id = query['player_id'].iloc[0] if len(query) else league_creator_id
+       
         return creator_id, captured
 
     def update_competitions(self):

@@ -15,7 +15,7 @@ from pandas import DataFrame, isnull
 
 from common.secret import get_secret
 from common.words import Texter
-from common.locations import MOSAIC_URL, SPOTIFY_AUTH_URL, LASTFM_URL, WIKI_URL
+from common.locations import MOSAIC_URL, SPOTIFY_AUTH_URL, SPOTIFY_REDIRECT, LASTFM_URL, WIKI_URL
 from display.media import Gallery, Byter
 from display.storage import Boxer, Googler
 from display.streaming import Streamable
@@ -68,7 +68,7 @@ class Spotter(Streamable):
                 cache_handler = MemoryCacheHandler(token_info)
             auth_manager = SpotifyOAuth(client_id=get_secret('SPOTIFY_CLIENT_ID'),
                                         client_secret=get_secret('SPOTIFY_CLIENT_SECRET'),
-                                        redirect_uri=get_secret('SPOTIFY_REDIRECT_URL'),
+                                        redirect_uri=SPOTIFY_REDIRECT_URL,
                                         #requests_session=s,
                                         cache_handler=cache_handler,
                                         open_browser=False,
@@ -231,9 +231,9 @@ class Spotter(Streamable):
         tracks_db = self.database.get_tracks_update_sp()
         
         if len(tracks_db):
-            tracks_update_1 = self.get_updates(tracks_db, self.get_track_elements, key='url')
-            tracks_update_2 = self.get_updates(tracks_db, self.get_audio_features, key='url')
-            tracks_update = tracks_update_1.merge(tracks_update_2, on='url')
+            tracks_update_1 = self.get_updates(tracks_db, self.get_track_elements, key='uri')
+            tracks_update_2 = self.get_updates(tracks_db, self.get_audio_features, key='uri')
+            tracks_update = tracks_update_1.merge(tracks_update_2, on='uri')
             self.database.store_tracks(tracks_update)
 
     def update_db_artists(self):

@@ -3,6 +3,7 @@
 from colorsys import rgb_to_hsv
 from math import inf, nan, isnan
 from urllib.request import urlopen
+from random import sample as rsample
 
 from PIL import Image, ImageDraw, ImageFont, UnidentifiedImageError
 from numpy import asarray
@@ -33,6 +34,7 @@ class Paintbrush:
               'bronze': (205, 127, 50),
               'gunmetal_grey': (99, 96, 89),
               'dark_grey': (75, 75, 75),
+              'blackish': (18, 18, 18),
               }
 
     tableau_colors = {'c0': (31, 119, 180),
@@ -46,6 +48,12 @@ class Paintbrush:
                       'c8': (188, 189, 34),
                       'c9': (23, 190, 207),
                       }
+
+    schemes = {'rainbow': ['red', 'orange', 'yellow', 'green', 'aqua',
+                           'blue', 'dark_blue', 'purple', 'peach', 'pink'],
+               'metals': ['gold', 'silver', 'bronze', 'copper', 'gunmetal_grey'],
+               'greys': ['grey', 'dark_grey', 'gunmetal_grey', 'silver', 'blackish'],
+               }
 
     def __init__(self):
         self.byter = Byter()
@@ -75,9 +83,9 @@ class Paintbrush:
     def get_plot_color(self, color_name):
         return self.tableau_colors.get(color_name.lower(), (0, 0, 0))
 
-    def get_plot_colors(self):
-        palette = self.tableau_colors.values()
-        plot_colors = self.get_scatter_colors(palette)
+    def get_plot_colors(self, scheme='rainbow'): 
+        palette = [self.colors[c] for c in self.schemes[scheme]]
+        plot_colors = self.get_scatter_colors(rsample(palette, len(palette)))
         return plot_colors
 
     def lighten_color(self, color, pct=0):
