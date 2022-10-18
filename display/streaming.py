@@ -1,6 +1,7 @@
 ''' Creating webpages with Streamlit '''
 
 import os
+import logging
 
 from pandas import set_option
 import streamlit as st
@@ -28,6 +29,11 @@ class Printer:
 
     def clear_screen(self):
         os.system('cls')
+
+    def silent(self):
+        logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
+        logging.getLogger('streamlit').setLevel(logging.ERROR)
+        logging.getLogger('fuzz').setLevel(logging.ERROR)
 
 class Streamable:
     def __init__(self):

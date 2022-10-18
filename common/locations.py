@@ -19,6 +19,6 @@ APP_ALIAS = 'notifications@musicleague.app'
 
 # redirects and URIs
 AZURE_REDIRECT='http://localhost:3000/' ## not used
-SPOTIFY_REDIRECT=https://localhost:8888/callback
+SPOTIFY_REDIRECT='https://localhost:8888/callback'
 GCP_REDIRECT = 'http://localhost:3000/oauth2callback'
 GCP_TOKEN_URI = 'https://oauth2.googleapis.com/token'

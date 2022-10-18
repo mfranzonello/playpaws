@@ -10,14 +10,17 @@ from google.oauth2.credentials import Credentials
 
 from common.secret import get_secret
 from common.locations import GCP_TOKEN_URI, GCP_AUTH_URL, APP_ALIAS
+from common.calling import Caller
 from common.words import Texter
-from preparing.calling import Recorder
+from common.calling import Recorder
 
-class Mailer:
+class Mailer(Caller):
     complete_phrase = 'The Votes Are In'
 
     def __init__(self, alias=None):
-        token_info = self.get_token()
+        super().__init__()
+
+        token_info = self.refresh_token()
         info = {'token': token_info['access_token'],
                 'refresh_token': get_secret('GCP_REFRESH_TOKEN'),
                 'token_uri': GCP_TOKEN_URI,
@@ -31,7 +34,7 @@ class Mailer:
         self.texter = Texter()
         self.recorder = Recorder()
 
-    def get_token(self):
+    def refresh_token(self):
         ''' refresh GCP token '''
         url = f'{GCP_AUTH_URL}/o/oauth2/token'
         headers={'Content-Type': 'application/x-www-form-urlencoded',
@@ -42,11 +45,7 @@ class Mailer:
                    'client_secret': get_secret('GCP_CLIENT_SECRET'),
                    'refresh_token': get_secret('GCP_REFRESH_TOKEN')}
 
-        response = requests.post(url, headers=headers, data=payload)
-        
-        if response.ok:
-            token_info = response.json()
-            token_info['expiry'] = int(time.time()) + token_info['expires_in']
+        token_info = self.get_token(url, headers=headers, data=payload)
 
         return token_info
 
@@ -57,7 +56,7 @@ class Mailer:
             user_id = None ## figure out user_id based on email
         return user_id
 
-    def check_mail(self):
+    def check_mail(self, hours=24):
         ''' check if there are new results to update '''
         print(f'Checking mail...')
 
@@ -67,17 +66,17 @@ class Mailer:
         d = int(dt.timestamp())
         query = f'from:{APP_ALIAS} subject:{self.complete_phrase} after:{d}'
 
-        with build('gmail', 'v1', credentials=credentials) as service:
+        with build('gmail', 'v1', credentials=self.credentials) as service:
             messages = service.users().messages().list(userId=self.user_id, q=query).execute()
 
-        update_needed = len(messages)
+        update_needed = (messages['resultSizeEstimate'] > 0)
 
         if not update_needed:
             print('\t...no new messages.')
             self.mark_as_read()
         else:
             leagues = []
-            with build('gmail', 'v1', credentials=credentials) as service:
+            with build('gmail', 'v1', credentials=self.credentials) as service:
                 for m in messages['messages']:
                     mail = service.users().messages().get(userId=self.user_id, id=m['id']).execute()
                     s = re.search('round of the(.*?)league', mail['snippet'])
@@ -93,4 +92,4 @@ class Mailer:
         return update_needed
 
     def mark_as_read(self):
-        self.recorder_set_time('check_mail')
+        self.recorder.set_time('check_mail')

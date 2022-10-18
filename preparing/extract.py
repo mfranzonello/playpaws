@@ -23,11 +23,7 @@ class Scraper(Streamable, Caller):
         
         self.cj = {get_secret('ML_COOKIE_NAME'): get_secret('ML_COOKIE_VALUE')}
         
-    def call_api(self, method, player_id=None, league_id=None, round_id=None, end=None, jason=None):
-        ##call_method = {'get': requests.get,
-        ##               'post': requests.post,
-        ##               'put': requests.put}[method]
-        
+    def call_api(self, method, player_id=None, league_id=None, round_id=None, end=None, jason=None):      
         url = f'{APP_URL}/api/v1'
         url += f'/users/{player_id}' if player_id else ''
         url += f'/leagues/{league_id}'if league_id else ''
@@ -35,23 +31,7 @@ class Scraper(Streamable, Caller):
         url += f'/{end}' if end else ''
 
         content, jason = self.invoke_api(url, method=method, cookies=self.cj, json=jason)
-        ##self.streamer.print(f'\t...requesting {method} response from {url.replace(APP_URL, "")}')
 
-        ##try:
-        ##    response = call_method(url=url, cookies=self.cj, json=jason, timeout=10)
-        ##    if response.ok:
-        ##        r_content = response.content
-        ##        r_jason = response.json() if len(r_content) and response.headers.get('Content-Type').startswith('application/json') else None
-
-        ##    else:
-        ##        r_content = None
-        ##        r_jason = None
-
-        ##except TimeoutError:
-        ##    r_content = None
-        ##    r_jason = None
-
-        ##return r_content, r_jason
         return content, jason
 
     def get_my_leagues(self):
@@ -89,8 +69,24 @@ class Scraper(Streamable, Caller):
 
         return item
 
+    def get_round_data(self, league_id, round_id):
+        _, round_data = self.call_api('get', league_id=league_id, round_id=round_id)
+        return round_data
+
+    def update_round_data(self, league_id, round_id, round_data):
+        self.call_api('put', league_id=league_id, round_id=round_id, jason=round_data)
+
+    def get_league_data(self, league_id):
+        _, league_data = self.call_api('get', league_id=league_id)
+        return league_data
+
+    def update_league_data(self, league_id, league_data):
+        self.call_api('put', league_id=league_id, jason=league_data)
+        
+
 class Stripper(Streamable):  
     timestring = '%Y-%m-%dT%H:%M:%SZ'
+    timestring2 = timestring.replace('%SZ', '%S.%fZ')
     '''
     round parameters:
         'completed'
@@ -370,3 +366,19 @@ class Stripper(Streamable):
             text = text[:-1]
         text = re.sub('[\(\[].*?[\)\]]', '', text).strip()
         return text
+
+    def get_time(self, datestring):
+        ts = self.timestring2 if ('.' in datestring) else self.timestring
+        date = datetime.strptime(datestring, ts)
+        return date
+
+    def str_time(self, date):
+        datestring = date.strftime(self.timestring)
+        return datestring
+
+    def round_up_time(self, date=None, hours=0, round_minutes=30):
+        if not date:
+            date = datetime.now()
+        new_date_0 = date + timedelta(hours=hours)
+        new_date = new_date_0 + (datetime.min - new_date_0) % timedelta(minutes=round_minutes)
+        return new_date

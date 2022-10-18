@@ -191,6 +191,54 @@ class Extender:
         self.recorder.set_time('extension') # mark that extensions have been checked
         print('\t...complete!')
 
+    def reopen_round(self, league_id, round_id, hours=24):
+        immutable_statuses = ['NOT STARTED', 'ACCEPTING SUBMISSIONS']
+        mutable_statuses = ['ACCEPTING VOTES', 'COMPLETE']
+        statuses = immutable_statuses + mutable_statuses
+        
+        round_data = self.scraper.get_round_data(league_id, round_id)
+        
+        status = round_data['status']
+        if status in mutable_statuses:
+            submission_time = self.stripper.get_time(round_data['submissionsDue'])
+            vote_time = self.stripper.get_time(round_data['votesDue'])
+            complete_time = self.stripper.get_time(round_data['completed'])
+
+            if status == 'ACCEPTING VOTES':
+                submission_time = self.stripper.round_up_time(hours=hours)
+                vote_time = max(self.stripper.round_up_time(date=submission_time, hours=hours), vote_time)
+
+            elif status == 'COMPLETE':
+                vote_time = self.stripper.round_up_time(hours=hours)
+    
+            complete_time = max(vote_time, complete_time)
+    
+            round_data['status'] = statuses[statuses.index(status) - 1]
+            round_data['submissionsDue'] = self.stripper.str_time(submission_time)
+            round_data['votesDue'] = self.stripper.str_time(vote_time)
+            round_data['complete'] = self.stripper.str_time(complete_time)
+
+            self.scraper.update_round_data(league_id, round_id, round_data)
+
+            print(f'\t...changed status of {league_id}/{round_id} from {status} to {round_data["status"]}')
+
+    def reopen_league(self, league_id):
+        immutable_statuses = ['IN_PROGRESS']
+        mutable_statuses = ['COMPLETE']
+        statuses = immutable_statuses + mutable_statuses
+
+        league_data = self.scraper.get_league_data(league_id)
+        
+        status = league_data['status']
+        if status in mutable_statuses:
+            league_data['status'] = statuses[statuses.index(status) - 1]
+
+            self.scraper.update_league_data(league_id, league_data)
+
+            print(f'\t...changed status of {league_id} from {status} to {league_data["status"]}')
+
+
+        
 class Musician:
     def __init__(self, database):
         self.database = database
