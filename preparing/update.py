@@ -2,6 +2,7 @@
 
 from common.words import Texter
 from preparing.extract import Stripper, Scraper
+from preparing.messenger import Recorder
 from preparing.audio import Spotter, FMer, Wikier
 
 class Updater:
@@ -112,6 +113,7 @@ class Extender:
         self.database = database
         self.scraper = Scraper()
         self.stripper = Stripper()
+        self.recorder = Recorder()
 
     def update_deadlines(self, league_id, round_id, status, days=0, hours=0):
         ''' move out deadlines for a round '''
@@ -153,14 +155,15 @@ class Extender:
         round_jason = self.scraper.get_round_details(league_id)
         open_rounds = self.stripper.extract_open_rounds(round_jason)
         
-        open_rounds.loc[:, 'outstanding'] = open_rounds.apply(lambda x: self.check_outstanding(league_id,
-                                                                                               x['round_id'],
-                                                                                               x['status'],
-                                                                                               x['submit_date'],
-                                                                                               x['vote_date'], 
-                                                                                               inactive_players,
-                                                                                               hours_left=hours_left),
-                                                          axis=1)
+        open_rounds.loc[:, 'outstanding'] = open_rounds\
+            .apply(lambda x: self.check_outstanding(league_id,
+                                                    x['round_id'],
+                                                    x['status'],
+                                                    x['submit_date'],
+                                                    x['vote_date'], 
+                                                    inactive_players,
+                                                    hours_left=hours_left),
+                   axis=1)
 
         if open_rounds['outstanding'].sum():
             open_rounds.loc[:, 'outstanding'] = open_rounds.apply(lambda x: not self.stripper.is_complete(x['status']),
@@ -185,6 +188,7 @@ class Extender:
             inactive_players = self.database.get_inactive_players(league_id)
             self.extend_deadlines(league_id, days, hours, hours_left, inactive_players)
 
+        self.recorder.set_time('extension') # mark that extensions have been checked
         print('\t...complete!')
 
 class Musician:

@@ -4,12 +4,14 @@ from datetime import datetime, timedelta
 import time
 import requests
 import json
+import re
 
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 
 from common.secret import get_secret
 from common.locations import GCP_TOKEN_URI, GCP_AUTH_URL, APP_ALIAS
+from common.words import Texter
 
 class Mailer:
     complete_phrase = 'The Votes Are In'
@@ -26,6 +28,7 @@ class Mailer:
         self.credentials = Credentials.from_authorized_user_info(info)
 
         self.user_id = self.get_user_id(alias)
+        self.texter = Texter()
         self.recorder = Recorder()
 
     def get_token(self):
@@ -54,8 +57,10 @@ class Mailer:
             user_id = None ## figure out user_id based on email
         return user_id
 
-    def check_mail(self, alias='me'):
+    def check_mail(self):
         ''' check if there are new results to update '''
+        print(f'Checking mail...')
+
         dt = self.recorder.get_time('check_mail')
         if (dt is None):
             dt = datetime.today() - timedelta(hours=hours) 
@@ -63,12 +68,27 @@ class Mailer:
         query = f'from:{APP_ALIAS} subject:{self.complete_phrase} after:{d}'
 
         with build('gmail', 'v1', credentials=credentials) as service:
-            messages = service.users().messages().list(userId=alias, q=query).execute()
+            messages = service.users().messages().list(userId=self.user_id, q=query).execute()
 
         update_needed = len(messages)
 
         if not update_needed:
+            print('\t...no new messages.')
             self.mark_as_read()
+        else:
+            leagues = []
+            with build('gmail', 'v1', credentials=credentials) as service:
+                for m in messages['messages']:
+                    mail = service.users().messages().get(userId=self.user_id, id=m['id']).execute()
+                    s = re.search('round of the(.*?)league', mail['snippet'])
+                    if len(s.groups()):
+                        leagues.append(s.group(1))
+
+            if len(leagues):
+                found_leagues = self.texter.get_plurals(list(set(leagues)))['text']
+                print(f'\t...new data detected for {found_leagues}.')
+            else:
+                print(f'\t...messages not understood.')
 
         return update_needed
 
