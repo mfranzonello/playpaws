@@ -16,11 +16,12 @@ from pandas import DataFrame, isnull
 from common.secret import get_secret
 from common.words import Texter
 from common.locations import MOSAIC_URL, SPOTIFY_AUTH_URL, SPOTIFY_REDIRECT, LASTFM_URL, WIKI_URL
+from common.calling import Caller
 from display.media import Gallery, Byter
 from display.storage import Boxer, Googler
 from display.streaming import Streamable
 
-class Spotter(Streamable):
+class Spotter(Streamable, Caller):
     audio_features = ['danceability',
                       'energy',
                       'key',
@@ -58,17 +59,23 @@ class Spotter(Streamable):
                                                   + ':'
                                                   + get_secret('SPOTIFY_CLIENT_SECRET')).encode('ascii'))
             headers = {'Authorization': f'Basic {auth_header.decode("ascii")}'}
-            response = requests.post(f'{SPOTIFY_AUTH_URL}/api/token', data=data, headers=headers)
-            if response.ok:
-                token_info = response.json()
-                token_info['expires_at'] = int(time.time()) + token_info['expires_in']
-                token_info['refresh_token'] = get_secret('SPOTIFY_REFRESH_TOKEN')
 
+            token_info = self.get_token(f'{SPOTIFY_AUTH_URL}/api/token', expiry='expires_at',
+                                        refresh_token=get_secret('SPOTIFY_REFRESH_TOKEN'),
+                                        data=data, headers=headers)
+
+            if token_info:
+            ##response = requests.post(f'{SPOTIFY_AUTH_URL}/api/token', data=data, headers=headers)
+            ##if response.ok:
+            ##    token_info = response.json()
+            ##    token_info['expires_at'] = int(time.time()) + token_info['expires_in']
+            ##    token_info['refresh_token'] = get_secret('SPOTIFY_REFRESH_TOKEN')
                 access_token = token_info['access_token']
                 cache_handler = MemoryCacheHandler(token_info)
+
             auth_manager = SpotifyOAuth(client_id=get_secret('SPOTIFY_CLIENT_ID'),
                                         client_secret=get_secret('SPOTIFY_CLIENT_SECRET'),
-                                        redirect_uri=SPOTIFY_REDIRECT_URL,
+                                        redirect_uri=SPOTIFY_REDIRECT,
                                         #requests_session=s,
                                         cache_handler=cache_handler,
                                         open_browser=False,
@@ -437,7 +444,7 @@ class Spotter(Streamable):
         track_uris = []
         self.sp.playlist_replace_items(playlist_uri, track_uris)
 
-class FMer(Streamable):
+class FMer(Streamable, Caller):
     def __init__(self, streamer=None):
         super().__init__()
         self.fm = None
@@ -459,10 +466,11 @@ class FMer(Streamable):
             url += f'&artist={parse.quote(artist)}' if artist else ''
             url += f'&track={parse.quote(title)}' if title else ''
             
-            response = requests.get(url)
-            if response.ok:
-                content = response.content
-                jason = response.json() if len(content) and response.headers.get('Content-Type').startswith('application/json') else None
+            content, jason = self.invoke_api(url, method='get')
+            ##response = requests.get(url)
+            ##if response.ok:
+            ##    content = response.content
+            ##    jason = response.json() if len(content) and response.headers.get('Content-Type').startswith('application/json') else None
 
         else:
             content = None
@@ -526,12 +534,11 @@ class FMer(Streamable):
                 tracks_update_db_segment.loc[:, df_to_update.columns] = df_to_update
                 self.database.store_tracks(tracks_update_db_segment)
 
-class Wikier(Streamable):
+class Wikier(Streamable, Caller):
     wiki_page = 'list_of_music_genres_and_styles'
 
     def __init__(self):
         super().__init__()
-
 
     def call_api(self):
         payload = {'action': 'parse',
@@ -541,19 +548,21 @@ class Wikier(Streamable):
 
         url = f'{WIKI_URL}/w/api.php?' + '&'.join(f'{k}={payload[k]}' for k in payload)
 
-        try:
-            response = requests.get(url)
-            if response.ok:
-                r_content = response.content
-                r_jason = response.json() if len(r_content) and response.headers.get('Content-Type').startswith('application/json') else None
+        content, jason = self.invoke_api(url, method='get')
 
-            else:
-                r_jason = None
+        ##try:
+        ##    response = requests.get(url)
+        ##    if response.ok:
+        ##        r_content = response.content
+        ##        r_jason = response.json() if len(r_content) and response.headers.get('Content-Type').startswith('application/json') else None
 
-        except TimeoutError:
-            r_jason = None
+        ##    else:
+        ##        r_jason = None
 
-        return r_jason
+        ##except TimeoutError:
+        ##    r_jason = None
+
+        return jason
 
     def get_genres(self):
         self.streamer.print('Connecting to Wikimedia API...')

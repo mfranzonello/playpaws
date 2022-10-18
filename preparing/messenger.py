@@ -3,7 +3,6 @@
 from datetime import datetime, timedelta
 import time
 import requests
-import json
 import re
 
 from googleapiclient.discovery import build
@@ -12,6 +11,7 @@ from google.oauth2.credentials import Credentials
 from common.secret import get_secret
 from common.locations import GCP_TOKEN_URI, GCP_AUTH_URL, APP_ALIAS
 from common.words import Texter
+from preparing.calling import Recorder
 
 class Mailer:
     complete_phrase = 'The Votes Are In'
@@ -94,22 +94,3 @@ class Mailer:
 
     def mark_as_read(self):
         self.recorder_set_time('check_mail')
-
-class Recorder:
-    def __init__(self, filename='checked'):
-        self.jason = f'./preparing/{filename}.json'
-
-    def set_time(self, item):
-        with open(self.jason, 'r+') as f:
-            j  = json.load(f)
-            j[item] = datetime.now().isoformat()
-            f.seek(0)
-            json.dump(j, f)
-            f.truncate()
-        
-    def get_time(self, item):
-        with open(self.jason, 'r+') as f:
-            j = json.load(f)
-            dt = datetime.fromisoformat(j[item])
-            
-        return dt

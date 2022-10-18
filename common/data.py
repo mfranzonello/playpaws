@@ -11,6 +11,7 @@ from pandas import read_sql, DataFrame, Series, isnull
 from pandas.api.types import is_numeric_dtype
 
 from common.secret import get_secret
+from common.calling import Caller
 from common.locations import BITIO_URL, BITIO_HOST
 from display.streaming import Streamable, cache
 
@@ -26,7 +27,7 @@ class Engineer:
         connection = engine.connect()
         return connection
 
-class Database(Streamable):
+class Database(Streamable, Caller):
     god_id = '777'
     dtypes = {'text': 'str',
             'float4': 'float',
@@ -74,13 +75,14 @@ class Database(Streamable):
         url = f'{self.url}/v2beta/query'
         data = json.dumps({'query_string': sql, 'database_name': self.db})
 
-        response = requests.post(url, headers=self.headers, data=data)
+        _, jason = self.invoke_api(url, method='post', headers=self.headers, data=data)
+        ##response = requests.post(url, headers=self.headers, data=data)
 
-        if response.ok:
-            jason = response.json()
+        ##if response.ok:
+        ##    jason = response.json()
 
-        else:
-            jason = None
+        ##else:
+        ##    jason = None
 
         return jason
 

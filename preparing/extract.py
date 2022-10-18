@@ -5,26 +5,28 @@ from io import BytesIO
 from zipfile import ZipFile
 from datetime import datetime, timedelta
 import re
+import json
 
 import requests
 from pandas import read_csv, DataFrame, concat
 from bs4 import BeautifulSoup
 
 from common.secret import get_secret
+from common.calling import Caller
 from common.words import Texter
 from common.locations import APP_URL
 from display.streaming import Streamable
 
-class Scraper(Streamable):
+class Scraper(Streamable, Caller):
     def __init__(self):
         super().__init__()
         
         self.cj = {get_secret('ML_COOKIE_NAME'): get_secret('ML_COOKIE_VALUE')}
         
     def call_api(self, method, player_id=None, league_id=None, round_id=None, end=None, jason=None):
-        call_method = {'get': requests.get,
-                       'post': requests.post,
-                       'put': requests.put}[method]
+        ##call_method = {'get': requests.get,
+        ##               'post': requests.post,
+        ##               'put': requests.put}[method]
         
         url = f'{APP_URL}/api/v1'
         url += f'/users/{player_id}' if player_id else ''
@@ -32,23 +34,25 @@ class Scraper(Streamable):
         url += f'/rounds/{round_id}' if round_id else ''
         url += f'/{end}' if end else ''
 
-        self.streamer.print(f'\t...requesting {method} response from {url.replace(APP_URL, "")}')
+        content, jason = self.invoke_api(url, method=method, cookies=self.cj, json=jason)
+        ##self.streamer.print(f'\t...requesting {method} response from {url.replace(APP_URL, "")}')
 
-        try:
-            response = call_method(url=url, cookies=self.cj, json=jason, timeout=10)
-            if response.ok:
-                r_content = response.content
-                r_jason = response.json() if len(r_content) and response.headers.get('Content-Type').startswith('application/json') else None
+        ##try:
+        ##    response = call_method(url=url, cookies=self.cj, json=jason, timeout=10)
+        ##    if response.ok:
+        ##        r_content = response.content
+        ##        r_jason = response.json() if len(r_content) and response.headers.get('Content-Type').startswith('application/json') else None
 
-            else:
-                r_content = None
-                r_jason = None
+        ##    else:
+        ##        r_content = None
+        ##        r_jason = None
 
-        except TimeoutError:
-            r_content = None
-            r_jason = None
+        ##except TimeoutError:
+        ##    r_content = None
+        ##    r_jason = None
 
-        return r_content, r_jason
+        ##return r_content, r_jason
+        return content, jason
 
     def get_my_leagues(self):
         ''' see all the leagues I am part of '''

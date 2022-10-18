@@ -2,7 +2,7 @@
 
 from common.words import Texter
 from preparing.extract import Stripper, Scraper
-from preparing.messenger import Recorder
+from common.calling import Recorder
 from preparing.audio import Spotter, FMer, Wikier
 
 class Updater:
