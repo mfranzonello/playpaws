@@ -60,23 +60,17 @@ class Spotter(Streamable, Caller):
                                                   + get_secret('SPOTIFY_CLIENT_SECRET')).encode('ascii'))
             headers = {'Authorization': f'Basic {auth_header.decode("ascii")}'}
 
-            token_info = self.get_token(f'{SPOTIFY_AUTH_URL}/api/token', expiry='expires_at',
+            token_info = self.get_token(f'{SPOTIFY_AUTH_URL}/api/token',
                                         refresh_token=get_secret('SPOTIFY_REFRESH_TOKEN'),
                                         data=data, headers=headers)
 
             if token_info:
-            ##response = requests.post(f'{SPOTIFY_AUTH_URL}/api/token', data=data, headers=headers)
-            ##if response.ok:
-            ##    token_info = response.json()
-            ##    token_info['expires_at'] = int(time.time()) + token_info['expires_in']
-            ##    token_info['refresh_token'] = get_secret('SPOTIFY_REFRESH_TOKEN')
                 access_token = token_info['access_token']
                 cache_handler = MemoryCacheHandler(token_info)
 
             auth_manager = SpotifyOAuth(client_id=get_secret('SPOTIFY_CLIENT_ID'),
                                         client_secret=get_secret('SPOTIFY_CLIENT_SECRET'),
                                         redirect_uri=SPOTIFY_REDIRECT,
-                                        #requests_session=s,
                                         cache_handler=cache_handler,
                                         open_browser=False,
                                         scope='playlist-modify-public ugc-image-upload user-read-private user-read-email')
@@ -280,9 +274,11 @@ class Spotter(Streamable, Caller):
         self.update_playlist_covers()
 
     def update_complete_playlists(self):
+        theme = 'complete'
+
         player_id = self.database.get_god_id()
-        playlists_db = self.database.get_playlists()
-        playtracks_db = self.database.get_theme_playlists(theme='complete')
+        playlists_db = self.database.get_playlists(theme)
+        playtracks_db = self.database.get_theme_playlists(theme=theme)
 
         for i in playtracks_db.index:
             league_id = playtracks_db['league_id'][i]
@@ -296,16 +292,18 @@ class Spotter(Streamable, Caller):
                 playlist_title = f'{league_title} - Complete'
                 playlist_uri = self.create_playlist(playlist_title)
                 playlists_db.loc[len(playlists_db), ['uri', 'theme', 'league_id', 'player_id']] \
-                    = [playlist_uri, 'complete', league_id, player_id]
+                    = [playlist_uri, theme, league_id, player_id]
                 
             self.update_playlist(playlist_uri, track_uris)
             
-        self.database.store_playlists(playlists_db, theme='complete')
+        self.database.store_playlists(playlists_db, theme=theme)
 
     def update_best_playlists(self):
+        theme = 'best'
+
         player_id = self.database.get_god_id()
         playlists_db = self.database.get_playlists()
-        playtracks_db = self.database.get_theme_playlists(theme='best')
+        playtracks_db = self.database.get_theme_playlists(theme=theme)
 
         for i in playtracks_db.index:
             league_id = playtracks_db['league_id'][i]
@@ -319,15 +317,17 @@ class Spotter(Streamable, Caller):
                 playlist_title = f'{league_title} - Best Of'
                 playlist_uri = self.create_playlist(playlist_title)
                 playlists_db.loc[len(playlists_db), ['uri', 'theme', 'league_id', 'player_id']] \
-                    = [playlist_uri, 'best', league_id, player_id]
+                    = [playlist_uri, theme, league_id, player_id]
                 
             self.update_playlist(playlist_uri, track_uris)
             
-        self.database.store_playlists(playlists_db, theme='best')
+        self.database.store_playlists(playlists_db, theme=theme)
 
     def update_favorite_playlists(self):
-        playlists_db = self.database.get_playlists()
-        playtracks_db = self.database.get_theme_playlists(theme='favorite')
+        theme = 'favorite'
+
+        playlists_db = self.database.get_playlists(theme)
+        playtracks_db = self.database.get_theme_playlists(theme=theme)
 
         for i in playtracks_db.index:
             league_id = playtracks_db['league_id'][i]
@@ -339,15 +339,15 @@ class Spotter(Streamable, Caller):
                 playlist_uri = query['uri'].iloc[0]
             else:
                 league_title = self.database.get_league_name(league_id)
-                player_name = self.databaes.get_player_name(player_id)
+                player_name = self.database.get_player_name(player_id)
                 playlist_title = f'{league_title} - {player_name}\' Favorites'
                 playlist_uri = self.create_playlist(playlist_title)
                 playlists_db.loc[len(playlists_db), ['uri', 'theme', 'league_id', 'player_id']] \
-                    = [playlist_uri, 'favorite', league_id, god_id]
+                    = [playlist_uri, theme, league_id, player_id]
                 
             self.update_playlist(playlist_uri, track_uris)
             
-        self.database.store_playlists(playlists_db, theme='favorite')
+        self.database.store_playlists(playlists_db, theme=theme)
         
     def get_playlist_uris(self, playlist_uri, external_url=False):
         finished = False

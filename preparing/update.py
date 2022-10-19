@@ -12,16 +12,20 @@ class Updater:
         self.stripper = Stripper()
         self.texter = Texter()
 
-    def update_musicleague(self):
+    def update_musicleague(self, league_ids=None):
         print('Updating database')
 
         # get information from home page
         my_leagues_df = self.stripper.extract_my_leagues(self.scraper.get_my_leagues())
         self.database.store_leagues(my_leagues_df)
 
-        leagues_df = self.database.get_leagues()
-        league_titles = leagues_df['league_name']
-        league_ids = leagues_df['league_id']
+        if league_ids:
+            league_titles = [self.database.get_league_name(league_id) for league_id in league_ids]
+
+        else:
+            leagues_df = self.database.get_leagues()
+            league_titles = leagues_df['league_name']
+            league_ids = leagues_df['league_id']
 
         # store home page information
         for league_title, league_id in zip(league_titles, league_ids):
@@ -237,7 +241,19 @@ class Extender:
 
             print(f'\t...changed status of {league_id} from {status} to {league_data["status"]}')
 
+    def reopen_all(self):
+        reopens = self.recorder.get_reopens()
 
+        if len(reopens):
+            print('Reopening rounds...')
+            for league_id in reopens:
+                round_id = reopens[league_id]
+                self.reopen_round(league_id, round_id)
+                self.reopen_league(league_id)
+        else:
+            print('Nothing to reopen!')
+
+        self.recorder.set_reopens()
         
 class Musician:
     def __init__(self, database):

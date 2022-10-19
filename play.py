@@ -1,8 +1,9 @@
 ''' Shows results using Streamlit '''
 
+import display.printing
 from common.data import Database
 from display.plotting import Plotter
-from display.streaming import Printer, Streamer
+from display.streaming import Streamer
  
 def plot_data(database, streamer):
     # plot results of analysis
@@ -11,8 +12,6 @@ def plot_data(database, streamer):
     plotter.plot_results()
 
 def main():
-    printer = Printer()
-    printer.clear_screen()
     streamer = Streamer()
 
     # prepare database

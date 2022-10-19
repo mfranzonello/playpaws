@@ -1,7 +1,11 @@
 ''' Language processing '''
 
 import re
+from datetime import date
+import json
 
+from pandas import isnull
+from pandas.api.types import is_numeric_dtype
 from thefuzz import process
 from numpy import ndarray
 
@@ -251,3 +255,64 @@ class Texter:
         ordinal = f'{num}{nth}'
 
         return ordinal
+
+class Quoter:
+    ''' changes input text to SQL compatible '''
+    def __init__(self):
+        pass
+
+    def quotable(self, item):
+        ''' add SQL appropriate quotes to string variables '''
+        is_quote = not (self.numberable(item) or self.nullable(item))
+        return is_quote
+
+    def numberable(self, item):
+        ''' do not add quotes or cast information to numbers '''
+        is_number = (not self.nullable(item)) and is_numeric_dtype(type(item))
+        return is_number
+
+    def datable(self, item):
+        ''' add cast information to date values '''
+        is_date = isinstance(item, date)
+        return is_date
+
+    def nullable(self, item):
+        ''' change to None for None, nan, etc '''
+        is_null = (not self.jsonable(item)) and (isnull(item) or (item == 'nan'))
+        return is_null
+
+    def jsonable(self, item):
+        ''' add cast information to lists and dicts as JSON '''
+        is_json = isinstance(item, (list, dict, set))
+        return is_json
+
+    def replace_for_sql(self, text):
+        ''' fix special characters '''
+        char = "'"
+        pct = '%'
+        for_sql = char + text.replace(char, char*2).replace(pct, pct*2).replace(pct*4, pct*2) + char
+        return for_sql
+
+    def put_quotes(self, item) -> str:
+        ''' put quotes around strings to account for special characters '''
+        if self.quotable(item):
+            if self.datable(item):
+                quoted = self.replace_for_sql(str(item)) + '::date'
+            elif self.jsonable(item):
+                quoted = self.replace_for_sql(json.dumps(item)) + '::jsonb'
+            else:
+                quoted = self.replace_for_sql(str(item))
+        elif self.nullable(item):
+            quoted = 'NULL'
+        else:
+            quoted = str(item)
+
+        return quoted
+
+    def load_json(self, string):
+        ''' convert string to list or dictionary '''
+        return json.loads(string)
+
+    def dump_json(self, data):
+        ''' convert list or dictionary to string '''
+        return json.dumps(data)

@@ -1,16 +1,12 @@
 ''' Database structure and functions '''
 
-import json
-from datetime import date
-
 import requests
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
-from pandas import DataFrame, Series, isnull, read_sql
-from pandas import read_sql, DataFrame, Series, isnull
-from pandas.api.types import is_numeric_dtype
+from pandas import DataFrame, Series, read_sql
 
 from common.secret import get_secret
+from common.words import Quoter
 from common.calling import Caller
 from common.locations import BITIO_URL, BITIO_HOST
 from display.streaming import Streamable, cache
@@ -61,6 +57,7 @@ class Database(Streamable, Caller):
 
         self.streamer.print(f'\t...success!')
         
+        self.quoter = Quoter()
              
         self.table_schema = None
         self.view_schema = None
@@ -73,16 +70,9 @@ class Database(Streamable, Caller):
     def call_api(self, sql):
         ''' connect to bit.io API '''
         url = f'{self.url}/v2beta/query'
-        data = json.dumps({'query_string': sql, 'database_name': self.db})
+        data = self.quoter.dump_json({'query_string': sql, 'database_name': self.db})
 
         _, jason = self.invoke_api(url, method='post', headers=self.headers, data=data)
-        ##response = requests.post(url, headers=self.headers, data=data)
-
-        ##if response.ok:
-        ##    jason = response.json()
-
-        ##else:
-        ##    jason = None
 
         return jason
 
@@ -93,7 +83,7 @@ class Database(Streamable, Caller):
             
             for m, d in zip(jason['metadata'].keys(), jason['metadata'].values()):
                 if m in ['jsonb', 'json']:
-                    df[m] = df[m].apply(json.loads)
+                    df[m] = df[m].apply(self.quoter.load_json)
 
                 else:
                     df[m] = df[m].astype(self.dtypes.get(d, 'object'))
@@ -125,6 +115,7 @@ class Database(Streamable, Caller):
                 self.read_sql(sql)
 
     def alchemy_connect(self, method, sql, **kwargs):
+        ''' ping database via SQLAlchemy '''
         limit = self.connection_attempt_limit
         attempt = 0
         success = False
@@ -144,6 +135,7 @@ class Database(Streamable, Caller):
         return df
 
     def table_name(self, table_name:str) -> str:
+        ''' get table, view or materialized view name '''
         material = '_m'
         if self.schema_loaded:
             relationship = self.name_schema.query('table_name.str.lower() == @table_name.lower()')['relationship'].iloc[0].lower()
@@ -163,12 +155,14 @@ class Database(Streamable, Caller):
         return full_table_name
 
     def load_schema(self):
+        ''' get repository schema '''
         self.table_schema = self.get_table('_schema_tables')
         self.view_schema = self.get_table('_schema_views')
         self.name_schema = self.get_table('_schema_names')
         self.schema_loaded = all(s is not None for s in [self.table_schema, self.view_schema, self.name_schema])
 
     def materialize(self, table_name=None):
+        ''' refresh a materialzied view '''
         if table_name:
             sql = (f'REFRESH MATERIALIZED VIEW {self.table_name(table_name)};')
             self.execute_sql(sql)
@@ -184,12 +178,14 @@ class Database(Streamable, Caller):
                 self.materialized = True
 
     def get_keys(self, table_name):
+        ''' get table key columns '''
         q = '(column_type == "PRIMARY KEY") & (table_name == @table_name.lower())'
         keys = self.table_schema.query(q)['column_name'].to_list()
 
         return keys
 
     def get_values(self, table_name, match_cols=None):
+        ''' get table value columns '''
         q = '(column_type != "PRIMARY KEY") & (table_name == @table_name.lower())'
         if len(match_cols):
             q += ' & (column_name in @match_cols)'
@@ -222,55 +218,12 @@ class Database(Streamable, Caller):
 
         return table
 
-    def quotable(self, item):
-        # add SQL appropriate quotes to string variables
-        is_quote = not (self.numberable(item) or self.nullable(item))
-        return is_quote
-
-    def numberable(self, item):
-        # do not add quotes or cast information to numbers
-        is_number = (not self.nullable(item)) and is_numeric_dtype(type(item))
-        return is_number
-
-    def datable(self, item):
-        # add cast information to date values
-        is_date = isinstance(item, date)
-        return is_date
-
-    def nullable(self, item):
-        # change to None for None, nan, etc
-        is_null = (not self.jsonable(item)) and (isnull(item) or (item == 'nan'))
-        return is_null
-
-    def jsonable(self, item):
-        # add cast information to lists and dicts as JSON
-        is_json = isinstance(item, (list, dict, set))
-        return is_json
-
     def needs_quotes(self, item) -> str:
-        # put quotes around strings to account for special characters
-        if self.quotable(item):
-            if self.datable(item):
-                quoted = self.replace_for_sql(str(item)) + '::date'
-            elif self.jsonable(item):
-                quoted = self.replace_for_sql(json.dumps(item)) + '::jsonb'
-            else:
-                quoted = self.replace_for_sql(str(item))
-        elif self.nullable(item):
-            quoted = 'NULL'
-        else:
-            quoted = str(item)
-
-        return quoted
-
-    def replace_for_sql(self, text):
-        char = "'"
-        pct = '%'
-        for_sql = char + text.replace(char, char*2).replace(pct, pct*2).replace(pct*4, pct*2) + char
-        return for_sql
-
+        ''' put quotes around strings to account for special characters '''
+        return self.quoter.put_quotes(item)
+        
     def update_rows(self, table_name, df, keys):
-        # write SQL for existing rows
+        ''' write SQL for existing rows '''
         if df.empty or (set(df.columns) == set(keys)):
             sql = ''
 
@@ -397,7 +350,7 @@ class Database(Streamable, Caller):
         leagues_df = self.get_table('leagues', league_id=league_id)
         creator_id = leagues_df['creator_id'].iloc[0]
 
-        return creator_id 
+        return creator_id
 
     def get_league_ids(self):
         league_ids = self.get_table('leagues')['league_id'].to_list()
@@ -635,8 +588,9 @@ class Database(Streamable, Caller):
         
         return playlist_url
 
-    def get_playlists(self, league_id=None):
-        playlists_df = self.get_table('playlists', league_id=league_id)
+    def get_playlists(self, league_id=None, theme=None):
+        kwargs = {'theme': theme} if theme else {}
+        playlists_df = self.get_table('playlists', league_id=league_id, **kwargs)
         return playlists_df
 
     def get_track_count_and_duration(self, league_id):
@@ -662,7 +616,7 @@ class Database(Streamable, Caller):
 
     def flag_player_image(self, player_id):
         sql = (f'UPDATE {self.table_name("players")} '
-               f'SET flagged = CURRENT_DATE ' ##{self.needs_quotes(date.today())}
+               f'SET flagged = CURRENT_DATE '
                f'WHERE player_id = {self.needs_quotes(player_id)};'
                )
 

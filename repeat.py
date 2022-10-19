@@ -1,5 +1,6 @@
 ''' Pushes out deadlines as needed '''
 
+import display.printing
 from preparing.update import Extender
 from common.data import Database
 

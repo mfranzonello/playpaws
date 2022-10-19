@@ -1,9 +1,5 @@
 ''' Creating webpages with Streamlit '''
 
-import os
-import logging
-
-from pandas import set_option
 import streamlit as st
 from streamlit.components.v1 import html as st_html
 
@@ -19,22 +15,7 @@ def cache(**args):
     ##                                          'streamlit.delta_generator'
     ##                                          ]}
     return st.cache(**args) #hash_funcs=hash_funcs, 
-
-class Printer:
-    def __init__(self, *options):
-        self.options = [*options] if len(options) else ['display.max_columns', 'display.max_rows']
-
-        for option in self.options:
-            set_option(option, None)
-
-    def clear_screen(self):
-        os.system('cls')
-
-    def silent(self):
-        logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.ERROR)
-        logging.getLogger('streamlit').setLevel(logging.ERROR)
-        logging.getLogger('fuzz').setLevel(logging.ERROR)
-
+       
 class Streamable:
     def __init__(self):
         self.streamer = Streamer(deployed=False)

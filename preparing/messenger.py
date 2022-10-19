@@ -17,8 +17,10 @@ from common.calling import Recorder
 class Mailer(Caller):
     complete_phrase = 'The Votes Are In'
 
-    def __init__(self, alias=None):
+    def __init__(self, database, alias=None):
         super().__init__()
+
+        self.database = database
 
         token_info = self.refresh_token()
         info = {'token': token_info['access_token'],
@@ -70,26 +72,31 @@ class Mailer(Caller):
             messages = service.users().messages().list(userId=self.user_id, q=query).execute()
 
         update_needed = (messages['resultSizeEstimate'] > 0)
+        league_ids = None
 
         if not update_needed:
             print('\t...no new messages.')
             self.mark_as_read()
         else:
-            leagues = []
+            message_leagues = []
             with build('gmail', 'v1', credentials=self.credentials) as service:
                 for m in messages['messages']:
                     mail = service.users().messages().get(userId=self.user_id, id=m['id']).execute()
                     s = re.search('round of the(.*?)league', mail['snippet'])
                     if len(s.groups()):
-                        leagues.append(s.group(1))
+                        message_leagues.append(s.group(1).strip())
 
-            if len(leagues):
-                found_leagues = self.texter.get_plurals(list(set(leagues)))['text']
-                print(f'\t...new data detected for {found_leagues}.')
+            if len(message_leagues):
+                leagues_df = self.database.get_leagues()
+                query = leagues_df.query('league_name in @message_leagues')
+                league_names = query['league_name'].to_list()
+                league_ids = query['league_id'].to_list()
+
+                print(f'\t...new data detected for {self.texter.get_plurals(league_names)["text"]}.')
             else:
                 print(f'\t...messages not understood.')
 
-        return update_needed
+        return league_ids
 
     def mark_as_read(self):
         self.recorder.set_time('check_mail')

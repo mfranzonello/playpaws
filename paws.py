@@ -1,20 +1,20 @@
 ''' Updates from MusicLeague and analyzes data '''
 
+import display.printing
 from common.data import Database
 from preparing.messenger import Mailer
 from preparing.update import Updater, Musician
 from crunching.analyze import Analyzer
-from display.streaming import Printer
 
 def check_for_updates(mailer):
     ''' look at gmail for notifications '''
-    update_needed = mailer.check_mail()
-    return update_needed
+    league_ids = mailer.check_mail()
+    return league_ids
 
-def update_web_data(database):
+def update_web_data(database, league_ids=None):
     ''' extract data from MusicLeague '''
     updater = Updater(database)
-    updater.update_musicleague()
+    updater.update_musicleague(league_ids=league_ids)
 
 def update_api_data(database):
     ''' enhance data with Spotify and LastFM '''
@@ -23,7 +23,7 @@ def update_api_data(database):
     musician.update_lastfm()
     musician.update_wiki()
 
-def analyze_data(database):
+def place_data(database):
     ''' analyze MusicLeague data '''
     analyzer = Analyzer(database)
     analyzer.place_all()
@@ -38,22 +38,17 @@ def close_out(mailer):
     mailer.mark_as_read()
 
 def main():
-    printer = Printer()
-    printer.clear_screen()
-
-    # check messages
-    mailer = Mailer()
-    update_needed = check_for_updates(mailer)
-    if update_needed:
-
-        # prepare database
-        database = Database()
+    # prepare database
+    database = Database()
     
-        # update data in database from MusicLeague webpage
-        update_web_data(database)
+    # check messages
+    mailer = Mailer(database)
+    league_ids = check_for_updates(mailer)
 
-        # analyze data from rounds
-        analyze_data(database)
+    # update database and playlists with new data
+    if league_ids:
+        # update data in database from MusicLeague webpage
+        update_web_data(database, league_ids=league_ids)
 
         # update data in database from Spotify and LastFM APIs
         update_api_data(database)
@@ -63,7 +58,9 @@ def main():
 
         # mark as complete
         close_out(mailer)
-        
 
+    # place data from rounds
+    place_data(database)
+        
 if __name__ == '__main__':
     main()

@@ -1,27 +1,23 @@
 ''' Manual override from JSON to fix league misses '''
 
-import json
-
+import display.printing
 from preparing.update import Extender
 
-def reopen_rounds():
+def reopen_all():
     extender = Extender(database=None)
-    jason = './jsons/reopens.json'
-    with open(jason, 'r+') as f:
-        reopens  = json.load(f)
+    extender.reopen_all()
 
-    for league_id in reopens:
-        round_id = reopens[league_id]
-        extender.reopen_round(league_id, round_id)
-        extender.reopen_league(league_id)
+def set_bonus():
+    pass
+
+def start_competitions():
+    pass
+
+def end_competitions():
+    pass
         
-    with open(jason, 'r+') as f:
-        f.seek(0)
-        json.dump({}, f)
-        f.truncate()
-
 def main():
-    reopen_rounds()
+    reopen_all()
 
 if __name__ == '__main__':
     main()
