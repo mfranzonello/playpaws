@@ -222,7 +222,7 @@ class GClouder(Caller):
         bucket = self.get_bucket(bucket_name)
         blob = bucket.blob(blob_name)
         b = blob.download_as_bytes()
-        contents = decompress(pickle.loads(b))
+        contents = pickle.loads(decompress(b))
         print(f'...complete!')
 
         return contents
