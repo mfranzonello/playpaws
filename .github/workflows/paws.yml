@@ -58,10 +58,6 @@ jobs:
         SPOTIFY_USER_ID: ${{ secrets.SPOTIFY_USER_ID }}
         SPOTIFY_REFRESH_TOKEN: ${{ secrets.SPOTIFY_REFRESH_TOKEN }}
 
-        GCP_API_KEY: ${{ secrets.GCP_API_KEY }}
-        GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-        GCP_PROJECT_CX: ${{ secrets.GCP_PROJECT_CX }}
-
         GCP_I_API_KEY: ${{ secrets.GCP_I_API_KEY }}
         GCP_I_PROJECT_ID: ${{ secrets.GCP_I_PROJECT_ID }}
         GCP_I_PROJECT_CX: ${{ secrets.GCP_I_PROJECT_CX }}

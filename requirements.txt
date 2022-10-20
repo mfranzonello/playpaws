@@ -16,4 +16,6 @@ Pillow==8.3.2 # image management
 colorthief==0.2.1 # find colors in images
 dropbox==11.21.0 # template media
 Google-Images-Search==1.3.9 # find images on web
+google-cloud-storage==2.5.0 # access objects in GCP
 streamlit==1.12.2 # data viz layout
+protobuf~=3.20

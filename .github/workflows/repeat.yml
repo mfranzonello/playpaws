@@ -41,12 +41,8 @@ jobs:
     #    pytest
     - name: Extend deadlines automatically      
       env:
-        BITIO_ADD_ON: ${{ secrets.BITIO_ADD_ON }}
         BITIO_DBNAME: ${{ secrets.BITIO_DBNAME }}
-        BITIO_HOST: ${{ secrets.BITIO_HOST }}
-        BITIO_LANGUAGE: ${{ secrets.BITO_LANGUAGE }}
         BITIO_PASSWORD: ${{ secrets.BITIO_PASSWORD }}
-        BITIO_STRING: ${{ secrets.BITIO_STRING }}
         BITIO_USERNAME: ${{ secrets.BITIO_USERNAME }}
 
         ML_COOKIE_NAME: ${{ secrets.ML_COOKIE_NAME }}
