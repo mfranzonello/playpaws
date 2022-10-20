@@ -2,7 +2,7 @@
 
 from common.words import Texter
 from common.calling import Recorder
-from display.storage import Pickler
+from display.storage import GClouder
 from preparing.extract import Stripper, Scraper
 from preparing.audio import Spotter, FMer, Wikier
 
@@ -12,7 +12,7 @@ class Updater:
         self.scraper = Scraper()
         self.stripper = Stripper()
         self.texter = Texter()
-        self.pickler = Pickler()
+        self.gclouder = GClouder()
 
     def update_musicleague(self, league_ids=None):
         print('Updating database')
@@ -38,7 +38,7 @@ class Updater:
             self.update_creators(league_id)
 
             # remove stored graphs
-            self.pickler.clear_items(league_id)
+            self.gclouder.clear_items(league_id)
 
         # update all competitions
         self.update_competitions()

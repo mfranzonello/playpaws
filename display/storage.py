@@ -4,10 +4,6 @@ from io import BytesIO
 from random import randint
 import pickle
 from bz2 import compress, decompress
-##from bz2 import BZ2File
-##from os import remove
-##from os.path import dirname, realpath, exists
-##from glob import glob
 
 from dropbox import Dropbox
 from google_images_search import GoogleImagesSearch
@@ -18,41 +14,6 @@ from common.secret import get_secret
 from common.locations import GCP_TOKEN_URI, GCP_AUTH_URL, GCP_APIS_URL
 from common.words import Texter
 from common.calling import Caller
-
-##class Pickler:
-##    ''' store and retreive pickle files '''
-##    directory = dirname(dirname(realpath(__file__)))
-##    location = f'{directory}/graphs'
-##    def __init__(self):
-##        pass
-
-##    def save_item(self, plot_key, item):
-##        key_name = self.get_key_name(plot_key)
-##        with BZ2File(f'{self.location}/{key_name}.pickle', 'wb') as f:
-##            pickle.dump(item, f)
-
-##    def find_item(self, plot_key):
-##        key_name = self.get_key_name(plot_key)
-##        return exists(f'{self.location}/{key_name}.pickle')
-
-##    def load_item(self, plot_key):
-##        key_name = self.get_key_name(plot_key)
-##        with BZ2File(f'{self.location}/{key_name}.pickle', 'rb') as f:
-##            item = pickle.load(f)
-
-##        return item
-
-##    def get_key_name(self, plot_key):
-##        if isinstance(plot_key, str):
-##            key_name = plot_key
-##        elif isinstance(plot_key, tuple):
-##            key_name = '_'.join(plot_key)
-
-##        return key_name
-
-##    def clear_items(self, partial_partial_key):
-##        for f in glob(f'{self.location}/*_{partial_plot_key}*.pickle'):
-##            remove(f)
 
 class Boxer:
     ''' retrieve Dropbox media '''

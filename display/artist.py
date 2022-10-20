@@ -318,7 +318,7 @@ class Canvas(Imager, Streamable):
 
         return text_df, W, H, x0, x1
 
-    def get_timeline_image(self, text_df, W, H, x0, x1, base, highlight_color,
+    def get_timeline_image(self, text_df, W, H, x0, x1, base,
                            padding=0.1, min_box_size=5):
         image = Image.new('RGBA', (W, H), (255, 255, 255, 0))
         draw = ImageDraw.Draw(image)
@@ -347,10 +347,6 @@ class Canvas(Imager, Streamable):
                                     int(x + x_adj - pad_offset),
                                     int(y + box_size - pad_offset)],
                                    fill=box_color)
-                if text_row['highlight']:
-                    draw.rectangle([int(x - box_size/2 + pad_offset), int(y + pad_offset),
-                                    int(x + box_size/2 - pad_offset), int(y + box_size - pad_offset)],
-                                   outline=highlight_color, width=int(pad_offset))
 
             flip = x + box_size/2 + text_row['length'] > W
             if not flip:
@@ -364,7 +360,38 @@ class Canvas(Imager, Streamable):
                       fill=box_color, font=text_row['image_font'])
             draw.text((int(x_text_bottom), int(y + box_size/2)), text_row['text_bottom'], #- text_row['height']/2 * self.ppt
                       fill=box_color, font=text_row['image_font'])
-            if text_row['highlight']:
+
+        return image
+
+    def get_timeline_highlight(self, text_df, W, H, x0, x1, base,
+                               base_image, highlight_color, player_id,
+                               padding=0.1, min_box_size=5):
+        image = Image.new('RGBA', (W, H), (255, 255, 255, 0))
+        draw = ImageDraw.Draw(image)
+
+        for i, text_row in text_df.iterrows():
+            if text_row['player_id'] == player_id:
+                box_size = text_row['size'] * base
+                padded_size = box_size * (1 - padding)
+                box_color = text_row['color']
+                pad_offset = box_size * padding / 2
+
+                x = W - box_size/2 if (text_row['x'] == text_df['x'].max()) else min(text_row['x'] + x0, W - box_size/2)
+                y = text_row['y'] * base
+
+                if padded_size:                    
+                    draw.rectangle([int(x - box_size/2 + pad_offset), int(y + pad_offset),
+                                    int(x + box_size/2 - pad_offset), int(y + box_size - pad_offset)],
+                                    outline=highlight_color, width=int(pad_offset))
+
+                flip = x + box_size/2 + text_row['length'] > W
+                if not flip:
+                    x_text_top = x + box_size/2
+                    x_text_bottom = x + box_size/2
+                else:
+                    x_text_top = x - box_size/2 - text_row['length_top']
+                    x_text_bottom = x - box_size/2 - text_row['length_bottom']
+            
                 y_line = y - pad_offset/2
                 draw.rectangle([int(x_text_top), int(y_line + box_size/2),
                                 int(x_text_top + text_row['length_top']), int(y_line + box_size/2) - max(1, int(pad_offset/3))],
@@ -372,5 +399,7 @@ class Canvas(Imager, Streamable):
                 draw.rectangle([int(x_text_bottom), int(y_line + box_size),
                                 int(x_text_bottom + text_row['length_bottom']), int(y_line + box_size) - max(1, int(pad_offset/3))],
                                 fill=box_color)
+        
+        base_image.paste(image)
 
-        return image
+        return base_image
