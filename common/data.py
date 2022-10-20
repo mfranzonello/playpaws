@@ -8,13 +8,14 @@ from pandas import DataFrame, Series, read_sql
 from common.secret import get_secret
 from common.calling import Caller, Quoter
 from common.locations import BITIO_URL, BITIO_HOST
+from common.structure import BITIO_USERNAME, BITIO_DBNAME
 from display.streaming import Streamable, cache
 
 class Engineer:
     def __init__(self):
-        self.engine_string = (f'postgresql://{get_secret("BITIO_USERNAME")}'
+        self.engine_string = (f'postgresql://{BITIO_USERNAME}'
                               f':{get_secret("BITIO_PASSWORD")}@{BITIO_HOST}'
-                              f'/{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}')
+                              f'/{BITIO_USERNAME}/{BITIO_DBNAME}')
 
     @cache(allow_output_mutation=True, max_entries=10, ttl=10800)
     def connect(self):  
@@ -36,7 +37,7 @@ class Database(Streamable, Caller):
 
     def __init__(self, connection_type='alchemy', streamer=None):
         super().__init__()
-        self.db = f'{get_secret("BITIO_USERNAME")}/{get_secret("BITIO_DBNAME")}'
+        self.db = f'{BITIO_USERNAME}/{BITIO_DBNAME}'
         
         self.add_streamer(streamer)
         

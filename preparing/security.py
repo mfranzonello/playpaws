@@ -17,13 +17,14 @@ from selenium.webdriver.common.by import By
 from common.calling import Caller
 from common.secret import get_secret, set_secret, list_secrets
 from common.locations import GITHUB_URL, APP_URL
+from common.structure import SPOTIFY_USERNAME, GITHUB_REPOSITORY_ID, GITHUB_ENVIRONMENT_NAME
 
 class Lockbox(Caller):
     def __init__(self):
         super().__init__()
 
-        self.repository_id = get_secret('GITHUB_REPOSITORY_ID') ## should this be a location?
-        self.environment_name = get_secret('GITHUB_ENVIRONMENT_NAME') ## should this be a location?
+        self.repository_id = GITHUB_REPOSITORY_ID
+        self.environment_name = GITHUB_ENVIRONMENT_NAME
         self.token = get_secret('GITHUB_TOKEN')
 
     def get_headers(self):
@@ -111,13 +112,11 @@ class Baker:
 
     def bake_cookies(self, cookie_name, cookie_value, lockbox):
         ''' add new values to environments '''
-        ##set_secret('ML_COOKIE_NAME', cookie_name)
         print('\t...storing secrets locally')
         set_secret('ML_COOKIE_VALUE', cookie_value)
 
         if lockbox:
             print('\t...storing secrets remotely')
-            ##lockbox.store_secret('ML_COOKIE_NAME', cookie_name)
             lockbox.store_secret('ML_COOKIE_VALUE', cookie_value)
 
     def is_stale(self, date, days_left=0):
@@ -206,14 +205,13 @@ class Selena:
 
             attempt += 1
 
-
     def login_and_get_cookie(self):
         # go to MusicLeague
         driver.get(APP_URL)
         driver.find_element(By.CLASS_NAME, 'loginButton').click()
 
         # log in to Spotify
-        driver.find_element(By.ID, 'login-username').send_keys(get_secret('SPOTIFY_USERNAME'))
+        driver.find_element(By.ID, 'login-username').send_keys(SPOTIFY_USERNAME)
         driver.find_element(By.ID, 'login-password').send_keys(get_secret('SPOTIFY_PASSWORD'))
         driver.find_element(BY.ID, 'login-button').click()
 

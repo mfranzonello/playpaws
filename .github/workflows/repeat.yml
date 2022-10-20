@@ -45,7 +45,6 @@ jobs:
         BITIO_PASSWORD: ${{ secrets.BITIO_PASSWORD }}
         BITIO_USERNAME: ${{ secrets.BITIO_USERNAME }}
 
-        ML_COOKIE_NAME: ${{ secrets.ML_COOKIE_NAME }}
         ML_COOKIE_VALUE: ${{ secrets.ML_COOKIE_VALUE }}
       run: |
         python repeat.py

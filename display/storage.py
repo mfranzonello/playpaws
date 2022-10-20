@@ -12,6 +12,7 @@ from google.cloud.storage import Client
 
 from common.secret import get_secret
 from common.locations import GCP_TOKEN_URI, GCP_AUTH_URL, GCP_APIS_URL
+from common.structure import GCP_S_PROJECT_ID, GCP_S_ACCOUNT_NAME
 from common.words import Texter
 from common.calling import Caller
 
@@ -112,11 +113,11 @@ class GClouder(Caller):
     def __init__(self, bucket_name='playpaws'):
         super().__init__()
 
-        gcp_s_email = f'{get_secret("GCP_S_ACCOUNT_NAME")}-service@{get_secret("GCP_S_PROJECT_ID")}.iam.gserviceaccount.com'
+        gcp_s_email = f'{GCP_S_ACCOUNT_NAME}-service@{GCP_S_PROJECT_ID}.iam.gserviceaccount.com'
         gcp_service_account = gcp_s_email.replace('@', '%40')
 
         info = {'type': 'service_account',
-                'project_id': get_secret('GCP_S_PROJECT_ID'),
+                'project_id': GCP_S_PROJECT_ID,
                 'private_key_id': get_secret('GCP_S_PRIVATE_KEY_ID'),
                 'private_key': get_secret('GCP_S_PRIVATE_KEY').replace('\\n', '\n'),
                 'client_email': gcp_s_email,

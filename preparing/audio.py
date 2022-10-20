@@ -16,6 +16,7 @@ from pandas import DataFrame, isnull
 from common.secret import get_secret
 from common.words import Texter
 from common.locations import MOSAIC_URL, SPOTIFY_AUTH_URL, SPOTIFY_REDIRECT, LASTFM_URL, WIKI_URL
+from common.structure import SPOTIFY_USER_ID
 from common.calling import Caller
 from display.media import Gallery, Byter
 from display.storage import Boxer, GImager
@@ -179,12 +180,12 @@ class Spotter(Streamable, Caller):
         self.update_db_albums()
         self.update_db_genres()
 
-    def output_playlists(self, database):
+    def output_playlists(self, database, league_ids=None):
         self.database = database
         
         self.connect_to_spotify(auth=True)
         
-        self.update_playlists()
+        self.update_playlists(league_ids=league_ids)
            
     def append_updates(self, df, updates_list, key='uri', updates_only=False):
         to_add = [u for u in updates_list if u not in df[key].values]
@@ -262,24 +263,27 @@ class Spotter(Streamable, Caller):
             genres_update = genres_db.rename(columns={'genre': 'name'})
             self.database.store_genres(genres_update)
 
-    def update_playlists(self):
+    def update_playlists(self, league_ids=None):
         self.streamer.print('\t...updating playlists')
 
         self.gallery = Gallery(self.database, crop=True)
         
-        self.update_complete_playlists()
-        self.update_best_playlists()
-        self.update_favorite_playlists()
+        self.update_complete_playlists(league_ids=league_ids)
+        self.update_best_playlists(league_ids=league_ids)
+        self.update_favorite_playlists(league_ids=league_ids)
 
         ##self.update_playlist_covers()
         print('COVERS UPDATE: SUCCESS!')
 
-    def update_complete_playlists(self):
+    def update_complete_playlists(self, league_ids=None):
         theme = 'complete'
 
         player_id = self.database.get_god_id()
         playlists_db = self.database.get_playlists(theme)
         playtracks_db = self.database.get_theme_playlists(theme=theme)
+        
+        if league_ids:
+            playtracks_db = playtracks_db.query('league_id in @league_ids')
 
         for i in playtracks_db.index:
             league_id = playtracks_db['league_id'][i]
@@ -300,12 +304,15 @@ class Spotter(Streamable, Caller):
         self.database.store_playlists(playlists_db, theme=theme)
         print(f'THEME: {theme} SUCCESS!')
 
-    def update_best_playlists(self):
+    def update_best_playlists(self, league_id=league_ids):
         theme = 'best'
 
         player_id = self.database.get_god_id()
         playlists_db = self.database.get_playlists()
         playtracks_db = self.database.get_theme_playlists(theme=theme)
+
+        if league_ids:
+            playtracks_db = playtracks_db.query('league_id in @league_ids')
 
         for i in playtracks_db.index:
             league_id = playtracks_db['league_id'][i]
@@ -326,11 +333,14 @@ class Spotter(Streamable, Caller):
         self.database.store_playlists(playlists_db, theme=theme)
         print(f'THEME: {theme} SUCCESS!')
 
-    def update_favorite_playlists(self):
+    def update_favorite_playlists(self, league_id=league_ids):
         theme = 'favorite'
 
         playlists_db = self.database.get_playlists(theme)
         playtracks_db = self.database.get_theme_playlists(theme=theme)
+
+        if league_ids:
+            playtracks_db = playtracks_db.query('league_id in @league_ids')
 
         for i in playtracks_db.index:
             league_id = playtracks_db['league_id'][i]
@@ -367,7 +377,7 @@ class Spotter(Streamable, Caller):
 
     def create_playlist(self, name):
         """create a new playlist"""
-        playlist = self.sp.user_playlist_create(get_secret('SPOTIFY_USER_ID'), name, public=True, collaborative=False, description='')
+        playlist = self.sp.user_playlist_create(SPOTIFY_USER_ID, name, public=True, collaborative=False, description='')
         uri = playlist['uri']
         
         return uri

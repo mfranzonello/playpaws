@@ -18,6 +18,9 @@ BITIO_HOST = 'db.bit.io'
 # aliases
 APP_ALIAS = 'notifications@musicleague.app'
 
+# cookies
+ML_COOKIE_NAME = 'session'
+
 # redirects and URIs
 AZURE_REDIRECT='http://localhost:3000/' ## not used
 SPOTIFY_REDIRECT='https://localhost:8888/callback'

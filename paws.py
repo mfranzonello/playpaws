@@ -9,6 +9,7 @@ from crunching.analyze import Analyzer
 def check_for_updates(gmailer):
     ''' look at gmail for notifications '''
     league_ids = gmailer.check_mail()
+
     return league_ids
 
 def update_web_data(database, league_ids=None):
@@ -28,10 +29,10 @@ def place_data(database):
     analyzer = Analyzer(database)
     analyzer.place_all()
 
-def output_playlists(database):
+def output_playlists(database, league_ids=None):
     ''' update Spotify playlists '''
     musician = Musician(database)
-    musician.output_playlists()
+    musician.output_playlists(league_ids=league_ids)
 
 def close_out(gmailer):
     ''' don't need to check mail again ''' 
@@ -53,8 +54,8 @@ def main():
         # update data in database from Spotify and LastFM APIs
         update_api_data(database)
 
-        # output Spotify playlists
-        output_playlists(database)
+        ### output Spotify playlists
+        ##output_playlists(database, league_ids=league_ids)
 
         # mark as complete
         close_out(gmailer)

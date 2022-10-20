@@ -276,8 +276,8 @@ class Musician:
     def update_lastfm(self):
         self.fmer.update_database(self.database)
 
-    def output_playlists(self):
-        self.spotter.output_playlists(self.database)
+    def output_playlists(self, league_ids=None):
+        self.spotter.output_playlists(self.database, league_ids=league_ids)
 
     def update_wiki(self):
         # get genres categories from wikipedia

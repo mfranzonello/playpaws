@@ -14,14 +14,14 @@ from bs4 import BeautifulSoup
 from common.secret import get_secret
 from common.calling import Caller
 from common.words import Texter
-from common.locations import APP_URL
+from common.locations import APP_URL, ML_COOKIE_NAME
 from display.streaming import Streamable
 
 class Scraper(Streamable, Caller):
     def __init__(self):
         super().__init__()
         
-        self.cj = {get_secret('ML_COOKIE_NAME'): get_secret('ML_COOKIE_VALUE')}
+        self.cj = {ML_COOKIE_NAME: get_secret('ML_COOKIE_VALUE')}
         
     def call_api(self, method, player_id=None, league_id=None, round_id=None, end=None, jason=None):      
         url = f'{APP_URL}/api/v1'
