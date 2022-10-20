@@ -271,7 +271,8 @@ class Spotter(Streamable, Caller):
         self.update_best_playlists()
         self.update_favorite_playlists()
 
-        self.update_playlist_covers()
+        ##self.update_playlist_covers()
+        print('COVERS UPDATE: SUCCESS!')
 
     def update_complete_playlists(self):
         theme = 'complete'
@@ -297,6 +298,7 @@ class Spotter(Streamable, Caller):
             self.update_playlist(playlist_uri, track_uris)
             
         self.database.store_playlists(playlists_db, theme=theme)
+        print(f'THEME: {theme} SUCCESS!')
 
     def update_best_playlists(self):
         theme = 'best'
@@ -322,6 +324,7 @@ class Spotter(Streamable, Caller):
             self.update_playlist(playlist_uri, track_uris)
             
         self.database.store_playlists(playlists_db, theme=theme)
+        print(f'THEME: {theme} SUCCESS!')
 
     def update_favorite_playlists(self):
         theme = 'favorite'
@@ -348,16 +351,17 @@ class Spotter(Streamable, Caller):
             self.update_playlist(playlist_uri, track_uris)
             
         self.database.store_playlists(playlists_db, theme=theme)
+        print(f'THEME: {theme} SUCCESS!')
         
     def get_playlist_uris(self, playlist_uri, external_url=False):
         finished = False
         uris = []
 
         while not finished:
-            results = self.sp.playlist_tracks(playlist_uri, offset=len(uris))
+            offset = len(uris)
+            results = self.sp.playlist_tracks(playlist_uri, offset=offset)
             uris += [r['track']['external_urls']['spotify'] if external_url else r['track']['uri'] for r in results['items']]
-            if results['next'] is None:
-                finished = True
+            finished = results['next'] is None
 
         return uris
 
