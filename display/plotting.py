@@ -18,13 +18,13 @@ from common.words import Texter
 from common.locations import SPOTIFY_PLAY_URL
 from display.librarian import Library
 from display.artist import Canvas, Paintbrush
-from display.storage import Boxer
+from display.storage import Boxer, GClouder
 from display.streaming import Streamable, Stab
 
 class PPRError(Exception):
     pass
 
-class Plotter(Streamable):   
+class Plotter(Streamable): 
     marker_sizing = 50
 
     name_offset = 0.1
@@ -49,6 +49,7 @@ class Plotter(Streamable):
         self.texter = Texter()
         self.library = Library()
         self.paintbrush = Paintbrush()
+        self.gclouder = GClouder()
         self.boxer = Boxer()
 
         self.streamer = streamer
@@ -238,9 +239,7 @@ class Plotter(Streamable):
                     badge2 = query['place'].iloc[0] if len(query) else None
                     n_players = len(boards_competition_df)
 
-                playlists_df = self.prepare_dfs(('playlists_df', league_id),
-                                                self.database.get_playlists, league_id)
-                self.plot_viewer(badge=badge, badge2=badge2, playlists_df=playlists_df)
+                self.plot_viewer(league_id=league_id, badge=badge, badge2=badge2)
 
                 # plot the league stats
                 if self.view_player == self.god_player:
@@ -430,32 +429,36 @@ class Plotter(Streamable):
         y_shifted = y + shift_distance*sin(theta + rotate*pi/2)
         return x_shifted, y_shifted
 
-    def plot_viewer(self, badge=None, badge2=None, playlists_df=None):
-        image = self.canvas.get_player_image(self.view_player)
-        palette = self.paintbrush.get_palette(image)
-        image = self.canvas.add_border(image, color=palette[0], padding=0.2)
 
-        medal_metals = ['gold', 'silver', 'bronze', 'gunmetal_grey']
-        for b, pct, position, label in zip([badge, badge2], [0.4, 0.25], ['LR', 'UL'], ['OVERALL', 'COMPETITION']):
-            if isinstance(b, (int, float, int64, float64)) and b >= 1:
-                image = self.place_badge(image, int(b), medal_metals, pct=pct, position=position, label=label)
+    # plot viewer and badge
+    def plot_viewer(self, league_id=None, badge=None, badge2=None):
+        plot_key = ('viewer_img', league_id if league_id else '<blank>', self.view_player)
+        stored, ok = self.streamer.get_session_state(plot_key)
+
+        if ok:
+            # look for a session stored player image
+            image = stored
             
-        html = None
-        height = None
-        if playlists_df is not None:
-            theme = f'favorite - {self.view_player}'
-            playlist_uri = playlists_df.query('theme == @theme')['uri'].squeeze()
-            if len(playlist_uri):
-                playlist_uri = playlist_uri.replace('spotify:playlist:', '')
+        else:
+            if self.gclouder.find_item(plot_key):
+                # look for a local stored player image
+                image = self.gclouder.load_item(plot_key)
+                
+            else:
+                # create a player image
+                image = self.canvas.get_player_image(self.view_player)
+                palette = self.paintbrush.get_palette(image)
+                image = self.canvas.add_border(image, color=palette[0], padding=0.2)
 
-                width = 380
-                height = 80
-                html = (f'<iframe src="{SPOTIFY_PLAY_URL}/embed/playlist/{playlist_uri}" '
-                        f'width="{width}" height="{height}" '
-                        f'frameborder="0" allowtransparency="true" allow="encrypted-media"></iframe>'
-                        )
+                medal_metals = ['gold', 'silver', 'bronze', 'gunmetal_grey']
+                for b, pct, position, label in zip([badge, badge2], [0.4, 0.25], ['LR', 'UL'], ['OVERALL', 'COMPETITION']):
+                    if isinstance(b, (int, float, int64, float64)) and b >= 1:
+                        image = self.place_badge(image, int(b), medal_metals, pct=pct, position=position, label=label)
 
-        self.streamer.viewer(image, footer=html, footer_height=height)
+                self.gclouder.save_item(plot_key, image)     
+                self.streamer.store_session_state(plot_key, image)
+
+        self.streamer.viewer(image)
 
     def place_badge(self, image, badge, medal_metals, pct, position, label=None):
         place = max(1, min(len(medal_metals), badge))
@@ -534,55 +537,64 @@ class Plotter(Streamable):
         self.streamer.sidebar_image(self.boxer.get_cover(league_title))
 
     def plot_mappings(self, league_id, mappings_df, title=None, tab=None):
-        plot_key = (league_id, 'members_ax')
-        stored, ok = self.streamer.get_session_state(plot_key)
-        if ok:
-            ax, parameters = stored
-            self.streamer.status(1/self.plot_counts)
-            
+        plot_key = ('members_ax', league_id)
+        if self.gclouder.find_item(plot_key):
+            # look for a local stored league graph
+            ax, parameters = self.gclouder.load_item(plot_key)
+
         else:
-            fig = plt.figure()
-            ax = fig.add_axes([1, 1, 1, 1])
+            # look for a session stored league graph
+            stored, ok = self.streamer.get_session_state(plot_key)
+            if ok:
+                ax, parameters = stored
+                self.streamer.status(1/self.plot_counts)
+            
+            else:
+                # create the league graph
+                fig = plt.figure()
+                ax = fig.add_axes([1, 1, 1, 1])
 
-            # plot nodes for players
-            self.streamer.status(1/self.plot_counts * (1/3))
-            self.streamer.print('\t...relationships', base=False)
+                # plot nodes for players
+                self.streamer.status(1/self.plot_counts * (1/3))
+                self.streamer.print('\t...relationships', base=False)
 
-            x = mappings_df['x']
-            y = mappings_df['y']
-            player_ids = mappings_df['player_id']
+                x = mappings_df['x']
+                y = mappings_df['y']
+                player_ids = mappings_df['player_id']
 
-            # plot center
-            x_center, y_center = self.get_center(mappings_df)
-            ax.scatter(x_center, y_center, marker='1', zorder=2*len(player_ids))
+                # plot center
+                x_center, y_center = self.get_center(mappings_df)
+                ax.scatter(x_center, y_center, marker='1', zorder=2*len(player_ids))
 
-            sizes = self.get_scatter_sizes(mappings_df)
-            colors = self.get_node_colors(mappings_df)
-            colors_scatter = self.paintbrush.get_scatter_colors(colors)
+                sizes = self.get_scatter_sizes(mappings_df)
+                colors = self.get_node_colors(mappings_df)
+                colors_scatter = self.paintbrush.get_scatter_colors(colors)
        
-            for x_p, y_p, p_name, s_p, c_p, c_s, z in zip(x, y, player_ids, sizes, colors, colors_scatter, player_ids.index):
-                self.place_member_nodes(ax, x_p, y_p, p_name, s_p, c_p, c_s, z)
-            self.streamer.status(1/self.plot_counts * (1/3))
+                for x_p, y_p, p_name, s_p, c_p, c_s, z in zip(x, y, player_ids, sizes, colors, colors_scatter, player_ids.index):
+                    self.place_member_nodes(ax, x_p, y_p, p_name, s_p, c_p, c_s, z)
+                self.streamer.status(1/self.plot_counts * (1/3))
 
-            # split if likes is liked
-            split_df = mappings_df.set_index('player_id')
-            split = split_df['likes_id'] == split_df['liked_id']
+                # split if likes is liked
+                split_df = mappings_df.set_index('player_id')
+                split = split_df['likes_id'] == split_df['liked_id']
 
-            for i in mappings_df.index:
-                self.place_member_relationships(ax, mappings_df['player_id'][i], mappings_df, split, #player_ids[i]
-                                                zorder=2*len(player_ids))
+                for i in mappings_df.index:
+                    self.place_member_relationships(ax, mappings_df['player_id'][i], mappings_df, split, #player_ids[i]
+                                                    zorder=2*len(player_ids))
 
-            self.streamer.status(1/self.plot_counts * (1/3))
+                self.streamer.status(1/self.plot_counts * (1/3))
   
-            ax.axis('equal')
-            ax.set_ylim(mappings_df['y'].min() - self.name_offset - self.font_size,
-                        mappings_df['y'].max() + self.name_offset + self.font_size)
-            ax.axis('off')
+                ax.axis('equal')
+                ax.set_ylim(mappings_df['y'].min() - self.name_offset - self.font_size,
+                            mappings_df['y'].max() + self.name_offset + self.font_size)
+                ax.axis('off')
 
-            parameters = {'leader': self.get_player_name(mappings_df.query('place == 1')['player_id'].to_list()),
-                          'closest_dfc': self.get_player_name(mappings_df.query('nearest == 1')['player_id'].to_list()),
-                          }
-            self.streamer.store_session_state(plot_key, (ax, parameters))
+                parameters = {'leader': self.get_player_name(mappings_df.query('place == 1')['player_id'].to_list()),
+                              'closest_dfc': self.get_player_name(mappings_df.query('nearest == 1')['player_id'].to_list()),
+                              }
+
+                self.gclouder.save_item(plot_key, (ax, parameters))
+                self.streamer.store_session_state(plot_key, (ax, parameters))
             
         self.streamer.pyplot(ax.figure, header=title, #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('members', parameters=parameters), tab=tab)
@@ -674,12 +686,11 @@ class Plotter(Streamable):
         x_me, y_me, _ = self.where_am_i(mappings_df, player_id)
 
         feels_me = mappings_df.query('player_id == @player_id')[f'{direction}_id']
-        ##likes_me = mappings_df[f'{direction}_id'][mappings_df['player_id'] == player_id] #.to_list()[0]
 
         xyth = []
 
         for they in feels_me:
-            them = mappings_df.query('player_id == @they')[['x', 'y']]##[mappings_df['player_id'] == likes_me]
+            them = mappings_df.query('player_id == @they')[['x', 'y']]
             if len(them):
                 x_them, y_them = them.iloc[0].to_list()
         
@@ -695,85 +706,99 @@ class Plotter(Streamable):
         sizes = (mappings_df['wins'] * 10 + 1) * self.marker_sizing
         return sizes
 
+
+    # finishers graph
     def plot_boards(self, league_id, boards_df, creators_winners_df, competitions_df,
                     title=None, tab=None):
-        plot_key = (league_id, 'boards_ax', self.view_player)
+        ''' place player rankings '''
+        plot_key = ('boards_ax', league_id, self.view_player)
         stored, ok = self.streamer.get_session_state(plot_key)
+
         if ok:
+            # look for a session stored player graph
             ax, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:
-            plot_key_2 = (league_id, 'boards_ax')
-            stored, ok = self.streamer.get_session_state(plot_key_2)
-            if ok:
-                ax, xs, lowest_rank, ties_df, icon_scale, maxes = stored
+            plot_key_2 = ('boards_ax', league_id)
+            if self.gclouder.find_item(plot_key_2):
+                # look for a local stored league graph
+                ax, xs, lowest_rank, ties_df, icon_scale, maxes = self.gclouder.load_item(plot_key_2)
+                
             else:
-                fig = plt.figure() ###figsize=(8,8), dpi=100)
-                ax = fig.add_axes([1, 1, 1, 1])
+                # look for a session stored league graph
+                stored, ok = self.streamer.get_session_state(plot_key_2)
 
-                self.streamer.status(1/self.plot_counts * (1/3))
-                self.streamer.print('\t...rankings', base=False)
+                if ok:
+                    ax, xs, lowest_rank, ties_df, icon_scale, maxes = stored
+                else:
+                    # create the league graph
+                    fig = plt.figure()
+                    ax = fig.add_axes([1, 1, 1, 1])
 
-                n_rounds = len(boards_df.columns)
-                n_players = len(boards_df.index)
-                aspect = (max(1, n_rounds - 1), max(1, n_players - 1))
-                scaling = [a / b * aspect[1] for a, b in zip(self.subplot_aspects['golden'], aspect)]
+                    self.streamer.status(1/self.plot_counts * (1/3))
+                    self.streamer.print('\t...rankings', base=False)
 
-                xs = [x * scaling[0] for x in range(1, n_rounds + 1)]
+                    n_rounds = len(boards_df.columns)
+                    n_players = len(boards_df.index)
+                    aspect = (max(1, n_rounds - 1), max(1, n_players - 1))
+                    scaling = [a / b * aspect[1] for a, b in zip(self.subplot_aspects['golden'], aspect)]
 
-                has_dnf = boards_df.where(boards_df < 0, 0).sum().sum() < 0
+                    xs = [x * scaling[0] for x in range(1, n_rounds + 1)]
+
+                    has_dnf = boards_df.where(boards_df < 0, 0).sum().sum() < 0
         
-                lowest_rank = int(boards_df.where(boards_df > 0, 0).max().max())
-                highest_dnf = int(boards_df.where(boards_df < 0, 0).min().min())
+                    lowest_rank = int(boards_df.where(boards_df > 0, 0).max().max())
+                    highest_dnf = int(boards_df.where(boards_df < 0, 0).min().min())
 
-                ties_df = DataFrame(0, columns=unique(boards_df.values), index=xs)
+                    ties_df = DataFrame(0, columns=unique(boards_df.values), index=xs)
 
 
-                icon_scale = min(ax.figure.get_figwidth()/n_rounds,
-                                 ax.figure.get_figheight()/(n_players + has_dnf)) ** 0.5
+                    icon_scale = min(ax.figure.get_figwidth()/n_rounds,
+                                     ax.figure.get_figheight()/(n_players + has_dnf)) ** 0.5
 
-                for player_id in boards_df.index:
-                    self.place_board_player(ax, xs, player_id, boards_df, lowest_rank, ties_df, icon_scale)
-                self.streamer.status(1/self.plot_counts * (1/3))
+                    for player_id in boards_df.index:
+                        self.place_board_player(ax, xs, player_id, boards_df, lowest_rank, ties_df, icon_scale)
+                    self.streamer.status(1/self.plot_counts * (1/3))
 
-                round_ids = boards_df.columns.tolist()
+                    round_ids = boards_df.columns.tolist()
         
-                x_min = min(xs)
-                x_max = max(xs)
+                    x_min = min(xs)
+                    x_max = max(xs)
 
-                if has_dnf:
-                    # plot DNF line
-                    ax.plot([x_min - scaling[0]/2, x_max + scaling[0]/2], [lowest_rank + 1] * 2, '--', color='0.5',
-                            zorder=0)
+                    if has_dnf:
+                        # plot DNF line
+                        ax.plot([x_min - scaling[0]/2, x_max + scaling[0]/2], [lowest_rank + 1] * 2, '--', color='0.5',
+                                zorder=0)
 
                     
-                if len(competitions_df):
-                    self.add_backgrounds(ax, round_ids, competitions_df, scaling=scaling)
+                    if len(competitions_df):
+                        self.add_backgrounds(ax, round_ids, competitions_df, scaling=scaling)
 
-                maxes = {'round_titles': creators_winners_df['round_id'].to_list(),
-                         'choosers': creators_winners_df['creator_id'].to_list(),
-                         'winners': creators_winners_df['winner_ids'].to_list(),
-                         }
+                    maxes = {'round_titles': creators_winners_df['round_id'].to_list(),
+                             'choosers': creators_winners_df['creator_id'].to_list(),
+                             'winners': creators_winners_df['winner_ids'].to_list(),
+                             }
 
-                maxes = {m: creators_winners_df[n].to_list() for m, n in [['round_titles', 'round_id'],
-                                                                          ['choosers', 'creator_id'],
-                                                                          ['winners', 'winner_ids']]}
+                    maxes = {m: creators_winners_df[n].to_list() for m, n in [['round_titles', 'round_id'],
+                                                                              ['choosers', 'creator_id'],
+                                                                              ['winners', 'winner_ids']]}
 
-                ax.set_xlim(x_min - scaling[0]/2, x_max + scaling[0]/2)
-                ax.set_xticks(xs)
-                ax.set_xticklabels(self.split_labels(self.get_round_title(round_ids, clean=True), n_rounds),
-                                   rotation=self.rotate_labels(n_rounds))
+                    ax.set_xlim(x_min - scaling[0]/2, x_max + scaling[0]/2)
+                    ax.set_xticks(xs)
+                    ax.set_xticklabels(self.split_labels(self.get_round_title(round_ids, clean=True), n_rounds),
+                                       rotation=self.rotate_labels(n_rounds))
 
-                y_min = lowest_rank - highest_dnf + has_dnf
-                y_max = 0
-                yticks = range(y_min, y_max, -1)
+                    y_min = lowest_rank - highest_dnf + has_dnf
+                    y_max = 0
+                    yticks = range(y_min, y_max, -1)
 
-                ax.set_ylim(y_min + 0.5, y_max + 0.5)
-                ax.set_yticks(yticks)
-                ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
+                    ax.set_ylim(y_min + 0.5, y_max + 0.5)
+                    ax.set_yticks(yticks)
+                    ax.set_yticklabels([int(y) if y <= lowest_rank else 'DNF' if y == lowest_rank + 2 else '' for y in yticks])
 
-                self.streamer.store_session_state(plot_key_2, (ax, xs, lowest_rank, ties_df, icon_scale, maxes))
+                    self.gclouder.save_item(plot_key_2, (ax, xs, lowest_rank, ties_df, icon_scale, maxes))     
+                    self.streamer.store_session_state(plot_key_2, (ax, xs, lowest_rank, ties_df, icon_scale, maxes))
 
             if self.view_player != self.god_player:
                 self.place_board_player(ax, xs, self.view_player, boards_df, lowest_rank, ties_df, icon_scale)
@@ -784,7 +809,7 @@ class Plotter(Streamable):
             parameters.update({m: self.get_player_name(maxes[m]) for m in ['choosers', 'winners']})
 
             self.streamer.store_session_state(plot_key, (ax, parameters))
-
+        
         self.streamer.pyplot(ax.figure, header=title, #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('boards', parameters=parameters), tab=tab)
 
@@ -871,77 +896,89 @@ class Plotter(Streamable):
                                 facecolor=facecolor, edgecolor=edgecolor,
                                 hatch='///', zorder=-1)
 
+
+    # scores graph
     def plot_scores(self, league_id, rankings_df, awards_league_df, title=None, tab=None):
-        plot_key = (league_id, 'scores_ax', self.view_player)
+        ''' place round scores and league awards '''
+        plot_key = ('scores_ax', league_id, self.view_player)
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
+            # look for a session stored player graph
             ax, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:
-            plot_key_2 = (league_id, 'scores_ax')
-            stored, ok = self.streamer.get_session_state(plot_key_2)
-            if ok:
-                ax, player_ids, x_min, x_max, maxes = stored
+            # look for a session stored league graph
+            plot_key_2 = ('scores_ax', league_id)
+            if self.gclouder.find_item(plot_key_2):
+                # look for a local stored league graph
+                ax, player_ids, x_min, x_max, maxes = self.gclouder.load_item(plot_key_2)
 
             else:
-                fig = plt.figure()
-                ax = fig.add_axes([1, 1, 1, 1])
+                # create the league graph
+                stored, ok = self.streamer.get_session_state(plot_key_2)
+                if ok:
+                    ax, player_ids, x_min, x_max, maxes = stored
+
+                else:
+                    fig = plt.figure()
+                    ax = fig.add_axes([1, 1, 1, 1])
             
-                self.streamer.status(1/self.plot_counts * (1/3))
-                self.streamer.print('\t...scores', base=False)
-                rankings_df = rankings_df.pivot(index='player_id', columns='round_id', values='score').div(100)
+                    self.streamer.status(1/self.plot_counts * (1/3))
+                    self.streamer.print('\t...scores', base=False)
+                    rankings_df = rankings_df.pivot(index='player_id', columns='round_id', values='score').div(100)
 
-                player_ids = rankings_df.index
-                n_rounds = len(rankings_df.columns)
+                    player_ids = rankings_df.index
+                    n_rounds = len(rankings_df.columns)
                         
-                fig_w, _ = fig.get_size_inches()
-                fig.set_size_inches([fig_w, fig_w / (n_rounds + 4) * len(player_ids)])
+                    fig_w, _ = fig.get_size_inches()
+                    fig.set_size_inches([fig_w, fig_w / (n_rounds + 4) * len(player_ids)])
 
-                max_score = rankings_df.max().max()
-                rgb_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('red', 'yellow', 'green', 'blue'))
+                    max_score = rankings_df.max().max()
+                    rgb_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('red', 'yellow', 'green', 'blue'))
 
-                scores_df = awards_league_df.set_index('player_id')
+                    scores_df = awards_league_df.set_index('player_id')
         
-                max_dirty = max(0.5, scores_df['dirtiness'].max())
-                rgb_dirty_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('purple', 'peach'))
+                    max_dirty = max(0.5, scores_df['dirtiness'].max())
+                    rgb_dirty_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('purple', 'peach'))
 
-                max_discovery = 1
-                rgb_discovery_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('grey', 'dark_blue'))
+                    max_discovery = 1
+                    rgb_discovery_df = self.paintbrush.grade_colors(self.paintbrush.get_colors('grey', 'dark_blue'))
 
-                xs = range(n_rounds)
-                x_min = -1.5
-                x_max = len(xs) + 2 + 0.5
-                self.streamer.status(1/self.plot_counts * (1/3))
-                for player_id in player_ids:
-                    y = player_ids.get_loc(player_id)
-                    marker_size = 0.9
-                    image_size = self.place_player_scores(ax, player_id, xs, y, rankings_df, max_score, rgb_df, marker_size)
+                    xs = range(n_rounds)
+                    x_min = -1.5
+                    x_max = len(xs) + 2 + 0.5
+                    self.streamer.status(1/self.plot_counts * (1/3))
+                    for player_id in player_ids:
+                        y = player_ids.get_loc(player_id)
+                        marker_size = 0.9
+                        image_size = self.place_player_scores(ax, player_id, xs, y, rankings_df, max_score, rgb_df, marker_size)
 
-                    # plot dirtiness
-                    self.place_player_score(ax, len(xs), y, scores_df['dirtiness'][player_id], max_dirty, rgb_dirty_df,
-                                            marker_size, image_size, percent=True)
+                        # plot dirtiness
+                        self.place_player_score(ax, len(xs), y, scores_df['dirtiness'][player_id], max_dirty, rgb_dirty_df,
+                                                marker_size, image_size, percent=True)
 
-                    # plot discovery
-                    self.place_player_score(ax, len(xs)+1, y, scores_df['discovery'][player_id], max_discovery, rgb_discovery_df,
-                                            marker_size, image_size, percent=True)
-                    self.place_player_score(ax, len(xs)+2, y, scores_df['popularity'][player_id], max_discovery, rgb_discovery_df,
-                                            marker_size, image_size, percent=True)
+                        # plot discovery
+                        self.place_player_score(ax, len(xs)+1, y, scores_df['discovery'][player_id], max_discovery, rgb_discovery_df,
+                                                marker_size, image_size, percent=True)
+                        self.place_player_score(ax, len(xs)+2, y, scores_df['popularity'][player_id], max_discovery, rgb_discovery_df,
+                                                marker_size, image_size, percent=True)
 
-                    ax.axis('equal')
-                    ax.spines['left'].set_visible(False)
-                    ax.spines['right'].set_visible(False)
-                    ax.set_yticklabels([])
-                    ax.set_yticks([])
+                        ax.axis('equal')
+                        ax.spines['left'].set_visible(False)
+                        ax.spines['right'].set_visible(False)
+                        ax.set_yticklabels([])
+                        ax.set_yticks([])
 
-                    ax.set_xticks([(n_rounds-1)/2] + [n_rounds + i for i in range(3)])
-                    ax.set_xticklabels(['scores', 'dirtiness', 'discovery', 'popularity'],
-                                       rotation=self.rotate_labels(n_rounds))
-                    ax.set_xlim([x_min, x_max])
+                        ax.set_xticks([(n_rounds-1)/2] + [n_rounds + i for i in range(3)])
+                        ax.set_xticklabels(['scores', 'dirtiness', 'discovery', 'popularity'],
+                                           rotation=self.rotate_labels(n_rounds))
+                        ax.set_xlim([x_min, x_max])
 
-                    maxes = {m: scores_df.query(f'{m} == {m}.max()').index.to_list()
-                             for m in ['dirtiness', 'discovery', 'popularity']}
+                        maxes = {m: scores_df.query(f'{m} == {m}.max()').index.to_list()
+                                 for m in ['dirtiness', 'discovery', 'popularity']}
 
+                    self.gclouder.save_item(plot_key_2, (ax, player_ids, x_min, x_max, maxes))
                     self.streamer.store_session_state(plot_key_2, (ax, player_ids, x_min, x_max, maxes))
 
                 # plot area behind view player
@@ -998,79 +1035,91 @@ class Plotter(Streamable):
             image, imgs = None
         return image, imgs
             
+
+    # audio features
     def plot_features(self, league_id, features_df, title=None, tab=None):
-        plot_key = (league_id, 'features_ax')
+        ''' place audio features per round '''
+        plot_key = ('features_ax', league_id)
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
+            # look for a session stored league graph
             ax, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:
-            fig = plt.figure()
-            ax = fig.add_axes([1, 1, 1, 1])
+            if self.gclouder.find_item(plot_key):
+                # look for a local stored league graph
+                ax, parameters = self.gclouder.load_item(plot_key)
+
+            else:
+                # create the league graph
+                fig = plt.figure()
+                ax = fig.add_axes([1, 1, 1, 1])
             
-            self.streamer.status(1/self.plot_counts * (1/3))
-            self.streamer.print('\t...features', base=False)
-            features_solo = {f: self.library.feel(f) for f in ['tempo']}                             
-            features_like = {f: self.library.feel(f) for f in ['danceability', 'energy',
-                                                               'liveness', 'valence',
-                                                               'speechiness', 'acousticness',
-                                                               'instrumentalness']}
-            available_colors = self.paintbrush.get_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'copper', 'pink')
+                self.streamer.status(1/self.plot_counts * (1/3))
+                self.streamer.print('\t...features', base=False)
+                features_solo = {f: self.library.feel(f) for f in ['tempo']}                             
+                features_like = {f: self.library.feel(f) for f in ['danceability', 'energy',
+                                                                   'liveness', 'valence',
+                                                                   'speechiness', 'acousticness',
+                                                                   'instrumentalness']}
+                available_colors = self.paintbrush.get_colors('red', 'blue', 'purple', 'peach', 'dark_blue', 'orange', 'aqua', 'copper', 'pink')
 
-            features_colors = self.paintbrush.get_scatter_colors(available_colors)
+                features_colors = self.paintbrush.get_scatter_colors(available_colors)
 
-            n_rounds = len(features_df)
+                n_rounds = len(features_df)
         
-            # ['loudness', 'key', 'mode']
-            features_all = list(features_solo.keys()) + list(features_like.keys())
-            mapper = {f'avg_{f}': f'{f}' for f in features_all}
+                # ['loudness', 'key', 'mode']
+                features_all = list(features_solo.keys()) + list(features_like.keys())
+                mapper = {f'avg_{f}': f'{f}' for f in features_all}
 
-            features_df.loc[:, 'round'] = features_df['round_id'].apply(lambda x: self.get_round_title(x, clean=True))
+                features_df.loc[:, 'round'] = features_df['round_id'].apply(lambda x: self.get_round_title(x, clean=True))
         
-            features_df = features_df.set_index('round').drop(columns='round_id').rename(columns=mapper)[features_all]
-            features_df[list(features_solo.keys())] = features_df[list(features_solo.keys())].abs().div(features_df[list(features_solo.keys())].max())
+                features_df = features_df.set_index('round').drop(columns='round_id').rename(columns=mapper)[features_all]
+                features_df[list(features_solo.keys())] = features_df[list(features_solo.keys())].abs().div(features_df[list(features_solo.keys())].max())
         
-            features_df.plot(use_index=True, y=list(features_like.keys()), color=features_colors[:len(features_like)],
-                             kind='bar', legend=False, xlabel=None, rot=45, ax=ax)
+                features_df.plot(use_index=True, y=list(features_like.keys()), color=features_colors[:len(features_like)],
+                                 kind='bar', legend=False, xlabel=None, rot=45, ax=ax)
 
-            padding = 5
-            font_size = 'medium'
+                padding = 5
+                font_size = 'medium'
 
-            for c in range(len(features_like)):
-                #c = ax.containers.index(container)
-                ax.bar_label(ax.containers[c], color=features_colors[c % len(features_colors)], labels=[list(features_like.values())[c]]*n_rounds,
-                             fontfamily=self.fonts['plot_emoji'], horizontalalignment='center', padding=padding, size=font_size)
+                for c in range(len(features_like)):
+                    #c = ax.containers.index(container)
+                    ax.bar_label(ax.containers[c], color=features_colors[c % len(features_colors)], labels=[list(features_like.values())[c]]*n_rounds,
+                                 fontfamily=self.fonts['plot_emoji'], horizontalalignment='center', padding=padding, size=font_size)
             
                     
-            self.streamer.status(1/self.plot_counts * (1/3))
+                self.streamer.status(1/self.plot_counts * (1/3))
 
-            padding = 0.05
-            for solo, f in zip(features_solo, range(len(features_solo))):
-                color = features_colors[(len(features_like) + f) % len(features_colors)]
-                features_df.plot(y=solo, color=color, #secondary_y=solo, 
-                                 kind='line', legend=False, ax=ax)
+                padding = 0.05
+                for solo, f in zip(features_solo, range(len(features_solo))):
+                    color = features_colors[(len(features_like) + f) % len(features_colors)]
+                    features_df.plot(y=solo, color=color, #secondary_y=solo, 
+                                     kind='line', legend=False, ax=ax)
             
-                for i in range(n_rounds-1):
-                    y = (features_df[solo][i] + features_df[solo][i+1])/2
-                    padding_multiplier = -1 if y > 0.5 else 1
-                    ax.text(x=i + 0.5, y=y + padding_multiplier * padding, s=features_solo[solo], # y=self.convert_axes(ax, (features_df[solo][i] + features_df[solo][i+1])/2)
-                            size=font_size, color=color, fontfamily=self.fonts['plot_emoji'], horizontalalignment='center') #font=self.emoji_font
+                    for i in range(n_rounds-1):
+                        y = (features_df[solo][i] + features_df[solo][i+1])/2
+                        padding_multiplier = -1 if y > 0.5 else 1
+                        ax.text(x=i + 0.5, y=y + padding_multiplier * padding, s=features_solo[solo], # y=self.convert_axes(ax, (features_df[solo][i] + features_df[solo][i+1])/2)
+                                size=font_size, color=color, fontfamily=self.fonts['plot_emoji'], horizontalalignment='center') #font=self.emoji_font
                 
                         
-            self.streamer.status(1/self.plot_counts * (1/3))
+                self.streamer.status(1/self.plot_counts * (1/3))
 
-            for position in ['top', 'left', 'right']:
-                ax.spines[position].set_visible(False)
+                for position in ['top', 'left', 'right']:
+                    ax.spines[position].set_visible(False)
 
-            ax.set_xticklabels(self.split_labels([t.get_text() for t in ax.get_xticklabels()], n_rounds),
-                               rotation=self.rotate_labels(n_rounds))
-            ax.set_xlabel('') ## None?
-            ax.set_yticklabels([])
-            ax.set_yticks([])
+                ax.set_xticklabels(self.split_labels([t.get_text() for t in ax.get_xticklabels()], n_rounds),
+                                   rotation=self.rotate_labels(n_rounds))
+                ax.set_xlabel('') ## None?
+                ax.set_yticklabels([])
+                ax.set_yticks([])
             
-            parameters = {}
-            self.streamer.store_session_state(plot_key, (ax, parameters))
+                parameters = {}
+
+                self.gclouder.save_item(plot_key, (ax, parameters))
+                self.streamer.store_session_state(plot_key, (ax, parameters))
 
         self.streamer.pyplot(ax.figure, header=title, #in_expander=fig.get_size_inches()[1] > 6,
                              tooltip=self.library.get_tooltip('features', parameters=parameters), tab=tab)
@@ -1089,9 +1138,11 @@ class Plotter(Streamable):
 
         return z_
 
+
+    # word cloud
     def plot_tags(self, league_id, genres_df, exclusives_df, tags_df, mask_bytes, title=None, tab=None):
-        # word cloud
-        plot_key = (league_id, 'tags_ax', self.view_player)
+        ''' place most used tags '''
+        plot_key = ('tags_ax', league_id, self.view_player)
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
             wordcloud_image, parameters = stored
@@ -1138,37 +1189,51 @@ class Plotter(Streamable):
         
         return color
 
+
+    # pie chart
     def plot_pie(self, league_id, categories_df, title=None, tab=None):
-        # pie chart
-        plot_key = (league_id, 'categories_ax', self.view_player)
+        ''' place most common music categories '''
+        plot_key = ('categories_ax', league_id, self.view_player)
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
+            # look for a session stored league graph
             ax, parameters = stored
             self.streamer.status(1/self.plot_counts)
             
         else:
-            self.streamer.status(1/self.plot_counts * (1/2))
-            self.streamer.print('\t...categories', base=False)
-            fig = plt.figure()
-            ax = fig.add_axes([1, 1, 1, 1]) 
+            if self.gclouder.find_item(plot_key):
+                # look for a local stored league graph
+                ax, parameters = self.gclouder.load_item(plot_key)
 
-            ax.pie(categories_df['occurances'], labels=categories_df['category'],
-               colors=self.paintbrush.get_plot_colors()) #autopct='%1f%%', 
-            ax.axis('equal')
+            else:
+                # create the league graph
+                self.streamer.status(1/self.plot_counts * (1/2))
+                self.streamer.print('\t...categories', base=False)
+                fig = plt.figure()
+                ax = fig.add_axes([1, 1, 1, 1]) 
+
+                ax.pie(categories_df['occurances'], labels=categories_df['category'],
+                   colors=self.paintbrush.get_plot_colors()) #autopct='%1f%%', 
+                ax.axis('equal')
             
-            self.streamer.status(1/self.plot_counts * (1/2))
+                self.streamer.status(1/self.plot_counts * (1/2))
 
-            parameters = None
-            self.streamer.store_session_state(plot_key, (ax, parameters))
+                parameters = None
+
+                self.gclouder.save_item(plot_key, (ax, parameters))
+                self.streamer.store_session_state(plot_key, (ax, parameters))
 
         self.streamer.pyplot(ax.figure, header=title,
                              tooltip=self.library.get_tooltip('pie', parameters=parameters), tab=tab)
 
         plt.close()
     
+
+    # top songs summary
     def plot_top_songs_summary(self, league_id, results_df, descriptions_df, max_years=10, base=500):
+        ''' '''
         self.streamer.print('\t...songs', base=False)
-        plot_key = (league_id, 'top_songs_ax')
+        plot_key = ('top_songs_summary_ax', league_id)
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
             round_ids, n_rounds, n_years, years_range, max_date, \
@@ -1233,14 +1298,16 @@ class Plotter(Streamable):
         self.streamer.wrapper(header=None,
                                 tooltip=self.library.get_tooltip('top_songs', parameters=parameters))
                 
+    # top songs
     def plot_top_songs(self, league_id, tab=None):
-        plot_key = (league_id, 'top_songs_ax')
+        ''' '''
+        plot_key = ('top_songs_ax', league_id)
         stored, _ = self.streamer.get_session_state(plot_key)
         round_ids, n_rounds, n_years, years_range, max_date, \
             text_df, W, H, x0, x1, base, descriptions_df, _ = stored
 
         for r in round_ids:
-            plot_key_i = (league_id, 'top_songs_ax', r)
+            plot_key_i = ('top_songs_ax', league_id, r)
             stored, ok = self.streamer.get_session_state(plot_key_i)
             if ok:
                 ax, parameters_i = stored
@@ -1293,7 +1360,7 @@ class Plotter(Streamable):
 
     def plot_hoarding(self, league_id, awards_round_df, awards_league_df, title=None, tab=None):
         ''' plot votes shares '''
-        plot_key = (league_id, 'hoarding_ax', self.view_player)
+        plot_key = ('hoarding_ax', league_id, self.view_player)
         stored, ok = self.streamer.get_session_state(plot_key)
         if False: #ok:
             ax, parameters = stored

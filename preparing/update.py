@@ -1,8 +1,9 @@
 ''' Getting data from and pushing data to MusicLeague and updating playlists  '''
 
 from common.words import Texter
-from preparing.extract import Stripper, Scraper
 from common.calling import Recorder
+from display.storage import Pickler
+from preparing.extract import Stripper, Scraper
 from preparing.audio import Spotter, FMer, Wikier
 
 class Updater:
@@ -11,6 +12,7 @@ class Updater:
         self.scraper = Scraper()
         self.stripper = Stripper()
         self.texter = Texter()
+        self.pickler = Pickler()
 
     def update_musicleague(self, league_ids=None):
         print('Updating database')
@@ -33,8 +35,10 @@ class Updater:
             
             # get information from league page
             self.update_league(league_id) 
-
             self.update_creators(league_id)
+
+            # remove stored graphs
+            self.pickler.clear_items(league_id)
 
         # update all competitions
         self.update_competitions()

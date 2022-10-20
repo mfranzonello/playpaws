@@ -155,12 +155,12 @@ class Gallery(Imager):
 
                 except UnidentifiedImageError:
                     # image is unloadable
-                    self.streamer.print(f'...unable to read image for {player_name}', base=False)
+                    self.streamer.print(f'\t\t...unable to read image for {player_name}', base=False)
                     image = None
 
                 except HTTPError:
                     #  image is unreachable
-                    self.streamer.print(f'...image is expired for {player_name}', base=False)
+                    self.streamer.print(f'\t\t...image is expired for {player_name}', base=False)
                     self.database.flag_player_image(player_id)
                     image = None
 

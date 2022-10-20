@@ -12,15 +12,18 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
+#from webdriver_manager.chrome import ChromeDriverManager
 
-from common.secret import get_secret, set_secret
+from common.calling import Caller
+from common.secret import get_secret, set_secret, list_secrets
 from common.locations import GITHUB_URL, APP_URL
 
-class Lockbox:
+class Lockbox(Caller):
     def __init__(self):
-        self.repository_id = get_secret('GITHUB_REPOSITORY_ID')
-        self.environment_name = get_secret('GITHUB_ENVIRONMENT_NAME')
+        super().__init__()
+
+        self.repository_id = get_secret('GITHUB_REPOSITORY_ID') ## should this be a location?
+        self.environment_name = get_secret('GITHUB_ENVIRONMENT_NAME') ## should this be a location?
         self.token = get_secret('GITHUB_TOKEN')
 
     def get_headers(self):
@@ -32,19 +35,7 @@ class Lockbox:
 
     def call_api(self, url, method, jason=None):
         ''' communicate with GitHub '''
-        r_method = {'get': requests.get,
-                    'post': requests.post,
-                    'put': requests.put}[method]
-
-        response = r_method(url, headers=self.get_headers(), json=jason)
-
-        if response.ok:
-            content = response.content
-            jason = response.json() if len(content) and response.headers.get('Content-Type').startswith('application/json') else None
-
-        else:
-            content = None
-            jason = None
+        content, jason = self.invoke_api(url, method, headers=self.get_headers(), json=jason)
 
         return content, jason
 
@@ -87,6 +78,22 @@ class Lockbox:
                  'key_id': public_key_id}
 
         self.call_api(url, 'put', jason=jason)
+
+    def get_secret(self, secret_name):
+        ''' get secret details (but not encrypted value) '''
+        url = (f'{GITHUB_URL}/repositories/{self.repository_id}/'
+               f'environments/{self.environment_name}/secrets/{secret_name}')
+
+        _, secret = self.call_api(url, 'get')
+
+        return secret
+
+    def update_secrets(self):
+        ''' update all new .env secrets in GitHub '''
+        local_secrets = list_secrets()
+        for secret_name in local_secrets:
+            if not self.get_secret(secret_name):
+                self.store_secret(secret_name, local_secrets[secret_name])
 
 class Baker:
     def __init__(self):

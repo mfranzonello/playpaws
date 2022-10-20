@@ -6,8 +6,7 @@ from sqlalchemy.exc import OperationalError
 from pandas import DataFrame, Series, read_sql
 
 from common.secret import get_secret
-from common.words import Quoter
-from common.calling import Caller
+from common.calling import Caller, Quoter
 from common.locations import BITIO_URL, BITIO_HOST
 from display.streaming import Streamable, cache
 
@@ -41,7 +40,7 @@ class Database(Streamable, Caller):
         
         self.add_streamer(streamer)
         
-        self.streamer.print(f'Connecting to database {self.db}...')
+        self.streamer.print(f'Connecting to database {self.db}...', end='')
         self.connection_type = connection_type
 
         self.engineer = None
@@ -55,7 +54,7 @@ class Database(Streamable, Caller):
                             'Accept': 'application/json',
                             'Content-Type': 'application/json'}
 
-        self.streamer.print(f'\t...success!')
+        self.streamer.print(f'...success!')
         
         self.quoter = Quoter()
              
@@ -940,3 +939,11 @@ class Database(Streamable, Caller):
         emoji = {t1: e for e, t1, _ in emojis_df.dropna(subset=['single']).values}
         emojis = {e: t2 for e, _, t2 in emojis_df.dropna(subset=['multiple']).values}
         return emoji, emojis
+
+    def get_update(self, update_name):
+        updates_df = self.get_table('updates', update_name=update_name)
+
+        return updates_df['update_time'].iloc[0]
+
+    def store_update(self, update_name, update_time):
+        self.upsert_table('updates', DataFrame([[update_name, update_time]], columns=['update_name', 'update_time']))

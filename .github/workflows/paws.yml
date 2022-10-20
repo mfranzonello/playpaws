@@ -41,12 +41,8 @@ jobs:
     #    pytest
     - name: Update database and outputs      
       env:
-        BITIO_ADD_ON: ${{ secrets.BITIO_ADD_ON }}
         BITIO_DBNAME: ${{ secrets.BITIO_DBNAME }}
-        BITIO_HOST: ${{ secrets.BITIO_HOST }}
-        BITIO_LANGUAGE: ${{ secrets.BITO_LANGUAGE }}
         BITIO_PASSWORD: ${{ secrets.BITIO_PASSWORD }}
-        BITIO_STRING: ${{ secrets.BITIO_STRING }}
         BITIO_USERNAME: ${{ secrets.BITIO_USERNAME }}
 
         DROPBOX_APP_KEY: ${{ secrets.DROPBOX_APP_KEY }}
@@ -65,6 +61,20 @@ jobs:
         GCP_API_KEY: ${{ secrets.GCP_API_KEY }}
         GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
         GCP_PROJECT_CX: ${{ secrets.GCP_PROJECT_CX }}
+
+        GCP_I_API_KEY: ${{ secrets.GCP_I_API_KEY }}
+        GCP_I_PROJECT_ID: ${{ secrets.GCP_I_PROJECT_ID }}
+        GCP_I_PROJECT_CX: ${{ secrets.GCP_I_PROJECT_CX }}
+
+        GCP_M_CLIENT_ID: ${{ secrets.GCP_M_CLIENT_ID }}
+        GCP_M_CLIENT_SECRET: ${{ secrets.GCP_M_CLIENT_SECRET }}
+        GCP_M_REFRESH_TOKEN: ${{ secrets.GCP_M_REFRESH_TOKEN }}
+
+        GCP_S_PROJECT_ID: ${{ secrets.GCP_S_PROJECT_ID }}
+        GCP_S_ACCOUNT_NAME: ${{ secrets.GCP_S_ACCOUNT_NAME }}
+        GCP_S_PRIVATE_KEY_ID: ${{ secrets.GCP_S_PRIVATE_KEY_ID }}
+        GCP_S_PRIVATE_KEY: ${{ secrets.GCP_S_PRIVATE_KEY }}
+        GCP_S_CLIENT_ID: ${{ secrets.GCP_S_CLIENT_ID }}
 
         ML_COOKIE_NAME: ${{ secrets.ML_COOKIE_NAME }}
         ML_COOKIE_VALUE: ${{ secrets.ML_COOKIE_VALUE }}

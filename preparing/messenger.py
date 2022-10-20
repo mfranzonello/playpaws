@@ -14,7 +14,7 @@ from common.calling import Caller
 from common.words import Texter
 from common.calling import Recorder
 
-class Mailer(Caller):
+class GMailer(Caller):
     complete_phrase = 'The Votes Are In'
 
     def __init__(self, database, alias=None):
@@ -43,9 +43,9 @@ class Mailer(Caller):
                  'Accept': 'application/json'}
 
         payload = {'grant_type': 'refresh_token',
-                   'client_id': get_secret('GCP_CLIENT_ID'),
-                   'client_secret': get_secret('GCP_CLIENT_SECRET'),
-                   'refresh_token': get_secret('GCP_REFRESH_TOKEN')}
+                   'client_id': get_secret('GCP_M_CLIENT_ID'),
+                   'client_secret': get_secret('GCP_M_CLIENT_SECRET'),
+                   'refresh_token': get_secret('GCP_M_REFRESH_TOKEN')}
 
         token_info = self.get_token(url, headers=headers, data=payload)
 

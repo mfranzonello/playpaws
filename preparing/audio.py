@@ -18,7 +18,7 @@ from common.words import Texter
 from common.locations import MOSAIC_URL, SPOTIFY_AUTH_URL, SPOTIFY_REDIRECT, LASTFM_URL, WIKI_URL
 from common.calling import Caller
 from display.media import Gallery, Byter
-from display.storage import Boxer, Googler
+from display.storage import Boxer, GImager
 from display.streaming import Streamable
 
 class Spotter(Streamable, Caller):
@@ -41,7 +41,7 @@ class Spotter(Streamable, Caller):
         self.texter = Texter()
         self.byter = Byter()
         self.boxer = Boxer()
-        self.googler = Googler()
+        self.gimager = GImager()
         self.add_streamer(streamer)
 
     def connect_to_spotify(self, auth=False):
@@ -133,7 +133,7 @@ class Spotter(Streamable, Caller):
 
         elif name:
             # get first result from Google
-            src = self.googler.get_image_src(name)
+            src = self.gimager.get_image_src(name)
 
         else:
             # return null

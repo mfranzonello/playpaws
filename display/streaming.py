@@ -183,7 +183,7 @@ class Streamer:
             else:
                 self.in_expander(in_expander, st.image, image)
         
-    def print(self, text, base=True):
+    def print(self, text, base=True, end=None):
         if self.deployed:
             if base:
                 self.base_text = text
@@ -195,7 +195,7 @@ class Streamer:
             self.text_print.write(new_text)
 
         # print to cmd
-        print(text)
+        print(text, end=end)
 
     def clear_printer(self):
         self.text_print.write('')

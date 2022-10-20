@@ -2,13 +2,13 @@
 
 import display.printing
 from common.data import Database
-from preparing.messenger import Mailer
+from preparing.messenger import GMailer
 from preparing.update import Updater, Musician
 from crunching.analyze import Analyzer
 
-def check_for_updates(mailer):
+def check_for_updates(gmailer):
     ''' look at gmail for notifications '''
-    league_ids = mailer.check_mail()
+    league_ids = gmailer.check_mail()
     return league_ids
 
 def update_web_data(database, league_ids=None):
@@ -33,17 +33,17 @@ def output_playlists(database):
     musician = Musician(database)
     musician.output_playlists()
 
-def close_out(mailer):
+def close_out(gmailer):
     ''' don't need to check mail again ''' 
-    mailer.mark_as_read()
+    gmailer.mark_as_read()
 
 def main():
     # prepare database
     database = Database()
     
     # check messages
-    mailer = Mailer(database)
-    league_ids = check_for_updates(mailer)
+    gmailer = GMailer(database)
+    league_ids = check_for_updates(gmailer)
 
     # update database and playlists with new data
     if league_ids:
@@ -57,7 +57,7 @@ def main():
         output_playlists(database)
 
         # mark as complete
-        close_out(mailer)
+        close_out(gmailer)
 
     # place data from rounds
     place_data(database)

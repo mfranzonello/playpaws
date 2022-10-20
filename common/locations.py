@@ -10,6 +10,7 @@ LASTFM_URL = 'http://ws.audioscrobbler.com'
 WIKI_URL = 'https://en.wikipedia.org'
 BITIO_URL = 'https://api.bit.io'
 GCP_AUTH_URL = 'https://accounts.google.com'
+GCP_APIS_URL = 'https://www.googleapis.com'
 
 # hosts
 BITIO_HOST = 'db.bit.io'

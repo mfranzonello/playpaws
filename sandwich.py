@@ -2,6 +2,10 @@
 
 from preparing.security import Lockbox, Baker, Selena
 
+def update_secrets():
+    lockbox = Lockbox()
+    lockbox.update_secrets()
+
 def update_cookies():
     lockbox = Lockbox()
     baker = Baker()
@@ -20,6 +24,7 @@ def update_cookies():
     baker.reset_cookies(lockbox)
 
 def main():
+    update_secrets()
     update_cookies()
 
 if __name__ == '__main__':

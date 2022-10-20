@@ -17,7 +17,7 @@ def end_competitions():
     pass
         
 def main():
-    reopen_all()
+    update_secrets()
 
 if __name__ == '__main__':
     main()
