@@ -77,22 +77,11 @@ class Recorder:
     def get_time(self, item):
         dt = self.database.get_update(item)
 
-        ##with open(self.jasons['mail'], 'r+') as f:
-        ##    j = json.load(f)
-        ##    dt = datetime.fromisoformat(j[item])
-            
         return dt
 
     def set_time(self, item):
         self.database.store_update(item, datetime.now())
-
-        ##with open(self.jasons['mail'], 'r+') as f:
-        ##    j  = json.load(f)
-        ##    j[item] = datetime.now().isoformat()
-        ##    f.seek(0)
-        ##    json.dump(j, f)
-        ##    f.truncate()
-        
+      
     def get_reopens(self):
         with open(self.jasons['reopen'], 'r+') as f:
             reopens  = json.load(f)

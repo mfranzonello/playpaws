@@ -24,10 +24,10 @@ class GMailer(Caller):
 
         token_info = self.refresh_token()
         info = {'token': token_info['access_token'],
-                'refresh_token': get_secret('GCP_REFRESH_TOKEN'),
+                'refresh_token': get_secret('GCP_M_REFRESH_TOKEN'),
                 'token_uri': GCP_TOKEN_URI,
-                'client_id': get_secret('GCP_CLIENT_ID'),
-                'client_secret': get_secret('GCP_CLIENT_SECRET'),
+                'client_id': get_secret('GCP_M_CLIENT_ID'),
+                'client_secret': get_secret('GCP_M_CLIENT_SECRET'),
                 'scopes': [token_info['scope']],
                 'expiry': token_info['expiry']}
         self.credentials = Credentials.from_authorized_user_info(info)

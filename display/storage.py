@@ -142,6 +142,12 @@ class GClouder(Caller):
     def find_item(self, plot_key):
         return self.find_blob(self.bucket_name, self.get_blob_name(plot_key))
 
+    def get_item(self, plot_key):
+        ok = self.find_item(plot_key)
+        stored = self.load_item(plot_key) if ok else None
+
+        return stored, ok
+
     def clear_items(self, partial_key):
         self.clear_blobs(self.bucket_name, self.get_blob_name(partial_key))
 
@@ -208,3 +214,24 @@ class GClouder(Caller):
             blob_name = '/'.join(plot_key)
 
         return blob_name
+
+class Closet:
+    ''' store and retrieve items from session state or cloud '''
+    def __init__(self, streamer, gclouder=None):
+        self.streamer = streamer
+        self.gclouder = gclouder if gclouder else GClouder()
+
+    def get_items(self, plot_key):
+        ''' check session and cloud for a stored item '''
+        stored, ok = self.streamer.get_session_state(plot_key)
+        if (not ok) and (self.gclouder is not None):
+            stored, ok = self.gclouder.get_item(plot_key)
+        
+        return stored, ok
+
+    def store_items(self, plot_key, to_store, session=True, cloud=True):
+        ''' store an item in session and cloud '''
+        if (cloud) and (self.gclouder is not None):
+            self.gclouder.save_item(plot_key, to_store)
+        if session:
+            self.streamer.store_session_state(plot_key, to_store)

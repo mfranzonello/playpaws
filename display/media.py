@@ -8,6 +8,7 @@ from io import BytesIO
 from PIL import Image, ImageDraw, ImageOps, UnidentifiedImageError
 
 from display.streaming import Streamer
+from display.storage import Closet
 
 class Byter:
     def __init__(self):
@@ -23,7 +24,7 @@ class Byter:
 
     def byte_me(self, image_src, extension='JPEG', size=(300, 300),
                 overlay=None, overlay_pct=0.5):
-        """Convert image and overlay to bytes object"""
+        '''Convert image and overlay to bytes object'''
         # check image source type
         if isinstance(image_src, str):
             image = Image.open(urlopen(image_src))
@@ -114,6 +115,7 @@ class Gallery(Imager):
         super().__init__()
         self.database = database
         self.streamer = streamer if streamer else Streamer(deployed=False)
+        self.closet = Closet(self.streamer)
 
         self.players_df = self.database.get_players()
 
@@ -134,7 +136,7 @@ class Gallery(Imager):
    
     def download_image(self, player_id):
         image_key = ('gallery', player_id)
-        image, ok = self.streamer.get_session_state(image_key)
+        image, ok = self.closet.get_items(image_key)
         if not ok:
             player_name = self.database.get_player_name(player_id)
             self.streamer.print(f'\t...downloading image for {player_name}', base=False)
@@ -167,6 +169,9 @@ class Gallery(Imager):
             else:
                 # no Spotify profile image exists
                 image = None
+
+            # store image in session and cloud
+            self.closet.store_items(image_key, image, cloud=image is not None)
 
         # store in images dictionary
         self.images[player_id] = image
