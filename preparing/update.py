@@ -121,7 +121,7 @@ class Extender:
         self.database = database
         self.scraper = Scraper()
         self.stripper = Stripper()
-        self.recorder = Recorder()
+        self.recorder = Recorder(database)
 
     def update_deadlines(self, league_id, round_id, status, days=0, hours=0):
         ''' move out deadlines for a round '''

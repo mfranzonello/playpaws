@@ -34,7 +34,7 @@ class GMailer(Caller):
 
         self.user_id = self.get_user_id(alias)
         self.texter = Texter()
-        self.recorder = Recorder()
+        self.recorder = Recorder(database)
 
     def refresh_token(self):
         ''' refresh GCP token '''
