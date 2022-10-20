@@ -1425,3 +1425,7 @@ class Plotter(Streamable):
 
     def reduce_angle(self, angle):
         return angle % (2*pi)
+
+
+class Placer:
+    pass

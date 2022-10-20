@@ -204,6 +204,8 @@ class GClouder(Caller):
         found = blob_name in [blob.name for blob in self.list_blobs(bucket_name)]
         print(f'...{"found" if found else "not found"}!')
 
+        return found
+
     def store_blob(self, bucket_name, blob_name, contents):
         ''' store blob contents '''
         print(f'\t...storing {bucket_name}/{blob_name}', end='')
