@@ -1,8 +1,9 @@
 ''' Personal account variables '''
 
 import json
+from os.path import dirname, realpath
 
-with open('./jsons/structure.json') as f:
+with open(dirname(dirname(realpath(__file__))) + '/jsons/structure.json') as f:
     json_dict = json.load(f)
 
 BITIO_USERNAME = json_dict['BITIO_USERNAME']

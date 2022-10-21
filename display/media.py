@@ -135,7 +135,7 @@ class Gallery(Imager):
         self.images[player_id] = image
    
     def download_image(self, player_id):
-        image_key = ('gallery_img', player_id)
+        image_key = self.closet.get_key('gallery_img', player_id=player_id)
         image, ok = self.closet.get_items(image_key)
         if not ok:
             player_name = self.database.get_player_name(player_id)

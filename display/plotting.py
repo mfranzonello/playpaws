@@ -199,7 +199,7 @@ class Plotter(Streamable):
                 league_id = self.blank_league
 
             if league_id == self.blank_league:
-                self.plot_try(self.plot_viewer)
+                self.plot_try(self.plot_viewer, exception=None)
 
                 if self.view_player != self.god_player:
                     self.plot_try(self.plot_caption)
@@ -342,7 +342,7 @@ class Plotter(Streamable):
                               title=hoarding_title, tab=league_tab)
 
                 # plot league pulse
-                self.plot_try(self.plot_mappings, #exception=None,
+                self.plot_try(self.plot_mappings, exception=None,
                               league_id=league_id, mappings_df=mappings_df,
                               title=members_title, tab=league_tab)
                     
@@ -435,7 +435,7 @@ class Plotter(Streamable):
 
     # plot viewer and badge
     def plot_viewer(self, league_id=None, badge=None, badge2=None):
-        plot_key = ('viewer_img', league_id if league_id else '<blank>', self.view_player)
+        plot_key = self.closet.get_key('viewer_img', league_id=league_id, player_id=self.view_player)
         stored, ok = self.closet.get_items(plot_key)
 
         if ok:
@@ -534,7 +534,7 @@ class Plotter(Streamable):
 
     # plot player relationships
     def plot_mappings(self, league_id, mappings_df, title=None, tab=None):
-        plot_key = ('members_ax', league_id)
+        plot_key = self.closet.get_key('members_ax', league_id=league_id)
         stored, ok = self.closet.get_items(plot_key)
         self.streamer.status(1/self.plot_counts)
 
@@ -698,7 +698,7 @@ class Plotter(Streamable):
     def get_scatter_sizes(self, mappings_df, n_players):
         scale = max(1, 2/(n_players+1)) # scale nodes relative to number of players
         
-        sizes = (mappings_df['wins'].sub(df['wins'].min()).mul(1-scale)\
+        sizes = (mappings_df['wins'].sub(mappings_df['wins'].min()).mul(1-scale)\
             .div(mappings_df['wins'].max()-mappings_df['wins'].min())+scale)\
             .mul(10).add(1).mul(self.marker_sizing)
 
@@ -709,7 +709,7 @@ class Plotter(Streamable):
     def plot_boards(self, league_id, boards_df, creators_winners_df, competitions_df,
                     title=None, tab=None):
         ''' place player rankings '''
-        plot_key = ('boards_ax', league_id, self.view_player)
+        plot_key = self.closet.get_key('boards_ax', league_id=league_id, player_id=self.view_player)
         stored, ok = self.closet.get_items(plot_key)
 
         if ok:
@@ -718,7 +718,7 @@ class Plotter(Streamable):
             self.streamer.status(1/self.plot_counts)
             
         else:
-            plot_key_2 = ('boards_ax', league_id)
+            plot_key_2 = self.closet.get_key('boards_ax', league_id=league_id)
             stored, ok = self.closet.get_items(plot_key_2)
             if ok:
                 # look for a session league graph
@@ -895,7 +895,7 @@ class Plotter(Streamable):
     # scores graph
     def plot_scores(self, league_id, rankings_df, awards_league_df, title=None, tab=None):
         ''' place round scores and league awards '''
-        plot_key = ('scores_ax', league_id, self.view_player)
+        plot_key = self.closet.get_key('scores_ax', league_id=league_id, player_id=self.view_player)
         stored, ok = self.closet.get_items(plot_key)
         if ok:
             # look for a session stored player graph
@@ -904,7 +904,7 @@ class Plotter(Streamable):
             
         else:
             # look for a stored league graph
-            plot_key_2 = ('scores_ax', league_id)
+            plot_key_2 = self.closet.get_key('scores_ax', league_id=league_id)
             stored, ok = self.closet.get_items(plot_key_2)
 
             if ok:
@@ -1030,7 +1030,7 @@ class Plotter(Streamable):
     # audio features
     def plot_features(self, league_id, features_df, title=None, tab=None):
         ''' place audio features per round '''
-        plot_key = ('features_ax', league_id)
+        plot_key = self.closet.get_key('features_ax', league_id=league_id)
         stored, ok = self.closet.get_items(plot_key)
         if ok:
             # look for a stored league graph
@@ -1104,7 +1104,7 @@ class Plotter(Streamable):
             
             parameters = {}
 
-            self.store_items(plot_key, (ax, parameters))
+            self.closet.store_items(plot_key, (ax, parameters))
 
         self.streamer.pyplot(ax.figure, header=title,
                              tooltip=self.library.get_tooltip('features', parameters=parameters), tab=tab)
@@ -1127,7 +1127,7 @@ class Plotter(Streamable):
     # word cloud
     def plot_tags(self, league_id, genres_df, exclusives_df, tags_df, mask_bytes, title=None, tab=None):
         ''' place most used tags '''
-        plot_key = ('tags_ax', league_id, self.view_player)
+        plot_key = self.closet.get_key('tags_ax', league_id=league_id, player_id=self.view_player)
         stored, ok = self.closet.get_items(plot_key)
         if ok:
             # look for stored player cloud
@@ -1135,7 +1135,7 @@ class Plotter(Streamable):
             self.streamer.status(1/self.plot_counts)
             
         else:
-            plot_key_2 = ('tags_ax', league_id)
+            plot_key_2 = self.closet.get_key('tags_ax', league_id=league_id)
             stored, ok = self.closet.get_items(plot_key_2)
             if ok:
                 # look for stored league cloud
@@ -1145,12 +1145,12 @@ class Plotter(Streamable):
                 self.streamer.status(1/self.plot_counts * (1/2))
                 self.streamer.print('\t...genres', base=False)
 
-                text, text_ex = self.get_wordcloud_text(genres_df, tags_df, exclusives_df)
+                text, text_ex = self.get_wordcloud_text(genres_df, exclusives_df)
                 wordcloud = self.generate_wordcloud(text, mask_bytes)
 
                 self.closet.store_items(plot_key_2, (wordcloud, text, text_ex))
 
-            wordcloud_image = self.draw_wordcloud(wordcloud)
+            wordcloud_image = self.draw_wordcloud(wordcloud, tags_df)
         
             self.streamer.status(1/self.plot_counts * (1/2))
 
@@ -1160,15 +1160,14 @@ class Plotter(Streamable):
             if self.view_player != self.god_player:
                 parameters['exclusives'] = [t[0] for t in text_ex.most_common(3)]
 
-            self.store_items(plot_key, (wordcloud_image, parameters), cloud=False)
+            self.closet.store_items(plot_key, (wordcloud_image, parameters), cloud=False)
 
         self.streamer.image(wordcloud_image, header=title,
                             tooltip=self.library.get_tooltip('tags', parameters=parameters), tab=tab)
 
-    def get_wordcloud_text(self, genres_df, tags_df, exclusives_df):
+    def get_wordcloud_text(self, genres_df, exclusives_df):
         text = Counter(genres_df.groupby('genre')['occurances'].sum().to_dict())
         text_ex = Counter(exclusives_df.groupby('genre')['occurances'].sum().to_dict())
-        self.player_tags = tags_df['genre'].to_list() if self.view_player != self.god_player else []
 
         return text, text_ex
 
@@ -1179,7 +1178,8 @@ class Plotter(Streamable):
         
         return wordcloud
 
-    def draw_wordcloud(self, wordcloud):
+    def draw_wordcloud(self, wordcloud, tags_df):
+        self.player_tags = tags_df['genre'].to_list() if self.view_player != self.god_player else []
         wordcloud_image = wordcloud.recolor(color_func=self.word_color).to_array()
 
         return wordcloud_image
@@ -1193,7 +1193,7 @@ class Plotter(Streamable):
     # pie chart
     def plot_pie(self, league_id, categories_df, title=None, tab=None):
         ''' place most common music categories '''
-        plot_key = ('categories_ax', league_id, self.view_player)
+        plot_key = self.closet.get_key('categories_ax', league_id=league_id, player_id=self.view_player)
         stored, ok = self.closet.get_items(plot_key)
         if ok:
             # look for a stored league graph
@@ -1227,7 +1227,7 @@ class Plotter(Streamable):
     def plot_top_songs_summary(self, league_id, results_df, descriptions_df, max_years=10, base=500):
         ''' '''
         self.streamer.print('\t...songs', base=False)
-        plot_key = ('top_songs_ax', league_id)
+        plot_key = self.closet.get_key('top_songs_ax', league_id=league_id)
         stored, ok = self.streamer.get_session_state(plot_key)
         if ok:
             round_ids, n_rounds, n_years, years_range, max_date, \
@@ -1294,13 +1294,13 @@ class Plotter(Streamable):
     # top songs
     def plot_top_songs(self, league_id, tab=None):
         ''' '''
-        plot_key = ('top_songs_ax', league_id)
+        plot_key = self.closet.get_key('top_songs_ax', league_id=league_id)
         stored, _ = self.streamer.get_session_state(plot_key)
         round_ids, n_rounds, n_years, years_range, max_date, \
             text_df, W, H, x0, x1, base, descriptions_df, _ = stored
 
         for r in round_ids:
-            plot_key_i = ('top_songs_ax', league_id, r)
+            plot_key_i = self.closet.get_key('top_songs_ax', league_id=league_id, round_id=r)
             stored, ok = self.streamer.get_session_state(plot_key_i)
             if ok:
                 ax, base_image, parameters_i = stored
@@ -1359,7 +1359,7 @@ class Plotter(Streamable):
 
     def plot_hoarding(self, league_id, awards_round_df, awards_league_df, title=None, tab=None):
         ''' plot votes shares '''
-        plot_key = ('hoarding_ax', league_id, self.view_player)
+        plot_key = self.closet.get_key('hoarding_ax', league_id=league_id, player_id=self.view_player)
         stored, ok = self.streamer.get_session_state(plot_key)
         if False: #ok:
             ax, parameters = stored

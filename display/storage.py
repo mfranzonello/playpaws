@@ -134,23 +134,23 @@ class GClouder(Caller):
         self.bucket_name = bucket_name
 
     # pickling actions
-    def save_item(self, plot_key, item):
-        self.store_blob(self.bucket_name, self.get_blob_name(plot_key), item)
+    def save_item(self, key, item):
+        self.store_blob(self.bucket_name, key, item)
 
-    def load_item(self, plot_key):
-        return self.get_blob(self.bucket_name, self.get_blob_name(plot_key))
+    def load_item(self, key):
+        return self.get_blob(self.bucket_name, key)
 
-    def find_item(self, plot_key):
-        return self.find_blob(self.bucket_name, self.get_blob_name(plot_key))
+    def find_item(self, key):
+        return self.find_blob(self.bucket_name, key)
 
-    def get_item(self, plot_key):
-        ok = self.find_item(plot_key)
-        stored = self.load_item(plot_key) if ok else None
+    def get_item(self, key):
+        ok = self.find_item(key)
+        stored = self.load_item(key) if ok else None
 
         return stored, ok
 
-    def clear_items(self, partial_key):
-        self.clear_blobs(self.bucket_name, self.get_blob_name(partial_key))
+    def clear_items(self, key):
+        self.clear_blobs(self.bucket_name, key)
 
     # google cloud interactions
     def get_bucket(self, bucket_name):
@@ -207,32 +207,35 @@ class GClouder(Caller):
         remove_blobs = [blob for blob in blobs if f'/{partial_blob_name}' in blob.name]
         bucket.delete_blobs(remove_blobs)
         
-    def get_blob_name(self, plot_key):
-        ''' change key name to filename '''
-        if isinstance(plot_key, str):
-            blob_name = plot_key
-        elif isinstance(plot_key, tuple):
-            blob_name = '/'.join(plot_key)
-
-        return blob_name
-
 class Closet:
     ''' store and retrieve items from session state or cloud '''
     def __init__(self, streamer, gclouder=None):
         self.streamer = streamer
         self.gclouder = gclouder if gclouder else GClouder()
 
-    def get_items(self, plot_key):
+    def get_items(self, key):
         ''' check session and cloud for a stored item '''
-        stored, ok = self.streamer.get_session_state(plot_key)
+        stored, ok = self.streamer.get_session_state(self.get_session_key(key))
         if (not ok) and (self.gclouder is not None):
-            stored, ok = self.gclouder.get_item(plot_key)
+            stored, ok = self.gclouder.get_item(self.get_cloud_key(key))
         
         return stored, ok
 
-    def store_items(self, plot_key, to_store, session=True, cloud=True):
+    def store_items(self, key, to_store, session=True, cloud=True):
         ''' store an item in session and cloud '''
         if (cloud) and (self.gclouder is not None):
-            self.gclouder.save_item(plot_key, to_store)
+            self.gclouder.save_item(self.get_cloud_key(key), to_store)
         if session:
-            self.streamer.store_session_state(plot_key, to_store)
+            self.streamer.store_session_state(self.get_session_key(key), to_store)
+
+    def get_key(self, category, **kwargs):
+        key = {'category': category}
+        key.update(kwargs)
+
+        return key
+
+    def get_session_key(self, key):
+        return tuple(key.values())
+
+    def get_cloud_key(self, key):
+        return '/'.join('/'.join([k, key[k]]) for k in key if key[k])[len('category/'):]
