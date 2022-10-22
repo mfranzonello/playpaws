@@ -948,3 +948,18 @@ class Database(Streamable, Caller):
 
     def store_update(self, update_name, update_time):
         self.upsert_table('updates', DataFrame([[update_name, update_time]], columns=['update_name', 'update_time']))
+
+    def get_plot_names():
+        ''' return mapping of id to names '''
+        plot_names = {'player': self.get_table('players')[['player_id', 'player_name']],
+                      'league': self.get_table('leagues')[['league_id', 'league_name']],
+                      'round': self.get_table('rounds')[['league_id', 'round_id', 'round_name']],
+                      'competition': self.get_table('competitions')[['league_id', 'competition_id', 'competition_name']],
+                      }
+        
+        return plot_names
+
+    def get_plot_combinations():
+        ''' return possible combinations needed for plotting '''
+        plot_combinations = self.get_table('plot_combinations')
+        return plot_combinations

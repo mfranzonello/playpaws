@@ -209,13 +209,16 @@ class GClouder(Caller):
         
 class Closet:
     ''' store and retrieve items from session state or cloud '''
-    def __init__(self, streamer, gclouder=None):
+    def __init__(self, streamer=None, gclouder=None):
         self.streamer = streamer
         self.gclouder = gclouder if gclouder else GClouder()
 
     def get_items(self, key):
         ''' check session and cloud for a stored item '''
-        stored, ok = self.streamer.get_session_state(self.get_session_key(key))
+        stored = None
+        ok = False
+        if (not ok) and (self.streamer is not None):
+            stored, ok = self.streamer.get_session_state(self.get_session_key(key))
         if (not ok) and (self.gclouder is not None):
             stored, ok = self.gclouder.get_item(self.get_cloud_key(key))
         
@@ -225,7 +228,7 @@ class Closet:
         ''' store an item in session and cloud '''
         if (cloud) and (self.gclouder is not None):
             self.gclouder.save_item(self.get_cloud_key(key), to_store)
-        if session:
+        if (session) and (self.streamer is not None):
             self.streamer.store_session_state(self.get_session_key(key), to_store)
 
     def get_key(self, category, **kwargs):
@@ -235,7 +238,7 @@ class Closet:
         return key
 
     def get_session_key(self, key):
-        return tuple(key.values())
+        return tuple(v for v in key.values() if v)
 
     def get_cloud_key(self, key):
         return '/'.join('/'.join([k, key[k]]) for k in key if key[k])[len('category/'):]
