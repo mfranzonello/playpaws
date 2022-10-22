@@ -304,7 +304,7 @@ class Spotter(Streamable, Caller):
         self.database.store_playlists(playlists_db, theme=theme)
         print(f'THEME: {theme} SUCCESS!')
 
-    def update_best_playlists(self, league_id=league_ids):
+    def update_best_playlists(self, league_ids=None):
         theme = 'best'
 
         player_id = self.database.get_god_id()
@@ -333,7 +333,7 @@ class Spotter(Streamable, Caller):
         self.database.store_playlists(playlists_db, theme=theme)
         print(f'THEME: {theme} SUCCESS!')
 
-    def update_favorite_playlists(self, league_id=league_ids):
+    def update_favorite_playlists(self, league_ids=None):
         theme = 'favorite'
 
         playlists_db = self.database.get_playlists(theme)
