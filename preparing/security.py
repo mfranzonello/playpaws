@@ -3,16 +3,14 @@
 from base64 import b64encode
 from nacl import encoding, public
 from datetime import datetime, timedelta
-import re
-import os
 
 import browser_cookie3 as browsercookie
-import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service as ChromeService
 from selenium.webdriver.common.by import By
-#from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.action_chains import ActionChains
+from webdriver_manager.chrome import ChromeDriverManager
 
 from common.calling import Caller
 from common.secret import get_secret, set_secret, list_secrets
@@ -100,17 +98,17 @@ class Baker:
     def __init__(self):
         self.domain_name = APP_URL.replace('https://', '') 
 
-    def mix_cookies(self):
-        ''' get cookie values '''
-        print('Getting cookies...')
-        cj = browsercookie.chrome(domain_name=self.domain_name)
-        cookie_name = list(cj._cookies[f'.{self.domain_name}']['/'].keys())[0]
-        cookie_value = cj._cookies[f'.{self.domain_name}']['/'][cookie_name].value
-        expiration_date = datetime.utcfromtimestamp(cj._cookies[f'.{self.domain_name}']['/'][cookie_name].expires)
+    ##def mix_cookies(self):
+    ##    ''' get cookie values '''
+    ##    print('Getting cookies...')
+    ##    cj = browsercookie.chrome(domain_name=self.domain_name)
+    ##    cookie_name = list(cj._cookies[f'.{self.domain_name}']['/'].keys())[0]
+    ##    cookie_value = cj._cookies[f'.{self.domain_name}']['/'][cookie_name].value
+    ##    expiration_date = datetime.utcfromtimestamp(cj._cookies[f'.{self.domain_name}']['/'][cookie_name].expires)
         
-        return cookie_name, cookie_value, expiration_date
+    ##    return cookie_name, cookie_value, expiration_date
 
-    def bake_cookies(self, cookie_name, cookie_value, lockbox):
+    def bake_cookies(self, cookie_value, lockbox): #cookie_name
         ''' add new values to environments '''
         print('\t...storing secrets locally')
         set_secret('ML_COOKIE_VALUE', cookie_value)
@@ -119,25 +117,25 @@ class Baker:
             print('\t...storing secrets remotely')
             lockbox.store_secret('ML_COOKIE_VALUE', cookie_value)
 
-    def is_stale(self, date, days_left=0):
-        return date <= datetime.utcnow() - timedelta(days=days_left)
+    ##def is_stale(self, date, days_left=0):
+    ##    return date <= datetime.utcnow() - timedelta(days=days_left)
 
-    def check_freshness(self):
-        _, _, expiration_date = self.mix_cookies()
-        stale = self.is_stale(expiration_date)
-        if stale:
-            ## launch browser and get new cookie
-            print('\t...cookies have expired!')
-        else:
-            print('\t...cookies are still fresh!')
+    ##def check_freshness(self):
+    ##    _, _, expiration_date = self.mix_cookies()
+    ##    stale = self.is_stale(expiration_date)
+    ##    if stale:
+    ##        ## launch browser and get new cookie
+    ##        print('\t...cookies have expired!')
+    ##    else:
+    ##        print('\t...cookies are still fresh!')
 
-        return stale
+    ##    return stale
 
-    def reset_cookies(self, lockbox=None):
-        ''' retrieve and store cookie values '''
-        cookie_name, cookie_value, _ = self.mix_cookies()
+    ##def reset_cookies(self, lockbox=None):
+    ##    ''' retrieve and store cookie values '''
+    ##    cookie_name, cookie_value, _ = self.mix_cookies()
 
-        self.bake_cookies(cookie_name, cookie_value, lockbox)
+    ##    self.bake_cookies(cookie_name, cookie_value, lockbox)
 
 class Selena:
     def __init__(self, credentials=None):
@@ -157,6 +155,7 @@ class Selena:
 
     def turn_on(self):
         print('Running Chrome in background...')
+
         self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()),
                                        options=self.options)
 
@@ -173,55 +172,37 @@ class Selena:
         print(f'\t...going to {url}')
         self.driver.get(url)
 
-    def login(self, attempts=5):
-        attempt = 0
-        while (attempt < attempts) and (not self.logged_in):
-            if self.driver is None:
-                self.turn_on()
+    def login(self):
+        # warning, don't run more than once a week or Spotify will force a password change
 
-            self.go_to_site()\
-
-            pre_url = self.driver.current_url
-
-            self.driver.find_element_by_link_text('Log In!').click()
-
-            if self.credentials:
-                for credential in self.credentials:
-                    self.driver.find_element_by_id(credential).send_keys(self.credentials[credential])
-
-            self.driver.find_element_by_id('login-button').click()
-
-            post_url = self.driver.current_url
-
-            # log in is successful if the page looks different but has same starting HTTPS
-            self.logged_in = (pre_url != post_url) & (pre_url in post_url)
-
-            if self.logged_in:
-                print('Log in successful!')
-                print(f'pre: {pre_url}, post: {post_url}')
-            else:
-                self.turn_off()
-                print(f'Log in failed! (attempt {attempt+1}/{attempts}')
-
-            attempt += 1
-
-    def login_and_get_cookie(self):
         # go to MusicLeague
-        driver.get(APP_URL)
-        driver.find_element(By.CLASS_NAME, 'loginButton').click()
+        self.go_to_site(APP_URL)
+        self.driver.find_element(By.CLASS_NAME, 'loginButton').click()
 
         # log in to Spotify
-        driver.find_element(By.ID, 'login-username').send_keys(SPOTIFY_USERNAME)
-        driver.find_element(By.ID, 'login-password').send_keys(get_secret('SPOTIFY_PASSWORD'))
-        driver.find_element(BY.ID, 'login-button').click()
+        self.driver.find_element(By.ID, 'login-username').send_keys(SPOTIFY_USERNAME)
+        self.driver.find_element(By.ID, 'login-password').send_keys(get_secret('SPOTIFY_PASSWORD'))
+        self.driver.find_element(By.ID, 'login-button').click()
+        ##time.sleep(3)
+
+        element = self.driver.find_element(By.XPATH, '//button[@data-testid="auth-accept"]')
+        actions = ActionChains(self.driver)
+        actions.move_to_element(element).perform()
 
         # authorize Spotify
-        driver.find_element(By.X_PATH, '//*[@id="root"]/div/div[2]/div/div/div[3]/button/div[1]').click()
+        logged_in = False
+        try:
+            self.driver.find_element(By.XPATH, '//button[@data-testid="auth-accept"]').click()
+            logged_in = True
+        except:
+            print('Log into MusicLeague failed')
 
+        return logged_in
+
+    def get_cookie(self):
         # get MusicLeague cookie
         found_cookie = None
-
-        cookies = driver.get_cookies()
+        cookies = self.driver.get_cookies()
         for cookie in cookies:
             if cookie['domain'] in APP_URL.replace('https://', '.'):
                 found_cookie = {'name': cookie['name'],
